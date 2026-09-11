@@ -155,61 +155,6 @@ enum HomeSource: String, Codable, Sendable, Hashable {
     }
 }
 
-/// A Home feed is either public guest discovery or owned by one concrete YouTube channel.
-enum HomeFeedScope: Codable, Hashable, Sendable {
-    case guest
-    case account(channelID: String)
-
-    init(accountChannelID: String?) {
-        let normalized = accountChannelID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !normalized.isEmpty else {
-            self = .guest
-            return
-        }
-        self = .account(channelID: normalized)
-    }
-
-    var cacheNamespace: String {
-        switch self {
-        case .guest:
-            return "guest"
-        case .account(let channelID):
-            let safeID = channelID.unicodeScalars.map { scalar -> Character in
-                CharacterSet.alphanumerics.contains(scalar) || scalar.value == 45 || scalar.value == 95
-                    ? Character(String(scalar)) : "_"
-            }
-            return "account-\(String(safeID))"
-        }
-    }
-}
-
-/// Home discovery input: carries the lightweight signals a provider needs to build sections.
-struct HomeDiscoveryInput: Sendable, Equatable {
-    let topArtistNames: [String]
-    let recentlyPlayedArtistNames: [String]
-    let likedArtistNames: [String]
-    let timeBand: ListeningContext.TimeBand
-    let hour: Int
-    let seedVideoIds: [String]
-    let scope: HomeFeedScope
-
-    init(topArtistNames: [String],
-         recentlyPlayedArtistNames: [String],
-         likedArtistNames: [String],
-         timeBand: ListeningContext.TimeBand,
-         hour: Int,
-         seedVideoIds: [String] = [],
-         scope: HomeFeedScope) {
-        self.topArtistNames = topArtistNames
-        self.recentlyPlayedArtistNames = recentlyPlayedArtistNames
-        self.likedArtistNames = likedArtistNames
-        self.timeBand = timeBand
-        self.hour = hour
-        self.seedVideoIds = seedVideoIds
-        self.scope = scope
-    }
-}
-
 /// Durable cache/API boundary for one complete Home response. Section-level
 /// metadata remains available for mixed-source composition, while the snapshot
 /// provides one manifest that can be rejected before any cross-account content

@@ -31,6 +31,16 @@ public struct YTDlpPlaylistEntry: Codable, Sendable, Equatable, Identifiable {
         self.album = album
         self.releaseYear = releaseYear
     }
+
+    var inferredMediaKind: TrackMediaKind {
+        if track != nil || album != nil { return .song }
+        let normalized = title.lowercased()
+        let videoMarkers = [
+            "official music video", "official video", "music video", "m/v", " mv",
+            "官方mv", "音乐录像", "音樂錄影帶"
+        ]
+        return videoMarkers.contains(where: normalized.contains) ? .musicVideo : .song
+    }
 }
 
 /// Backward compatibility namespace mapping to `YTDlpPlaylistEntry`.

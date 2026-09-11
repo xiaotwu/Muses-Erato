@@ -123,6 +123,7 @@ enum PrefKey {
     static let sidebarPlaylistOrder = "muses.ui.sidebarPlaylistOrder"
     /// Resume the audio queue after the YouTube video overlay is closed.
     static let resumeAfterVideo = "muses.playback.resumeAfterVideo"
+    static let ytPersonalDiscovery = "muses.yt.personalDiscovery"
     // MARK: - Feature flags (product upgrade switches; default false = existing behavior, opt in per feature)
     static let ffSmartHistory       = "muses.ff.smartHistory"
     static let ffSessions           = "muses.ff.sessions"

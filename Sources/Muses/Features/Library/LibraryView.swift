@@ -38,6 +38,9 @@ struct LibraryView: View {
                     // Category Filter Pills
                     filterPills
 
+                    // Core Native Features Grid
+                    featureNavigationGrid
+
                     // Listening Analytics Chart
                     listeningStatsSection
 
@@ -78,6 +81,120 @@ struct LibraryView: View {
             }
             .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
         }
+    }
+
+    // MARK: - Core Native Features Grid
+
+    private var featureNavigationGrid: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), spacing: 12)], spacing: 12) {
+            NavigationLink {
+                PlaylistsView()
+            } label: {
+                featureCard(
+                    title: tr("Playlists", "歌单"),
+                    subtitle: tr("\(playlists.count) collections", "\(playlists.count) 个歌单"),
+                    icon: "music.note.list",
+                    tint: BrandColors.magenta
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                SongsListView()
+            } label: {
+                featureCard(
+                    title: tr("Songs", "已存歌曲"),
+                    subtitle: tr("\(tracks.count) tracks", "\(tracks.count) 首歌曲"),
+                    icon: "music.quarternote.3",
+                    tint: Color(red: 255/255, green: 149/255, blue: 0)
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                HistoryView()
+            } label: {
+                featureCard(
+                    title: tr("History", "收听历史"),
+                    subtitle: tr("Heatmap & Stats", "热力图与数据"),
+                    icon: "flame.fill",
+                    tint: Color(red: 255/255, green: 45/255, blue: 85)
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                InboxView()
+            } label: {
+                featureCard(
+                    title: tr("Inbox", "音乐收件箱"),
+                    subtitle: tr("Triage & Notes", "发现与整理"),
+                    icon: "tray.and.arrow.down.fill",
+                    tint: Color(red: 88/255, green: 86/255, blue: 214)
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                FocusView()
+            } label: {
+                featureCard(
+                    title: tr("Focus Mode", "专注模式"),
+                    subtitle: tr("Pomodoro Timer", "番茄钟与流态"),
+                    icon: "brain.head.profile",
+                    tint: Color(red: 52/255, green: 199/255, blue: 89)
+                )
+            }
+            .buttonStyle(.plain)
+
+            NavigationLink {
+                YouTubeImportsView()
+            } label: {
+                featureCard(
+                    title: tr("YouTube", "YouTube 导入"),
+                    subtitle: tr("Sync & Cloud", "歌单同步"),
+                    icon: "play.rectangle.on.rectangle.fill",
+                    tint: Color(red: 255/255, green: 59/255, blue: 48)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+    }
+
+    private func featureCard(title: String, subtitle: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.18))
+                    .frame(width: 36, height: 36)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(tint)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(BrandColors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                Text(subtitle)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(BrandColors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+
+            Spacer(minLength: 0)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(BrandColors.textTertiary.opacity(0.6))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .musesGlass(cornerRadius: 14, role: .compactControl)
     }
 
     // MARK: - Listening Stats Chart

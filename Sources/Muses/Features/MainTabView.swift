@@ -51,9 +51,11 @@ struct MainTabView: View {
         }
         .fullScreenCover(isPresented: $showNowPlaying) {
             NowPlayingView(playback: playback, isPresented: $showNowPlaying)
+                .environment(playback)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(playback: playback)
+                .environment(playback)
         }
     }
 

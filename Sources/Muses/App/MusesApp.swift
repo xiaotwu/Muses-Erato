@@ -6,12 +6,24 @@ import AVFoundation
 struct MusesApp: App {
     private let container: ModelContainer
     @State private var playback: PlaybackService
+    private let libraryService: LibraryService
+    private let playlistService: PlaylistService
+    private let inboxService: InboxService
+    private let focusService: FocusService
+    private let sleepTimerService: SleepTimerService
+    private let historyService: HistoryService
+    private let notesService: NotesService
+    private let youTubeAccountService: YouTubeAccountService
+    private let youTubeImportService: YouTubeImportService
+    private let youTubeSearchService: YouTubeSearchService
+    private let youTubePlaylistSyncService: YouTubePlaylistSyncService
     private let nowPlayingManager: NowPlayingManager
 
     init() {
         // Initialize SwiftData store
         let storeResult = makeModelContainerWithFallback()
-        self.container = storeResult.container
+        let storeContainer = storeResult.container
+        self.container = storeContainer
 
         // Initialize Audio Session for Background Playback
         #if os(iOS)
@@ -27,11 +39,26 @@ struct MusesApp: App {
         // Instantiate Playback Engine & Core Services
         let engine = YouTubeStreamEngine()
         let queue = QueueService()
-        queue.modelContext = ModelContext(storeResult.container)
-        let library = LibraryService(modelContainer: storeResult.container)
+        queue.modelContext = ModelContext(storeContainer)
+        let library = LibraryService(modelContainer: storeContainer)
         let playbackService = PlaybackService(engine: engine, queue: queue, library: library)
 
         self._playback = State(initialValue: playbackService)
+        self.libraryService = library
+        self.playlistService = PlaylistService(modelContainer: storeContainer)
+        self.inboxService = InboxService(modelContainer: storeContainer, eventBus: playbackService.eventBus)
+        self.focusService = FocusService(modelContainer: storeContainer, eventBus: playbackService.eventBus, playback: playbackService)
+        self.sleepTimerService = SleepTimerService(playbackService: playbackService)
+        self.historyService = HistoryService(modelContainer: storeContainer, eventBus: playbackService.eventBus)
+        self.notesService = NotesService(modelContainer: storeContainer)
+
+        let bridge = YouTubeResolver.shared
+        let account = YouTubeAccountService()
+        self.youTubeAccountService = account
+        self.youTubeImportService = YouTubeImportService(bridge: bridge, modelContainer: storeContainer)
+        self.youTubeSearchService = YouTubeSearchService(bridge: bridge, modelContainer: storeContainer)
+        self.youTubePlaylistSyncService = YouTubePlaylistSyncService(modelContainer: storeContainer, account: account)
+
         self.nowPlayingManager = NowPlayingManager(playbackService, library: library, queue: queue)
 
         // Seed initial sample track if queue is empty
@@ -60,6 +87,18 @@ struct MusesApp: App {
         WindowGroup {
             MainTabView(playback: playback)
                 .modelContainer(container)
+                .environment(playback)
+                .environment(libraryService)
+                .environment(playlistService)
+                .environment(inboxService)
+                .environment(focusService)
+                .environment(sleepTimerService)
+                .environment(historyService)
+                .environment(notesService)
+                .environment(youTubeAccountService)
+                .environment(youTubeImportService)
+                .environment(youTubeSearchService)
+                .environment(youTubePlaylistSyncService)
                 .preferredColorScheme(.dark)
         }
     }
