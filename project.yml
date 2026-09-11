@@ -1,0 +1,55 @@
+name: Muses
+options:
+  bundleIdPrefix: com.xiaotwu.muses
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: "minimal"
+    SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+    SUPPORTS_MACCATALYST: NO
+    GENERATE_INFOPLIST_FILE: NO
+    PRODUCT_NAME: Muses
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+targets:
+  Muses:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/Muses
+    settings:
+      base:
+        INFOPLIST_FILE: Sources/Muses/Resources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.erato
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  MusesTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/MusesTests
+    dependencies:
+      - target: Muses
+    settings:
+      base:
+        PRODUCT_NAME: MusesTests
+        PRODUCT_MODULE_NAME: MusesTests
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.erato.tests
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses"
+
+schemes:
+  Muses:
+    build:
+      targets:
+        Muses: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MusesTests
+

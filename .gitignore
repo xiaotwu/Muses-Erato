@@ -1,0 +1,20 @@
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Artifacts & Local caches
+.artifacts/
+artifacts/
+shot/
+.cache/
+
+# User-specific
+client_secret*.json
