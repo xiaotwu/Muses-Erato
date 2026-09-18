@@ -61,7 +61,7 @@ public struct LyricsKaraokeView: View {
             Text(tr("No Lyrics Available", "暂无歌词", zhHant: "暫無歌詞"))
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.72))
-            Text(tr("Tap cover art to return", "点按封面返回", zhHant: "點按封面返回"))
+            Text(tr("Use the cover button to return", "点按左上角返回封面", zhHant: "點按左上角返回封面"))
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.42))
         }

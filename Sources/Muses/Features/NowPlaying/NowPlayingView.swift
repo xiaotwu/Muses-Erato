@@ -88,11 +88,19 @@ struct NowPlayingView: View {
         }
         .onAppear {
             Task { await loadLyrics() }
+        }
+        .task {
             #if DEBUG
+            // After first layout so track onChange does not clear the one-shot flag.
+            try? await Task.sleep(nanoseconds: 350_000_000)
             applyDebugLyricsFlag()
             #endif
         }
-        .onChange(of: currentTrack?.id) { _, _ in
+        .onChange(of: currentTrack?.id) { oldId, newId in
+            guard oldId != nil, oldId != newId else {
+                Task { await loadLyrics() }
+                return
+            }
             showLyrics = false
             Task { await loadLyrics() }
         }
