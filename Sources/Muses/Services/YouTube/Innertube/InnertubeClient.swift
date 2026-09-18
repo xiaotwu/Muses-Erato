@@ -75,6 +75,41 @@ final class InnertubeClient {
         return try await jsonObject(for: request)
     }
 
+    /// `music.youtube.com/youtubei/v1/search` (WEB_REMIX).
+    func search(query: String, params: String? = nil, continuation: String? = nil, timeout: TimeInterval = 20) async throws -> [String: Any] {
+        guard let url = URL(string: "https://music.youtube.com/youtubei/v1/search?prettyPrint=false") else {
+            throw InnertubeError.invalidResponse
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = timeout
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(configuration.musicOrigin, forHTTPHeaderField: "Origin")
+        request.setValue("\(configuration.musicOrigin)/", forHTTPHeaderField: "Referer")
+        request.setValue(configuration.musicUserAgent, forHTTPHeaderField: "User-Agent")
+        applyAuth(&request)
+        var payload: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": configuration.webRemixClientName,
+                    "clientVersion": configuration.webRemixClientVersion,
+                    "hl": configuration.language,
+                    "gl": configuration.region
+                ]
+            ]
+        ]
+        if let continuation {
+            payload["continuation"] = continuation
+        } else {
+            payload["query"] = query
+            if let params {
+                payload["params"] = params
+            }
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        return try await jsonObject(for: request)
+    }
+
     private func applyAuth(_ request: inout URLRequest) {
         if case .oauth(let token) = authentication, !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
