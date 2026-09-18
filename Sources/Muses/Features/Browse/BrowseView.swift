@@ -1,18 +1,25 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
-/// Browse / New Releases discovery view with landscape editorial cards and best new songs matrix.
+/// Browse / discovery: Innertube new releases + charts, genre search chips.
+/// No demo tracks or fake `sample-…` video IDs.
 struct BrowseView: View {
     @Bindable var playback: PlaybackService
+    @Environment(YouTubeSearchService.self) private var searchService
 
-    private let editorialReleases = [
-        ("Liquid Resonance", "Erato Ensemble", Color(red: 0.98, green: 0.35, blue: 0.42)),
-        ("Spatial Odyssey", "Cyber Soundscapes", Color(red: 0.25, green: 0.45, blue: 0.95)),
-        ("Anime Piano Chronicles", "Emotional Soundtracks", Color(red: 0.55, green: 0.2, blue: 0.8))
-    ]
+    @State private var newReleases: [YTDlpPlaylistEntry] = []
+    @State private var charts: [YTDlpPlaylistEntry] = []
+    @State private var genreResults: [YTDlpPlaylistEntry] = []
+    @State private var selectedGenre: String?
+    @State private var isLoading = false
+    @State private var isSearchingGenre = false
+    @State private var loadError: String?
 
     private let genres = [
-        "J-Pop", "ACG / Anime", "Lo-Fi & Study", "Electronic / EDM",
-        "Classical & Piano", "Rock & Metal", "R&B / Soul", "Hip-Hop"
+        "J-Pop", "Anime", "Lo-Fi", "Electronic",
+        "Classical", "Rock", "R&B", "Hip-Hop"
     ]
 
     init(playback: PlaybackService) {
@@ -23,143 +30,69 @@ struct BrowseView: View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionSpacing) {
-                    // Featured Editorial Carousel
-                    editorialSection
-
-                    // Best New Songs
-                    bestNewSongsSection
-
-                    // Browse by Genre
-                    genreGridSection
-
+                    if let loadError, newReleases.isEmpty && charts.isEmpty {
+                        EmptyStateView(
+                            icon: "wifi.exclamationmark",
+                            title: tr("Couldn’t load Browse", "无法加载发现页"),
+                            subtitle: loadError
+                        )
+                        .padding(.top, 32)
+                    } else {
+                        shelfSection(
+                            title: tr("New Releases", "新发行"),
+                            entries: newReleases,
+                            loading: isLoading && newReleases.isEmpty
+                        )
+                        shelfSection(
+                            title: tr("Charts", "排行榜"),
+                            entries: charts,
+                            loading: isLoading && charts.isEmpty
+                        )
+                        genreGridSection
+                        if selectedGenre != nil {
+                            genreResultsSection
+                        }
+                    }
                     Color.clear.frame(height: 120)
                 }
                 .padding(.top, AppleMusicSpacing.pageTop)
             }
             .background(BrowseBackground())
-            .navigationTitle(tr("Browse", "新发现"))
+            .navigationTitle(tr("Browse", "发现"))
+            .refreshable { await loadCatalog(force: true) }
+            .task { await loadCatalog(force: false) }
         }
     }
 
-    // MARK: - Editorial Section
-
-    private var editorialSection: some View {
+    private func shelfSection(title: String, entries: [YTDlpPlaylistEntry], loading: Bool) -> some View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            Text(tr("New Releases", "新发行"))
+            Text(title)
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(BrandColors.textPrimary)
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppleMusicSpacing.shelfItemSpacing) {
-                    ForEach(editorialReleases, id: \.0) { item in
-                        Button {
-                            triggerHapticFeedback()
-                            playRelease(title: item.0, artist: item.1)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(tr("FEATURED SPOTLIGHT", "焦点推荐"))
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(BrandColors.accent)
-                                    .tracking(0.5)
-
-                                Text(item.0)
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundStyle(BrandColors.textPrimary)
-                                    .lineLimit(1)
-
-                                Text(item.1)
-                                    .font(.system(size: 14, weight: .regular))
-                                    .foregroundStyle(BrandColors.textSecondary)
-                                    .lineLimit(1)
-
-                                RoundedRectangle(cornerRadius: AppleMusicTokens.cardCornerRadius, style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [item.2, item.2.opacity(0.6)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 290, height: 165)
-                                    .overlay(
-                                        Image(systemName: "sparkles")
-                                            .font(.system(size: 40))
-                                            .foregroundStyle(.white.opacity(0.8))
-                                    )
-                                    .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)
-                            }
+            if loading {
+                ProgressView()
+                    .tint(BrandColors.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else if entries.isEmpty {
+                Text(tr("Nothing here yet", "这里还没有内容"))
+                    .font(.subheadline)
+                    .foregroundStyle(BrandColors.textSecondary)
+                    .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppleMusicSpacing.shelfItemSpacing) {
+                        ForEach(entries) { entry in
+                            entryCard(entry, width: 140)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
                 }
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
             }
         }
     }
-
-    // MARK: - Best New Songs Section
-
-    private var bestNewSongsSection: some View {
-        VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            Text(tr("Best New Songs", "精选新歌"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(BrandColors.textPrimary)
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-
-            VStack(spacing: 6) {
-                songRow(title: "Triumph on the Ice (Rock Remix)", artist: "Streetwise Rhapsody", duration: "3:34")
-                songRow(title: "酸橙色信笺 (Letter in Orange)", artist: "Monster Siren Records", duration: "3:08")
-                songRow(title: "芽吹の唄 (Spring Awakening)", artist: "Official Muses Project", duration: "4:05")
-                songRow(title: "Moonlight Sonata (Lo-Fi Rework)", artist: "Erato Ensemble", duration: "2:52")
-            }
-            .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-        }
-    }
-
-    private func songRow(title: String, artist: String, duration: String) -> some View {
-        Button {
-            triggerHapticFeedback()
-            playRelease(title: title, artist: artist)
-        } label: {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(BrandColors.surface)
-                    .frame(width: 44, height: 44)
-                    .overlay(
-                        Image(systemName: "music.note")
-                            .font(.system(size: 18))
-                            .foregroundStyle(BrandColors.accent)
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(BrandColors.textPrimary)
-                        .lineLimit(1)
-
-                    Text(artist)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(BrandColors.textSecondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                Text(duration)
-                    .font(.system(size: 13, weight: .regular, design: .monospaced))
-                    .foregroundStyle(BrandColors.textTertiary)
-
-                Image(systemName: "play.circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(BrandColors.accent)
-            }
-            .padding(.vertical, 6)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Genres Section
 
     private var genreGridSection: some View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
@@ -168,51 +101,198 @@ struct BrowseView: View {
                 .foregroundStyle(BrandColors.textPrimary)
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(
+                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                spacing: 10
+            ) {
                 ForEach(genres, id: \.self) { genre in
+                    let selected = selectedGenre == genre
                     Button {
-                        triggerHapticFeedback()
+                        Task { await selectGenre(genre) }
                     } label: {
-                        ZStack(alignment: .bottomLeading) {
-                            RoundedRectangle(cornerRadius: AppleMusicTokens.cardCornerRadius, style: .continuous)
-                                .fill(BrandColors.surface)
-                                .frame(height: 72)
-
-                            Text(genre)
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(BrandColors.textPrimary)
-                                .padding(12)
-                        }
+                        Text(genre)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(BrandColors.textPrimary)
+                            .frame(maxWidth: .infinity, minHeight: AppleMusicSpacing.hitTarget)
+                            .background {
+                                if selected {
+                                    Color.clear
+                                        .musesGlassCapsule(tint: BrandColors.accent.opacity(0.18), role: .compactControl)
+                                        .laserStroke(Capsule(), lineWidth: 1.0, opacity: 0.7)
+                                } else {
+                                    Capsule().fill(BrandColors.surface.opacity(0.35))
+                                }
+                            }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
             .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
         }
     }
 
-    private func playRelease(title: String, artist: String) {
-        let track = TrackSnapshot(
-            id: UUID(),
-            title: title,
-            artist: artist,
-            albumTitle: title,
-            durationSeconds: 200,
-            youTubeId: "sample-\(abs(title.hashValue))",
-            artworkUrl: nil,
-            sampleRate: 44100,
-            bitDepth: 16,
-            codec: "AAC",
-            isLossless: false,
-            lyrics: "[00:00.00]\(title)\n[00:08.00]Performed by \(artist)\n[00:20.00]Streamed via Muses-Erato iOS Engine\n[00:35.00]Liquid Glass and pure music"
-        )
-        playback.play(track)
+    private var genreResultsSection: some View {
+        VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
+            HStack {
+                Text(selectedGenre.map { tr("Results · \($0)", "结果 · \($0)") } ?? "")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(BrandColors.textPrimary)
+                Spacer()
+                if isSearchingGenre {
+                    ProgressView().tint(BrandColors.accent)
+                }
+            }
+            .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+
+            if !isSearchingGenre && genreResults.isEmpty {
+                Text(tr("No tracks found for this category", "该分类暂无结果"))
+                    .font(.subheadline)
+                    .foregroundStyle(BrandColors.textSecondary)
+                    .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(genreResults) { entry in
+                        entryRow(entry)
+                    }
+                }
+                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+            }
+        }
     }
 
-    private func triggerHapticFeedback() {
+    private func entryCard(_ entry: YTDlpPlaylistEntry, width: CGFloat) -> some View {
+        Button {
+            play(entry)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                ArtworkView(
+                    source: .resolve(remoteURL: YouTubeThumbnail.urlString(videoId: entry.id), youTubeId: entry.id),
+                    cornerRadius: AppleMusicTokens.cardCornerRadius,
+                    glyphSize: 36,
+                    targetSize: width,
+                    presentation: .fill
+                )
+                .frame(width: width, height: width)
+                .clipped()
+
+                Text(entry.title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(BrandColors.textPrimary)
+                    .lineLimit(2)
+                    .frame(width: width, alignment: .leading)
+
+                Text(entry.uploader ?? "")
+                    .font(.system(size: 12))
+                    .foregroundStyle(BrandColors.textSecondary)
+                    .lineLimit(1)
+                    .frame(width: width, alignment: .leading)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func entryRow(_ entry: YTDlpPlaylistEntry) -> some View {
+        Button {
+            play(entry)
+        } label: {
+            HStack(spacing: 12) {
+                ArtworkView(
+                    source: .resolve(remoteURL: YouTubeThumbnail.urlString(videoId: entry.id), youTubeId: entry.id),
+                    cornerRadius: 8,
+                    glyphSize: 16,
+                    targetSize: 44,
+                    presentation: .fill
+                )
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(BrandColors.textPrimary)
+                        .lineLimit(1)
+                    Text(entry.uploader ?? "")
+                        .font(.system(size: 13))
+                        .foregroundStyle(BrandColors.textSecondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                if let duration = entry.duration, duration > 0 {
+                    Text(formatDuration(duration))
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(BrandColors.textTertiary)
+                }
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(minHeight: AppleMusicSpacing.hitTarget)
+    }
+
+    private func loadCatalog(force: Bool) async {
+        if !force, (!newReleases.isEmpty || !charts.isEmpty) { return }
+        isLoading = true
+        loadError = nil
+        let client = YouTubeResolver.shared.sharedInnertube
+        async let releases = InnertubeCatalogBrowse.entries(
+            client: client,
+            browseId: YouTubeMusicCatalog.BrowseID.newReleases,
+            limit: 16
+        )
+        async let chartEntries = InnertubeCatalogBrowse.entries(
+            client: client,
+            browseId: YouTubeMusicCatalog.BrowseID.charts,
+            limit: 16
+        )
+        do {
+            let (a, b) = try await (releases, chartEntries)
+            newReleases = a
+            charts = b
+            if a.isEmpty && b.isEmpty {
+                loadError = tr(
+                    "Catalog returned no items. Pull to refresh or try again later.",
+                    "目录为空，下拉刷新或稍后再试。"
+                )
+            }
+        } catch {
+            loadError = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    private func selectGenre(_ genre: String) async {
+        selectedGenre = genre
+        isSearchingGenre = true
+        genreResults = []
+        do {
+            genreResults = try await searchService.search(query: "\(genre) music", limit: 20)
+        } catch {
+            genreResults = []
+        }
+        isSearchingGenre = false
+    }
+
+    private func play(_ entry: YTDlpPlaylistEntry) {
         #if os(iOS)
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
+        let track = TrackSnapshot(
+            id: UUID(),
+            title: entry.title,
+            artist: entry.uploader ?? "",
+            albumTitle: entry.album ?? entry.playlistTitle,
+            durationSeconds: entry.duration ?? 0,
+            youTubeId: entry.id,
+            artworkUrl: YouTubeThumbnail.urlString(videoId: entry.id),
+            sampleRate: nil,
+            bitDepth: nil,
+            codec: nil,
+            isLossless: false
+        )
+        playback.play(track, from: .search)
+    }
+
+    private func formatDuration(_ seconds: Double) -> String {
+        let s = Int(seconds.rounded())
+        return String(format: "%d:%02d", s / 60, s % 60)
     }
 }

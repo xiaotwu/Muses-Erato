@@ -45,8 +45,8 @@ struct EQEditorView: View {
                 applyBands()
                 activePresetIdRaw = "Flat"
             }
-            .buttonStyle(.bordered)
-            .tint(BrandColors.magenta)
+            .musesControls()
+            .tint(BrandColors.accent)
         }
     }
 
@@ -124,7 +124,7 @@ struct EQEditorView: View {
                             applyBands()
                         }), in: Double(gainRange.lowerBound)...Double(gainRange.upperBound))
                     .labelsHidden()
-                    .tint(BrandColors.magenta)
+                    .tint(BrandColors.accent)
                     .rotationEffect(.degrees(-90))
                     .frame(width: 30, height: 80)
                     Text(formatFreq(bands[idx].frequency))
@@ -146,8 +146,8 @@ struct EQEditorView: View {
                 Button {
                     showSaveDialog = true
                 } label: { Label(tr("Save As", "另存为"), systemImage: "plus") }
-                    .buttonStyle(.bordered)
-                    .tint(BrandColors.magenta)
+                    .musesControls()
+                    .tint(BrandColors.accent)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {

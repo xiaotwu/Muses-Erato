@@ -141,7 +141,8 @@ struct SearchView: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(BrandColors.textPrimary)
                                 .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
+                                .frame(minHeight: AppleMusicSpacing.hitTarget)
+                                .contentShape(Capsule())
                                 .background(BrandColors.surface, in: Capsule())
                         }
                         .buttonStyle(.plain)

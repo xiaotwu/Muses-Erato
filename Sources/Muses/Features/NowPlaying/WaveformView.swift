@@ -67,7 +67,20 @@ public struct WaveformView: View {
         }
 
         let n = peaks.count
-        guard n > 0 else { return }
+        guard n > 0 else {
+            // Soft scrubber fallback when waveform peaks are not cached yet.
+            let progress: Double = {
+                if let r = dragRatio { return r }
+                let dur = playback.state.duration
+                guard dur > 0 else { return 0 }
+                return min(1, max(0, playback.state.position / dur))
+            }()
+            let track = Path(roundedRect: CGRect(x: 0, y: size.height * 0.42, width: size.width, height: 4), cornerRadius: 2)
+            ctx.fill(track, with: .color(BrandColors.textSecondary.opacity(0.22)))
+            let filled = Path(roundedRect: CGRect(x: 0, y: size.height * 0.42, width: size.width * progress, height: 4), cornerRadius: 2)
+            ctx.fill(filled, with: .color(BrandColors.accent.opacity(0.9)))
+            return
+        }
 
         let width = size.width
         let height = size.height

@@ -7,10 +7,9 @@ struct LibraryView: View {
     @Query(sort: \Track.addedAt, order: .reverse) private var tracks: [Track]
     @Query(sort: \Playlist.createdAt, order: .reverse) private var playlists: [Playlist]
 
-    @State private var selectedFilter: LibraryCategory = .all
+    @State private var selectedFilter: LibraryCategory = .songs
 
     enum LibraryCategory: String, CaseIterable, Identifiable {
-        case all = "All"
         case playlists = "Playlists"
         case songs = "Songs"
         case liked = "Liked"
@@ -19,7 +18,6 @@ struct LibraryView: View {
 
         var localizedTitle: String {
             switch self {
-            case .all: return tr("All", "全部")
             case .playlists: return tr("Playlists", "歌单")
             case .songs: return tr("Songs", "已存歌曲")
             case .liked: return tr("Liked", "特别喜欢")
@@ -164,13 +162,16 @@ struct LibraryView: View {
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
             if tracks.isEmpty {
-                // Fallback default sample items if library is fresh
-                VStack(spacing: 8) {
-                    sampleLibraryRow(title: "Triumph on the Ice (Rock Remix)", artist: "Streetwise Rhapsody", duration: "3:34")
-                    sampleLibraryRow(title: "酸橙色信笺 (Letter in Orange)", artist: "Monster Siren Records", duration: "3:08")
-                    sampleLibraryRow(title: "芽吹の唄 (Spring Awakening)", artist: "Official Muses Project", duration: "4:05")
-                }
+                EmptyStateView(
+                    icon: "music.note.list",
+                    title: tr("No songs yet", "还没有歌曲"),
+                    subtitle: tr(
+                        "Import a YouTube playlist or use Search to add tracks.",
+                        "导入 YouTube 歌单或用搜索添加曲目。"
+                    )
+                )
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+                .padding(.top, 12)
             } else {
                 VStack(spacing: 8) {
                     ForEach(filteredTracks) { track in
@@ -207,9 +208,23 @@ struct LibraryView: View {
                                         .foregroundStyle(BrandColors.accent)
                                 }
 
-                                Image(systemName: "ellipsis")
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(BrandColors.textTertiary)
+                                Menu {
+                                    Button(tr("Play", "播放"), systemImage: "play.fill") {
+                                        playback.play(TrackSnapshot(from: track))
+                                    }
+                                    Button(
+                                        track.liked ? tr("Unlike", "取消喜欢") : tr("Like", "喜欢"),
+                                        systemImage: track.liked ? "heart.slash" : "heart"
+                                    ) {
+                                        toggleLike(track)
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(BrandColors.textTertiary)
+                                        .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)
+                                        .contentShape(Rectangle())
+                                }
                             }
                             .padding(.vertical, 4)
                         }
@@ -221,71 +236,26 @@ struct LibraryView: View {
         }
     }
 
-    private func sampleLibraryRow(title: String, artist: String, duration: String) -> some View {
-        Button {
-            triggerHapticFeedback()
-            let track = TrackSnapshot(
-                id: UUID(),
-                title: title,
-                artist: artist,
-                albumTitle: title,
-                durationSeconds: 210,
-                youTubeId: "sample-\(abs(title.hashValue))",
-                artworkUrl: nil,
-                sampleRate: 44100,
-                bitDepth: 16,
-                codec: "AAC",
-                isLossless: false,
-                lyrics: "[00:00.00]\(title)\n[00:06.00]Artist: \(artist)\n[00:15.00]Playing from Muses Library"
-            )
-            playback.play(track)
-        } label: {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(BrandColors.surface)
-                    .frame(width: 44, height: 44)
-                    .overlay(
-                        Image(systemName: "music.note")
-                            .font(.system(size: 18))
-                            .foregroundStyle(BrandColors.accent)
-                    )
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(BrandColors.textPrimary)
-                        .lineLimit(1)
-
-                    Text(artist)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(BrandColors.textSecondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                Text(duration)
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(BrandColors.textTertiary)
-            }
-            .padding(.vertical, 4)
-        }
-        .buttonStyle(.plain)
-    }
 
     private var songListTitle: String {
         switch selectedFilter {
+        case .playlists: return tr("Playlists", "歌单")
         case .liked: return tr("Liked", "特别喜欢")
         case .songs: return tr("Songs", "已存歌曲")
-        default: return tr("Recently Added", "最近添加")
         }
     }
 
     private var filteredTracks: [Track] {
         switch selectedFilter {
-        case .all, .songs, .playlists: return tracks
+        case .playlists: return []
+        case .songs: return tracks
         case .liked: return tracks.filter { $0.liked }
         }
+    }
+
+    private func toggleLike(_ track: Track) {
+        track.liked.toggle()
+        try? track.modelContext?.save()
     }
 
     private func triggerHapticFeedback() {
