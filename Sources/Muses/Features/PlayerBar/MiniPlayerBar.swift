@@ -66,6 +66,7 @@ struct MiniPlayerBar: View {
                     .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
                 }
                 .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity)
                 .frame(height: AppleMusicTokens.miniPlayerHeight)
 
                 // Hairline Track Progress Bar
