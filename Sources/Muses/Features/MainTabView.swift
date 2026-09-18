@@ -36,7 +36,7 @@ struct MainTabView: View {
             .toolbar(.hidden, for: .tabBar)
             .tint(BrandColors.accent)
 
-            // Hug the tab capsule + Search FAB so MiniPlayer width matches that cluster.
+            // Full-width dock: MiniPlayer and (tab capsule + Search FAB) share the same inset.
             VStack(spacing: AppleMusicTokens.miniPlayerDockMargin) {
                 if playback.state.track != nil {
                     let shape = RoundedRectangle(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, style: .continuous)
@@ -51,11 +51,13 @@ struct MainTabView: View {
 
                 HStack(alignment: .center, spacing: 10) {
                     floatingTabBar
+                        .frame(maxWidth: .infinity)
                     searchFAB
                 }
+                .frame(maxWidth: .infinity)
             }
-            .fixedSize(horizontal: true, vertical: false)
             .frame(maxWidth: .infinity)
+            .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
             .padding(.bottom, 6)
         }
         .fullScreenCover(isPresented: $showNowPlaying) {
@@ -147,7 +149,7 @@ struct MainTabView: View {
                     .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? BrandColors.accent : BrandColors.textSecondary)
             }
-            .frame(width: 76, height: AppleMusicTokens.tabBarHeight - 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Capsule())
             .background { tabSelectionChrome(isSelected: isSelected) }
         }
