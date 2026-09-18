@@ -110,7 +110,8 @@ struct ArtworkView: View {
                         ResolvedArtworkImage(
                             image: $0,
                             presentation: presentation,
-                            targetSize: targetSize
+                            width: targetSize,
+                            height: resolvedHeight
                         )
                     },
                     placeholder: { placeholder }
@@ -138,19 +139,18 @@ struct ArtworkView: View {
 private struct ResolvedArtworkImage: View {
     let image: Image
     let presentation: ArtworkPresentation
-    let targetSize: CGFloat
+    let width: CGFloat
+    let height: CGFloat
 
     @ViewBuilder
     var body: some View {
         switch presentation {
         case .fill:
-            // Width/height both cover the slot; overflow is center-cropped by the parent clip.
-            Color.clear
-                .overlay {
-                    image
-                        .resizable()
-                        .scaledToFill()
-                }
+            // Width-cover + center; crop overflow on the long sides (landscape → left/right).
+            image
+                .resizable()
+                .scaledToFill()
+                .frame(width: width, height: height, alignment: .center)
                 .clipped()
         case .fitOnAmbient:
             ZStack {
@@ -158,7 +158,7 @@ private struct ResolvedArtworkImage: View {
                     .resizable()
                     .scaledToFill()
                     .scaleEffect(1.18)
-                    .blur(radius: max(12, targetSize * 0.075), opaque: true)
+                    .blur(radius: max(12, width * 0.075), opaque: true)
                     .saturation(1.12)
                     .brightness(-0.12)
 
@@ -177,6 +177,8 @@ private struct ResolvedArtworkImage: View {
                     .scaledToFit()
                     .saturation(0.96)
             }
+            .frame(width: width, height: height)
+            .clipped()
         }
     }
 }

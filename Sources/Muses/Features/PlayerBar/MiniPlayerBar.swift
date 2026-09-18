@@ -87,7 +87,7 @@ struct MiniPlayerBar: View {
             }
             .musesGlass(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, role: .floatingPlayer)
             .laserStroke(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, lineWidth: 0.9, opacity: 0.62)
-            .padding(.horizontal, AppleMusicSpacing.chromeOuter)
+            // Width is owned by MainTabView (same inset as tab bar + Search FAB).
             .offset(y: dragOffset)
             .gesture(
                 DragGesture()

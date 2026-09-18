@@ -39,18 +39,19 @@ struct MainTabView: View {
             VStack(spacing: AppleMusicTokens.miniPlayerDockMargin) {
                 if playback.state.track != nil {
                     MiniPlayerBar(playback: playback, isNowPlayingExpanded: $showNowPlaying)
-                        .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
+                        .frame(maxWidth: .infinity)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // Tab capsule + independent Search FAB on the trailing edge of the same row.
+                // Tab capsule + independent Search FAB — same total width as MiniPlayer above.
                 HStack(alignment: .center, spacing: 10) {
                     floatingTabBar
                         .frame(maxWidth: .infinity)
                     searchFAB
                 }
-                .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
+                .frame(maxWidth: .infinity)
             }
+            .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
             .padding(.bottom, 6)
         }
         .fullScreenCover(isPresented: $showNowPlaying) {
