@@ -12,12 +12,14 @@ struct SearchView: View {
     @State private var results: [YTDlpPlaylistEntry] = []
     @State private var searchTask: Task<Void, Never>?
     @State private var recentSearches: [String] = SearchView.loadRecentSearches()
+    var isPresented: Binding<Bool>? = nil
 
     private static let recentSearchesKey = "muses.search.recentQueries"
     private static let recentLimit = 8
 
-    init(playback: PlaybackService) {
+    init(playback: PlaybackService, isPresented: Binding<Bool>? = nil) {
         self.playback = playback
+        self.isPresented = isPresented
     }
 
     private var localArtistSuggestions: [String] {
@@ -73,6 +75,16 @@ struct SearchView: View {
             .background(BrowseBackground())
             .navigationTitle(tr("Search", "搜索"))
             .searchable(text: $query, prompt: tr("Artists, Songs, Lyrics, and More", "艺人、歌曲、歌词等"))
+            .toolbar {
+                if let isPresented {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(tr("Close", "关闭")) {
+                            isPresented.wrappedValue = false
+                        }
+                        .musesControls()
+                    }
+                }
+            }
             .onChange(of: query) { _, newQuery in
                 performSearch(query: newQuery)
             }

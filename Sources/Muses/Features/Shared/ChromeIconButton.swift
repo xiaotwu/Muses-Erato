@@ -21,6 +21,7 @@ public struct ChromeIconButton: View {
                 .foregroundStyle(BrandColors.textPrimary)
                 .frame(width: 36, height: 36)
                 .musesGlass(in: Circle(), role: .compactControl)
+                .laserStrokeCircle(lineWidth: 0.9, opacity: 0.62)
         }
         .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
         .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)

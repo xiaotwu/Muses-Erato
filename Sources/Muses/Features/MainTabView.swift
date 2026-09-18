@@ -63,7 +63,7 @@ struct MainTabView: View {
         }
         .fullScreenCover(isPresented: $showSearch) {
             NavigationStack {
-                SearchView(playback: playback)
+                SearchView(playback: playback, isPresented: $showSearch)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button {

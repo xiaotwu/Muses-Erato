@@ -46,14 +46,16 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
     public let shape: S
     public let tint: Color?
     public let role: MusesGlassRole
+    public let showsLaserEdge: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
 
-    public init(shape: S, tint: Color? = nil, role: MusesGlassRole = .floatingPlayer) {
+    public init(shape: S, tint: Color? = nil, role: MusesGlassRole = .floatingPlayer, showsLaserEdge: Bool = true) {
         self.shape = shape
         self.tint = tint
         self.role = role
+        self.showsLaserEdge = showsLaserEdge
     }
 
     public func body(content: Content) -> some View {
@@ -67,7 +69,9 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
             content.background(BrandColors.surface, in: shape)
         case .glass:
             if #available(iOS 26.0, *) {
-                content.glassEffect(glassVariant, in: shape)
+                content
+                    .glassEffect(glassVariant, in: shape)
+                    .overlay { laserEdgeOverlay }
             } else {
                 materialFallback(content)
             }
@@ -81,6 +85,7 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
         content
             .background(.ultraThinMaterial, in: shape)
             .overlay(specularBorder)
+            .overlay { laserEdgeOverlay }
             .shadow(color: BrandColors.glassShadow, radius: 14, x: 0, y: 6)
     }
 
@@ -99,6 +104,21 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
         )
     }
 
+    
+    @ViewBuilder
+    private var laserEdgeOverlay: some View {
+        if showsLaserEdge {
+            shape.stroke(
+                AngularGradient(
+                    colors: BrandColors.laserSpectrum.map { $0.opacity(0.58) },
+                    center: .center
+                ),
+                lineWidth: 0.75
+            )
+            .allowsHitTesting(false)
+        }
+    }
+
     @available(iOS 26.0, *)
     private var glassVariant: Glass {
         let base = tint.map { Glass.regular.tint($0) } ?? .regular
@@ -113,28 +133,39 @@ public extension View {
     }
 
     /// Applies the Muses Liquid Glass effect to any custom shape.
-    func musesGlass<S: Shape>(in shape: S, tint: Color? = nil, role: MusesGlassRole = .floatingPlayer) -> some View {
-        modifier(MusesGlassModifier(shape: shape, tint: tint, role: role))
+    func musesGlass<S: Shape>(
+        in shape: S,
+        tint: Color? = nil,
+        role: MusesGlassRole = .floatingPlayer,
+        showsLaserEdge: Bool = true
+    ) -> some View {
+        modifier(MusesGlassModifier(shape: shape, tint: tint, role: role, showsLaserEdge: showsLaserEdge))
     }
 
     /// Convenience overload for continuous rounded rectangles (MiniPlayer, sheets, modals).
     func musesGlass(
         cornerRadius: CGFloat = AppleMusicTokens.miniPlayerCornerRadius,
         tint: Color? = nil,
-        role: MusesGlassRole = .floatingPlayer
+        role: MusesGlassRole = .floatingPlayer,
+        showsLaserEdge: Bool = true
     ) -> some View {
         modifier(
             MusesGlassModifier(
                 shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
                 tint: tint,
-                role: role
+                role: role,
+                showsLaserEdge: showsLaserEdge
             )
         )
     }
 
     /// Convenience overload for Capsule floating elements (Floating TabBar, scrubber decks).
-    func musesGlassCapsule(tint: Color? = nil, role: MusesGlassRole = .tabBar) -> some View {
-        modifier(MusesGlassModifier(shape: Capsule(), tint: tint, role: role))
+    func musesGlassCapsule(
+        tint: Color? = nil,
+        role: MusesGlassRole = .tabBar,
+        showsLaserEdge: Bool = true
+    ) -> some View {
+        modifier(MusesGlassModifier(shape: Capsule(), tint: tint, role: role, showsLaserEdge: showsLaserEdge))
     }
 
     /// Floating panel used in Search, Queue, and Sheets.

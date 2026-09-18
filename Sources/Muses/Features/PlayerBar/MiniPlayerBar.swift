@@ -86,6 +86,7 @@ struct MiniPlayerBar: View {
                 .frame(height: 2.5)
             }
             .musesGlass(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, role: .floatingPlayer)
+            .laserStroke(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, lineWidth: 0.9, opacity: 0.62)
             .padding(.horizontal, AppleMusicSpacing.chromeOuter)
             .offset(y: dragOffset)
             .gesture(
@@ -122,7 +123,7 @@ struct MiniPlayerBar: View {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
+                    image.resizable().scaledToFill()
                 default:
                     placeholderArtwork
                 }
@@ -135,7 +136,7 @@ struct MiniPlayerBar: View {
     private var placeholderArtwork: some View {
         ZStack {
             LinearGradient(
-                colors: [Color.pink.opacity(0.8), Color.purple.opacity(0.8)],
+                colors: [Color.gray.opacity(0.45), Color.gray.opacity(0.25)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
