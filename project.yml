@@ -3,14 +3,13 @@ options:
   bundleIdPrefix: com.xiaotwu.muses
   deploymentTarget:
     iOS: "18.0"
+    watchOS: "11.0"
 settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: "minimal"
-    SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
     SUPPORTS_MACCATALYST: NO
     GENERATE_INFOPLIST_FILE: NO
-    PRODUCT_NAME: Muses
     ENABLE_USER_SCRIPT_SANDBOXING: NO
 
 packages:
@@ -23,13 +22,60 @@ targets:
     platform: iOS
     sources:
       - path: Sources/Muses
+      - path: Sources/MusesShared
     dependencies:
       - package: MusesCore
+      - target: MusesWidgets
+      - target: MusesWatch
+        embed: true
+        codeSign: true
     settings:
       base:
         INFOPLIST_FILE: Sources/Muses/Resources/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.erato
+        PRODUCT_NAME: Muses
         TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Sources/Muses/Resources/Muses.entitlements
+
+  MusesWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Sources/MusesWidgets
+      - path: Sources/MusesShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.erato.widgets
+        INFOPLIST_FILE: Sources/MusesWidgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Sources/MusesWidgets/MusesWidgets.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+        PRODUCT_NAME: MusesWidgets
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+
+  MusesWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: Sources/MusesWatch
+      - path: Sources/MusesShared/WatchRemoteProtocol.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.erato.watchkitapp
+        PRODUCT_NAME: Muses
+        INFOPLIST_FILE: Sources/MusesWatch/Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "4"
+        SDKROOT: watchos
+        SUPPORTED_PLATFORMS: "watchos watchsimulator"
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        WK_COMPANION_APP_BUNDLE_IDENTIFIER: com.xiaotwu.muses.erato
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
   MusesTests:
     type: bundle.unit-test
@@ -46,12 +92,15 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.erato.tests
         BUNDLE_LOADER: "$(TEST_HOST)"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
 
 schemes:
   Muses:
     build:
       targets:
         Muses: all
+        MusesWidgets: all
+        MusesWatch: all
     run:
       config: Debug
     test:

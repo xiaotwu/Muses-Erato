@@ -21,6 +21,34 @@
                ReferencedContainer = "container:Muses.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "5C9220C5AE97D5F87EFFB6BB"
+               BuildableName = "MusesWatch.app"
+               BlueprintName = "MusesWatch"
+               ReferencedContainer = "container:Muses.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "68008FE352B06F95C1B5A985"
+               BuildableName = "MusesWidgets.appex"
+               BlueprintName = "MusesWidgets"
+               ReferencedContainer = "container:Muses.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
