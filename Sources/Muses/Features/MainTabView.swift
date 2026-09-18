@@ -65,12 +65,10 @@ struct MainTabView: View {
                 .environment(playback)
         }
         #if DEBUG
-        .onAppear {
-            let key = "muses.debug.expandNowPlaying"
-            if UserDefaults.standard.bool(forKey: key) {
-                UserDefaults.standard.set(false, forKey: key)
-                showNowPlaying = true
-            }
+        .task {
+            // Delay so covers/sheets are not cleared by the first layout pass.
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            applyDebugScreenFlags()
         }
         #endif
         .sheet(isPresented: $showSettings) {
@@ -172,6 +170,29 @@ struct MainTabView: View {
             }
         }
     }
+
+
+    #if DEBUG
+    private func applyDebugScreenFlags() {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: "muses.debug.selectedTab") != nil {
+            selectedTab = defaults.integer(forKey: "muses.debug.selectedTab")
+            defaults.removeObject(forKey: "muses.debug.selectedTab")
+        }
+        if defaults.bool(forKey: "muses.debug.expandNowPlaying") {
+            defaults.set(false, forKey: "muses.debug.expandNowPlaying")
+            showNowPlaying = true
+        }
+        if defaults.bool(forKey: "muses.debug.showSearch") {
+            defaults.set(false, forKey: "muses.debug.showSearch")
+            showSearch = true
+        }
+        if defaults.bool(forKey: "muses.debug.showSettings") {
+            defaults.set(false, forKey: "muses.debug.showSettings")
+            showSettings = true
+        }
+    }
+    #endif
 
     private func triggerHapticFeedback() {
         #if os(iOS)
