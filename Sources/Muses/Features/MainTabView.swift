@@ -40,17 +40,18 @@ struct MainTabView: View {
                 if playback.state.track != nil {
                     MiniPlayerBar(playback: playback, isNowPlayingExpanded: $showNowPlaying)
                         .frame(maxWidth: .infinity)
+                        .fixedSize(horizontal: false, vertical: true)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // Tab capsule + independent Search FAB — same total width as MiniPlayer above.
+                // Tab capsule + Search FAB share this row's full width with MiniPlayer.
                 HStack(alignment: .center, spacing: 10) {
                     floatingTabBar
                         .frame(maxWidth: .infinity)
                     searchFAB
                 }
-                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
             .padding(.bottom, 6)
         }
