@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Full-screen Now Playing: queue hero cards, spinning cover, simple transport.
+/// Full-screen Now Playing: queue hero cards, waveform seek, centered transport.
 struct NowPlayingView: View {
     @Bindable var playback: PlaybackService
     @Binding var isPresented: Bool
@@ -62,7 +62,7 @@ struct NowPlayingView: View {
 
                 identity
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 6)
 
                 if let message = playback.state.error?.errorDescription {
                     Text(message)
@@ -73,10 +73,17 @@ struct NowPlayingView: View {
                         .padding(.bottom, 8)
                 }
 
+                // Seekable waveform — special NP accent under title.
+                WaveformView()
+                    .frame(height: 36)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 10)
+                    .environment(playback)
+
                 NowPlayingTransportBar(playback: playback) {
                     showVideoSheet = true
                 }
-                .padding(.bottom, 16)
+                .padding(.bottom, 20)
             }
         }
         .onAppear { Task { await loadLyrics() } }
