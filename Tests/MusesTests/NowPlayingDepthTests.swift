@@ -130,7 +130,7 @@ final class NowPlayingDepthTests: XCTestCase {
 
     func testInnerTubeClientsFallbackOrderIsStable() {
         let clients = YouTubeInnerTubeClient.allCases
-        XCTAssertEqual(clients.count, 3)
-        XCTAssertEqual(clients, [.androidVR, .ios, .webEmbedded])
+        XCTAssertEqual(clients.count, 4)
+        XCTAssertEqual(clients, [.visionOS, .androidVR, .ios, .webEmbedded])
     }
 }

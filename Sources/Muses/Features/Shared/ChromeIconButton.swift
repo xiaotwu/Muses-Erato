@@ -1,8 +1,9 @@
 import SwiftUI
 
+/// Round chrome control: glass capsule/circle, ≥44pt hit, light press spring.
 public struct ChromeIconButton: View {
     public let systemName: String
-    public var help: String?
+    public var help: String? = nil
     public var accessibility: String
     public var action: () -> Void
 
@@ -18,11 +19,13 @@ public struct ChromeIconButton: View {
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(BrandColors.textPrimary)
-                .frame(width: 34, height: 34)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 0.5))
+                .frame(width: 36, height: 36)
+                .musesGlass(in: Circle(), role: .compactControl)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
+        .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)
+        .contentShape(Rectangle())
+        .help(help ?? accessibility)
         .accessibilityLabel(accessibility)
     }
 }

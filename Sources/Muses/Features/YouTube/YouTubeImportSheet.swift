@@ -21,10 +21,11 @@ struct YouTubeImportSheet: View {
             HStack {
                 Spacer()
                 Button(tr("Cancel", "取消")) { dismiss() }
+                    .musesControls()
                 Button(tr("Import", "导入")) {
                     onImport(url)
                 }
-                .buttonStyle(.borderedProminent)
+                .musesAction(prominent: true)
                 .tint(BrandColors.magenta)
                 .disabled(url.isEmpty)
             }

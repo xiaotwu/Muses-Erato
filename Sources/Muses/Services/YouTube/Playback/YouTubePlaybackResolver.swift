@@ -66,9 +66,20 @@ final class YouTubePlaybackResolver: YouTubeStreamResolving {
     private func resolveViaInnerTube(videoID: String, timeout: TimeInterval = 20) async throws -> URL {
         for client in configuration.playerClients {
             do {
-                let json = try await innertube.player(videoID: videoID, client: client, timeout: timeout)
+                var json = try await innertube.player(videoID: videoID, client: client, timeout: timeout)
+                if InnertubeClient.playabilityStatus(of: json) == "LOGIN_REQUIRED" {
+                    log.warning("playabilityStatus LOGIN_REQUIRED for \(videoID) via \(String(describing: client))")
+                }
                 if let url = InnertubePlayerParser.audioURL(from: json) {
                     return url
+                }
+                // visionOS is first; if visitor bootstrap went stale, refresh once and retry.
+                if client == .visionOS {
+                    innertube.invalidateVisitorBootstrap()
+                    json = try await innertube.player(videoID: videoID, client: client, timeout: timeout)
+                    if let url = InnertubePlayerParser.audioURL(from: json) {
+                        return url
+                    }
                 }
             } catch {
                 continue

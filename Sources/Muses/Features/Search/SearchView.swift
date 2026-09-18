@@ -70,7 +70,7 @@ struct SearchView: View {
                 }
                 .padding(.top, AppleMusicSpacing.pageTop)
             }
-            .background(BrandColors.background)
+            .background(BrowseBackground())
             .navigationTitle(tr("Search", "搜索"))
             .searchable(text: $query, prompt: tr("Artists, Songs, Lyrics, and More", "艺人、歌曲、歌词等"))
             .onChange(of: query) { _, newQuery in

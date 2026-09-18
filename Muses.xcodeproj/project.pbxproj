@@ -22,6 +22,7 @@
 		0C486E20CA7AACE9D6E9D0EC /* EQPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F74AC47D9F5A34922E0267 /* EQPreset.swift */; };
 		0C4B75F5AB8E6169F38573A5 /* AudioInfoPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADB2934EFD1D08E6A6E1584 /* AudioInfoPanel.swift */; };
 		0D7765F5D6D7EF2EF0442D56 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5AE4543E0FC8959AAD5407D /* AppLogger.swift */; };
+		0FAB7A2D7A4B05CFF26CD379 /* GlassControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DC905892D5148A51EBC79F /* GlassControls.swift */; };
 		11BEF26424AB786BC2C69B09 /* CoverArtModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA23C9A115DE708A77E4C5CE /* CoverArtModeView.swift */; };
 		128C37983CF4CD5C0421F107 /* AutomationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CA97F9477FD3569796398CB /* AutomationService.swift */; };
 		15468F18ECA323D3F8C3747C /* PlaybackControlWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019EEC8AD5AC4BDF1D7DD5DB /* PlaybackControlWidgets.swift */; };
@@ -52,6 +53,7 @@
 		2EF1FBD5BE38C61F6BD04523 /* LyricsMatchPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD14099BAA9F1D698FFCD85 /* LyricsMatchPolicyTests.swift */; };
 		3078EB09BA76A1043EBF9AB2 /* InnertubePlayerParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E62B6272FE2FEA77B7362C28 /* InnertubePlayerParser.swift */; };
 		309352B4FB7ADE1AB8D5E250 /* WatchQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F39DB926225E2E57E263DE9 /* WatchQueueView.swift */; };
+		3358533306FBB21502DEBAAA /* GlassSurfaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5349DC34E66EF1B49EA4CA9B /* GlassSurfaceTests.swift */; };
 		346E243A2CFCE8EF747E05A5 /* AutomationRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CA3CEB4E8F45B758EC077E /* AutomationRule.swift */; };
 		3564F3DD28C3E76BA632C0A6 /* PlayerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B461EBEE4E176E1DEF26E786 /* PlayerEngine.swift */; };
 		35C4C4A2CA9E74FBCA96D145 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433D6BB57A38CEA9231E42C5 /* WaveformView.swift */; };
@@ -278,6 +280,7 @@
 		0F7EA797E917363AF596D3C4 /* QueueItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueItem.swift; sourceTree = "<group>"; };
 		10BC69BEDD96662CF26BC836 /* YouTubeStreamEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeStreamEngine.swift; sourceTree = "<group>"; };
 		10BE398AA11E074432FD02D9 /* BrowseBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseBackground.swift; sourceTree = "<group>"; };
+		11DC905892D5148A51EBC79F /* GlassControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassControls.swift; sourceTree = "<group>"; };
 		1390D54D331371D08EE0CF1F /* RuntimeCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCapabilities.swift; sourceTree = "<group>"; };
 		15109185E9CDBE401BE6EB3E /* MusesWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusesWidgetsBundle.swift; sourceTree = "<group>"; };
 		159795BCDD1190C00EE02866 /* CarPlayLibrarySource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarPlayLibrarySource.swift; sourceTree = "<group>"; };
@@ -326,6 +329,7 @@
 		4BF6E0E62A9306D5C6A0435E /* WebHomeProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebHomeProtocol.swift; sourceTree = "<group>"; };
 		5026B79A16DB7474E116ADCD /* NowPlayingTransportBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingTransportBar.swift; sourceTree = "<group>"; };
 		508BCC203AD2C0B80B26F51B /* ArtistOnlineDiscography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistOnlineDiscography.swift; sourceTree = "<group>"; };
+		5349DC34E66EF1B49EA4CA9B /* GlassSurfaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurfaceTests.swift; sourceTree = "<group>"; };
 		560CE2A5C9D31461C5AEB4E4 /* MediaFileCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFileCache.swift; sourceTree = "<group>"; };
 		57CA24BB2BFF7DA9C0E490F6 /* EditTrackSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditTrackSheet.swift; sourceTree = "<group>"; };
 		5A8C7C431208A3232A094989 /* YouTubeDataAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeDataAPIClient.swift; sourceTree = "<group>"; };
@@ -696,6 +700,7 @@
 				F8A3AC27C99B95B7262CE920 /* CollectionSongDeck.swift */,
 				B60E532EAC2085E38CC18DB7 /* CollectionTrackRow.swift */,
 				92065EB04A8ED428BD8689D8 /* EmptyStateView.swift */,
+				11DC905892D5148A51EBC79F /* GlassControls.swift */,
 				76546B420613634A3AFBC001 /* HoverPlayButton.swift */,
 				9C841FBCA40ADCDC5B2A89BC /* MusesMotion.swift */,
 				FFE8A0F182C1E7661BD2A899 /* MusicObjectMetrics.swift */,
@@ -941,6 +946,7 @@
 				EC6FCEAF57699F5AD590D1F1 /* AppCompositionTests.swift */,
 				8BB32CA93AB520A352A231B0 /* CarPlayCatalogTests.swift */,
 				3C429011C30EA9BB3AB1C06C /* FakePlayerEngine.swift */,
+				5349DC34E66EF1B49EA4CA9B /* GlassSurfaceTests.swift */,
 				C9A3F0DFECA51A244ECEF5D3 /* HomeDualModeTests.swift */,
 				DC3C8024680986DD248DE701 /* InnertubePlayerParserTests.swift */,
 				C3BF8E81E0BE98B369C1C989 /* InnertubeSearchParserTests.swift */,
@@ -1306,6 +1312,7 @@
 				6AC91E9C72FAFF1894CC660C /* FocusService.swift in Sources */,
 				0819A18B5B9B72FAE64D649A /* FocusSession.swift in Sources */,
 				E87809BE4BD4E37FB6D7BC4F /* FocusView.swift in Sources */,
+				0FAB7A2D7A4B05CFF26CD379 /* GlassControls.swift in Sources */,
 				08F4D89B79B76A710D0B9AE1 /* GlassSurface.swift in Sources */,
 				977A1AF8A82B3C85CDBA3DAA /* GlobalSearchService.swift in Sources */,
 				CA6098B79E66F75A7948FD07 /* GoogleOAuthSession.swift in Sources */,
@@ -1456,6 +1463,7 @@
 				2EBA39C1B18429916133D356 /* AppCompositionTests.swift in Sources */,
 				FFA40833398605E5AC565B69 /* CarPlayCatalogTests.swift in Sources */,
 				504D2A6179027DE6A08BFCC1 /* FakePlayerEngine.swift in Sources */,
+				3358533306FBB21502DEBAAA /* GlassSurfaceTests.swift in Sources */,
 				928AAB0BEDDD55157A520FD1 /* HomeDualModeTests.swift in Sources */,
 				B69EC711EAF28D58937BCD97 /* InnertubePlayerParserTests.swift in Sources */,
 				C5DF0505DA035B73959D9036 /* InnertubeSearchParserTests.swift in Sources */,

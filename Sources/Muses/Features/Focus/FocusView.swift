@@ -69,7 +69,7 @@ struct FocusView: View {
             } label: {
                 Label(tr("End Focus", "结束专注"), systemImage: "stop.fill")
             }
-            .buttonStyle(.borderedProminent)
+            .musesAction(prominent: true)
             .tint(BrandColors.magenta)
         }
     }
@@ -103,7 +103,7 @@ struct FocusView: View {
             } label: {
                 Label(tr("Start Focus", "开始专注"), systemImage: "play.fill")
             }
-            .buttonStyle(.borderedProminent)
+            .musesAction(prominent: true)
             .tint(BrandColors.magenta)
             .disabled(!focus.isEnabled)
         }

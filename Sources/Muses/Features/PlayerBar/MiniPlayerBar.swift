@@ -46,9 +46,10 @@ struct MiniPlayerBar: View {
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(BrandColors.textPrimary)
                             .frame(width: 38, height: 38)
+                            .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
 
                     // Next Button
                     Button {
@@ -59,9 +60,10 @@ struct MiniPlayerBar: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(BrandColors.textSecondary)
                             .frame(width: 36, height: 36)
+                            .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
                 }
                 .padding(.horizontal, 14)
                 .frame(height: AppleMusicTokens.miniPlayerHeight)

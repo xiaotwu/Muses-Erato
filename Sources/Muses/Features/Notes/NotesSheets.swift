@@ -69,7 +69,7 @@ struct TrackNotesSheet: View {
                 Button {
                     addBookmarkAtEnd()
                 } label: { Label(tr("Add", "添加"), systemImage: "plus") }
-                    .buttonStyle(.bordered).disabled(!enabled)
+                    .musesControls().disabled(!enabled)
             }
             if bookmarks.isEmpty {
                 Text(tr("No bookmarks", "无书签")).font(.caption).foregroundStyle(BrandColors.textSecondary)
@@ -104,7 +104,9 @@ struct TrackNotesSheet: View {
                 HStack {
                     Spacer()
                     Button(tr("Cancel", "取消")) { editingBookmark = nil }
-                    Button(tr("Save", "保存")) { saveEdit(bm) }.buttonStyle(.borderedProminent)
+                        .musesControls()
+                    Button(tr("Save", "保存")) { saveEdit(bm) }
+                        .musesAction(prominent: true)
                 }
             }
             .padding(20)

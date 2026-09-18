@@ -74,7 +74,7 @@ struct HomeView: View {
                 }
                 .padding(.top, AppleMusicSpacing.pageTop)
             }
-            .background(BrandColors.background)
+            .background(BrowseBackground())
             .navigationTitle(tr("Home", "首页"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -95,13 +95,13 @@ struct HomeView: View {
                     .accessibilityLabel(tr("Recommendation source", "推荐来源"))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
+                    ChromeIconButton(
+                        systemName: "gearshape",
+                        help: tr("Settings", "设置"),
+                        accessibility: tr("Settings", "设置")
+                    ) {
                         triggerHaptic()
                         showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(BrandColors.textPrimary)
                     }
                 }
             }

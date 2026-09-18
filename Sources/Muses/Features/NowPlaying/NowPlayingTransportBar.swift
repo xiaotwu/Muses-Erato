@@ -11,25 +11,22 @@ struct NowPlayingTransportBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             transportButton(
                 systemName: "backward.fill",
                 label: tr("Previous", "上一首", zhHant: "上一首"),
                 action: { playback.previous() }
             )
+
             Button {
                 playback.toggle()
             } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 56, height: 56)
-                    Image(systemName: playback.state.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.black)
-                }
+                Image(systemName: playback.state.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.title2.weight(.bold))
+                    .frame(width: 64, height: 64)
+                    .contentShape(Circle())
             }
-            .frame(width: 56, height: 56)
+            .musesAction(prominent: true)
             .accessibilityLabel(
                 playback.state.isPlaying
                     ? tr("Pause", "暂停", zhHant: "暫停")
@@ -50,7 +47,7 @@ struct NowPlayingTransportBar: View {
             )
 
             SystemVolumeSlider()
-                .frame(width: 88, height: 44)
+                .frame(width: 88, height: AppleMusicSpacing.hitTarget)
                 .accessibilityLabel(tr("Volume", "音量", zhHant: "音量"))
         }
         .padding(.horizontal, 16)
@@ -65,10 +62,14 @@ struct NowPlayingTransportBar: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.title3)
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(.white.opacity(enabled ? 0.95 : 0.35))
-                .frame(width: 44, height: 44)
+                .frame(width: 40, height: 40)
+                .musesGlass(in: Circle(), tint: Color.white.opacity(0.14), role: .compactControl)
+                .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)
+                .contentShape(Circle())
         }
+        .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
         .disabled(!enabled)
         .accessibilityLabel(label)
     }

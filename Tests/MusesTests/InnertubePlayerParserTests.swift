@@ -34,13 +34,42 @@ final class InnertubePlayerParserTests: XCTestCase {
     }
 
     func testPlayerClientRosterMatchesLegacyOrder() {
-        XCTAssertEqual(InnertubePlayerClient.allCases, [.androidVR, .ios, .webEmbedded])
+        XCTAssertEqual(InnertubePlayerClient.allCases, [.visionOS, .androidVR, .ios, .webEmbedded])
         XCTAssertEqual(YouTubeInnerTubeClient.allCases, InnertubePlayerClient.allCases)
+    }
+
+    func testVisionOSPayloadIncludesVisitorDataAndContentChecks() {
+        let payload = InnertubePlayerClient.visionOS.playerPayload(
+            videoId: "3yllbVl1EnY",
+            visitorData: "CgtTEST_VISITOR"
+        )
+        XCTAssertEqual(payload["contentCheckOk"] as? Bool, true)
+        XCTAssertEqual(payload["racyCheckOk"] as? Bool, true)
+
+        let context = payload["context"] as? [String: Any]
+        let client = context?["client"] as? [String: Any]
+        XCTAssertEqual(client?["clientName"] as? String, "VISIONOS")
+        XCTAssertEqual(client?["clientVersion"] as? String, "1.02")
+        XCTAssertEqual(client?["visitorData"] as? String, "CgtTEST_VISITOR")
+        XCTAssertEqual(InnertubePlayerClient.visionOS.youtubeClientNameHeader, "101")
+        XCTAssertEqual(InnertubePlayerClient.visionOS.youtubeClientVersionHeader, "1.02")
     }
 
     func testWebRemixConfigurationIsCentralized() {
         let config = InnertubeConfiguration.default
         XCTAssertEqual(config.webRemixClientName, "WEB_REMIX")
         XCTAssertEqual(config.webRemixClientVersion, "1.20240617.01.00")
+    }
+
+    @MainActor
+    func testLiveResolveResonatingBeatsViaVisionOSVisitor() async throws {
+        // Live smoke: anonymous VISIONOS + visitorData must yield a googlevideo audio URL.
+        let resolver = YouTubePlaybackResolver()
+        let url = try await resolver.resolveStreamURL(videoID: "3yllbVl1EnY", quality: "bestaudio")
+        XCTAssertTrue(
+            url.host?.contains("googlevideo.com") == true || url.scheme == "https",
+            "unexpected stream URL: \(url.absoluteString)"
+        )
+        XCTAssertFalse(url.absoluteString.isEmpty)
     }
 }

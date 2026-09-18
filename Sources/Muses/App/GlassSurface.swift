@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Semantic glass roles keep native glass behavior centralized instead of
+/// scattering material choices through feature views.
 public enum MusesGlassRole: Equatable {
     case navigationBar
     case floatingPlayer
@@ -12,17 +14,41 @@ public enum MusesGlassRole: Equatable {
     }
 }
 
-/// Muses Liquid Glass view modifier conforming strictly to Apple WWDC 2025/2026 Liquid Glass HIG.
+/// Pure decision logic (testable, no SwiftUI environment rendering required).
+public enum GlassMode: Equatable {
+    case opaque, glass, material
+
+    /// `supportsGlass`: whether the runtime supports native Liquid Glass (iOS 26+).
+    public static func mode(
+        reduceTransparency: Bool,
+        increaseContrast: Bool,
+        supportsGlass: Bool
+    ) -> GlassMode {
+        if reduceTransparency || increaseContrast { return .opaque }
+        return supportsGlass ? .glass : .material
+    }
+}
+
+/// Whether the runtime supports `glassEffect` (isolates `#available` for test injection).
+private var supportsLiquidGlass: Bool {
+    if #available(iOS 26.0, *) { return true }
+    return false
+}
+
+/// Muses glass primitive: one glass presentation for all persistent/floating chrome surfaces.
 ///
-/// Features:
-/// - iOS 26+: Utilizes `.glassEffect()` with `.interactive()` for real-time meta-material physics.
-/// - iOS 18–25: Gracefully falls back to high-fidelity `.ultraThinMaterial` with specular glass highlight border.
-/// - Accessibility: When `Reduce Transparency` or `Increase Contrast` is enabled, falls back to opaque `BrandColors.surface`.
+/// - iOS 26+: native `glassEffect(_:in:)` — the system provides real Liquid Glass.
+/// - iOS 18/25: falls back to `.ultraThinMaterial` with a light specular rim.
+/// - Reduce Transparency or Increase Contrast: opaque `BrandColors.surface`.
+///
+/// `tint` is semantic only (playing/selected states); `nil` means neutral glass.
 public struct MusesGlassModifier<S: Shape>: ViewModifier {
     public let shape: S
     public let tint: Color?
     public let role: MusesGlassRole
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
 
     public init(shape: S, tint: Color? = nil, role: MusesGlassRole = .floatingPlayer) {
         self.shape = shape
@@ -31,33 +57,34 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        if reduceTransparency {
-            content
-                .background(BrandColors.surface, in: shape)
-                .overlay(shape.stroke(BrandColors.textPrimary.opacity(0.15), lineWidth: 1))
-        } else {
-            #if os(iOS)
+        let mode = GlassMode.mode(
+            reduceTransparency: reduceTransparency,
+            increaseContrast: contrast == .increased,
+            supportsGlass: supportsLiquidGlass
+        )
+        switch mode {
+        case .opaque:
+            content.background(BrandColors.surface, in: shape)
+        case .glass:
             if #available(iOS 26.0, *) {
-                content
-                    .glassEffect(in: shape)
-                    .overlay(glassSpecularBorder)
-                    .shadow(color: BrandColors.glassShadow, radius: 16, x: 0, y: 8)
+                content.glassEffect(glassVariant, in: shape)
             } else {
-                content
-                    .background(.ultraThinMaterial, in: shape)
-                    .overlay(glassSpecularBorder)
-                    .shadow(color: BrandColors.glassShadow, radius: 14, x: 0, y: 6)
+                materialFallback(content)
             }
-            #else
-            content
-                .background(.ultraThinMaterial, in: shape)
-                .overlay(glassSpecularBorder)
-                .shadow(color: BrandColors.glassShadow, radius: 14, x: 0, y: 6)
-            #endif
+        case .material:
+            materialFallback(content)
         }
     }
 
-    private var glassSpecularBorder: some View {
+    @ViewBuilder
+    private func materialFallback(_ content: Content) -> some View {
+        content
+            .background(.ultraThinMaterial, in: shape)
+            .overlay(specularBorder)
+            .shadow(color: BrandColors.glassShadow, radius: 14, x: 0, y: 6)
+    }
+
+    private var specularBorder: some View {
         shape.stroke(
             LinearGradient(
                 colors: [
@@ -70,6 +97,12 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
             ),
             lineWidth: 0.6
         )
+    }
+
+    @available(iOS 26.0, *)
+    private var glassVariant: Glass {
+        let base = tint.map { Glass.regular.tint($0) } ?? .regular
+        return role.isInteractive ? base.interactive(!reduceMotion) : base
     }
 }
 
@@ -85,12 +118,18 @@ public extension View {
     }
 
     /// Convenience overload for continuous rounded rectangles (MiniPlayer, sheets, modals).
-    func musesGlass(cornerRadius: CGFloat = AppleMusicTokens.miniPlayerCornerRadius,
-                    tint: Color? = nil,
-                    role: MusesGlassRole = .floatingPlayer) -> some View {
-        modifier(MusesGlassModifier(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
-                                    tint: tint,
-                                    role: role))
+    func musesGlass(
+        cornerRadius: CGFloat = AppleMusicTokens.miniPlayerCornerRadius,
+        tint: Color? = nil,
+        role: MusesGlassRole = .floatingPlayer
+    ) -> some View {
+        modifier(
+            MusesGlassModifier(
+                shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+                tint: tint,
+                role: role
+            )
+        )
     }
 
     /// Convenience overload for Capsule floating elements (Floating TabBar, scrubber decks).
@@ -104,5 +143,24 @@ public extension View {
         return self
             .clipShape(shape)
             .musesGlass(in: shape, role: .modalDeck)
+    }
+}
+
+/// A bounded chrome group; browsing artwork never participates in glass morphs.
+public struct MusesGlassGroup<Content: View>: View {
+    var spacing: CGFloat = 12
+    @ViewBuilder var content: () -> Content
+
+    public init(spacing: CGFloat = 12, @ViewBuilder content: @escaping () -> Content) {
+        self.spacing = spacing
+        self.content = content
+    }
+
+    public var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing, content: content)
+        } else {
+            content()
+        }
     }
 }
