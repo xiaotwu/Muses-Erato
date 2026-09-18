@@ -60,8 +60,11 @@ final class NowPlayingDepthTests: XCTestCase {
     func testNowPlayingDeckShowsOneCenterAndPeeksOnPhone() {
         XCTAssertEqual(NowPlayingDeckMetrics.radius(width: 390, landscape: false), 1)
         XCTAssertEqual(NowPlayingDeckMetrics.radius(width: 800, landscape: true), 2)
+        XCTAssertEqual(NowPlayingDeckMetrics.radius(width: 1200, landscape: false), 3)
         let visible = CollectionDeckProjection.visibleIndices(count: 6, position: 2, radius: 1)
         XCTAssertEqual(visible, [1, 2, 3])
+        let wide = CollectionDeckProjection.visibleIndices(count: 9, position: 4, radius: 3)
+        XCTAssertEqual(wide, [1, 2, 3, 4, 5, 6, 7])
     }
 
     func testNowPlayingVerticalSkipNeedsDominantHeight() {
@@ -97,6 +100,41 @@ final class NowPlayingDepthTests: XCTestCase {
 
         let cipher = YouTubeStreamParser.url(fromCipher: "url=https%3A%2F%2Fexample.com%2Fstream&s=ABC&sp=sig")
         XCTAssertEqual(cipher?.absoluteString, "https://example.com/stream?sig=ABC")
+    }
+
+    func testStreamParserReturnsNilForMissingURLOrUnusableCipher() {
+        XCTAssertNil(YouTubeStreamParser.url(fromCipher: "s=ABC&sp=sig"))
+        XCTAssertNil(YouTubeStreamParser.url(fromCipher: ""))
+        XCTAssertNil(YouTubeStreamParser.url(fromFormat: [
+            "mimeType": "audio/webm",
+            "bitrate": 128000,
+            "signatureCipher": "s=ONLYSIG&sp=sig"
+        ]))
+        XCTAssertNil(YouTubeStreamParser.audioURL(from: [
+            "streamingData": [
+                "adaptiveFormats": [
+                    ["mimeType": "audio/webm", "bitrate": 128000]
+                ]
+            ]
+        ]))
+    }
+
+    func testPipedEmptyAudioStreamsIsNotSuccess() {
+        XCTAssertNil(YouTubeStreamParser.pipedAudioURL(from: [:]))
+        XCTAssertNil(YouTubeStreamParser.pipedAudioURL(from: ["audioStreams": []]))
+        let url = YouTubeStreamParser.pipedAudioURL(from: [
+            "audioStreams": [
+                ["bitrate": 64000, "url": "https://example.com/low"],
+                ["bitrate": 160000, "url": "https://example.com/high"]
+            ]
+        ])
+        XCTAssertEqual(url?.absoluteString, "https://example.com/high")
+    }
+
+    func testInnerTubeClientsFallbackOrderIsStable() {
+        let clients = YouTubeInnerTubeClient.allCases
+        XCTAssertEqual(clients.count, 3)
+        XCTAssertEqual(clients, [.androidVR, .ios, .webEmbedded])
     }
 
     func testLockScreenArtworkHandlerCanRunOffMainActor() {

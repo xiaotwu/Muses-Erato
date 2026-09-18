@@ -161,6 +161,13 @@ public final class YouTubeResolver: YTDlpBridgeProtocol {
         }
     }
 
+
+    /// Drops a cached stream URL so the next `resolveStreamURL` hits the network.
+    /// Call this from playback when a previously resolved URL fails (403 / AVPlayer error).
+    public func invalidateCachedStream(videoId: String, quality: String = "bestaudio") {
+        StreamURLCache.default.invalidate(videoId: videoId, quality: quality)
+    }
+
     /// Fetches playlist entries from a YouTube or YouTube Music playlist URL.
     public func fetchPlaylist(url: String, timeout: TimeInterval = 20) async throws -> [YTDlpPlaylistEntry] {
         guard let listId = YouTubePlaylistURL.playlistID(from: url) else {
@@ -383,15 +390,8 @@ public final class YouTubeResolver: YTDlpBridgeProtocol {
             if let (data, resp) = try? await session.data(for: req),
                let http = resp as? HTTPURLResponse, http.statusCode == 200,
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let audioStreams = json["audioStreams"] as? [[String: Any]] {
-                let sorted = audioStreams.sorted {
-                    (($0["bitrate"] as? Int) ?? 0) > (($1["bitrate"] as? Int) ?? 0)
-                }
-                if let best = sorted.first,
-                   let streamUrlStr = best["url"] as? String,
-                   let streamURL = URL(string: streamUrlStr) {
-                    return streamURL
-                }
+               let streamURL = YouTubeStreamParser.pipedAudioURL(from: json) {
+                return streamURL
             }
         }
 
@@ -508,11 +508,11 @@ enum YouTubeStreamParser {
     }
 
     static func url(fromFormat format: [String: Any]) -> URL? {
-        if let raw = format["url"] as? String, let url = URL(string: raw) {
+        if let raw = format["url"] as? String, !raw.isEmpty, let url = URL(string: raw) {
             return url
         }
         let cipher = (format["signatureCipher"] as? String) ?? (format["cipher"] as? String)
-        guard let cipher else { return nil }
+        guard let cipher, !cipher.isEmpty else { return nil }
         return url(fromCipher: cipher)
     }
 
@@ -523,11 +523,14 @@ enum YouTubeStreamParser {
             guard parts.count == 2 else { continue }
             items[parts[0]] = parts[1].removingPercentEncoding ?? parts[1]
         }
+        // Unusable cipher: no plain url (and therefore nothing to sign) → nil.
         guard var urlString = items["url"], !urlString.isEmpty else { return nil }
         if urlString.contains("sig=") || urlString.contains("signature=") {
             return URL(string: urlString)
         }
+        // Signature required but missing/empty → unusable.
         guard let signature = items["s"], !signature.isEmpty else {
+            // Plain url embedded in cipher without a signature payload is acceptable.
             return URL(string: urlString)
         }
         let parameter = items["sp"] ?? "signature"
@@ -535,6 +538,22 @@ enum YouTubeStreamParser {
         let encoded = signature.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? signature
         urlString += "\(separator)\(parameter)=\(encoded)"
         return URL(string: urlString)
+    }
+
+    /// Selects the best Piped `audioStreams` entry. Empty / missing arrays are not success.
+    static func pipedAudioURL(from json: [String: Any]) -> URL? {
+        guard let audioStreams = json["audioStreams"] as? [[String: Any]], !audioStreams.isEmpty else {
+            return nil
+        }
+        let sorted = audioStreams.sorted {
+            (($0["bitrate"] as? Int) ?? 0) > (($1["bitrate"] as? Int) ?? 0)
+        }
+        guard let best = sorted.first,
+              let streamUrlStr = best["url"] as? String, !streamUrlStr.isEmpty,
+              let streamURL = URL(string: streamUrlStr) else {
+            return nil
+        }
+        return streamURL
     }
 
     static func invidiousAudioURL(from json: [String: Any]) -> URL? {

@@ -2,6 +2,7 @@ import SwiftUI
 
 enum NowPlayingDeckMetrics {
     static func radius(width: CGFloat, landscape: Bool) -> Int {
+        if width >= 1100 { return 3 }
         if landscape || width >= 700 { return 2 }
         return 1
     }
@@ -64,15 +65,20 @@ struct NowPlayingHeroDeck: View {
                     }
                     .onEnded { value in
                         let translation = value.translation
-                        drag = .zero
-                        guard abs(translation.height) > abs(translation.width) * 1.25,
-                              abs(translation.height) >= NowPlayingDeckMetrics.skipThreshold else {
-                            return
-                        }
-                        if translation.height < 0 {
-                            skip(1)
+                        let direction: CollectionExpansionDirection = translation.height < 0 ? .up : .down
+                        let shouldSkip = CollectionDeckProjection.acceptsVerticalGesture(
+                            translation: translation,
+                            direction: direction,
+                            threshold: NowPlayingDeckMetrics.skipThreshold
+                        )
+                        if shouldSkip {
+                            drag = .zero
+                            skip(translation.height < 0 ? 1 : -1)
                         } else {
-                            skip(-1)
+                            // Horizontal peek only: snap neighbors back without changing tracks.
+                            withAnimation(.spring(duration: 0.32, bounce: 0.18)) {
+                                drag = .zero
+                            }
                         }
                     }
             )
