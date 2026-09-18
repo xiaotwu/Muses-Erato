@@ -12,6 +12,8 @@ struct SettingsView: View {
     @AppStorage(PrefKey.resumeAfterVideo) private var resumeAfterVideo: Bool = true
     @AppStorage(PrefKey.ytPersonalDiscovery) private var ytPersonalDiscovery: Bool = true
     @AppStorage(PrefKey.homeRecommendationMode) private var homeRecommendationModeRaw: String = HomeRecommendationMode.muses.rawValue
+    @AppStorage(PrefKey.lyricsSource) private var lyricsSource: String = "lrclib"
+    @AppStorage(PrefKey.lyricsIntelligence) private var lyricsIntelligence: Bool = true
 
     @State private var showClearCacheAlert = false
     @State private var cacheClearedMessage = false
@@ -59,6 +61,24 @@ struct SettingsView: View {
                         .tint(BrandColors.accent)
                 }
 
+
+
+                Section(header: Text(tr("LYRICS", "歌词")),
+                        footer: Text(tr(
+                            "Apple Intelligence only chooses among LRCLIB candidates. It never invents lyrics.",
+                            "Apple Intelligence 只会从 LRCLIB 候选中选择，不会编造歌词。"
+                        ))) {
+                    Picker(tr("Lyrics source", "歌词来源"), selection: $lyricsSource) {
+                        Text("LRCLIB").tag("lrclib")
+                        Text("Musixmatch").tag("musixmatch")
+                    }
+                    .tint(BrandColors.accent)
+                    Toggle(tr("Apple Intelligence matching", "Apple Intelligence 匹配"), isOn: $lyricsIntelligence)
+                        .tint(BrandColors.accent)
+                    Text(LyricsIntelligence.availability.message)
+                        .font(.footnote)
+                        .foregroundStyle(BrandColors.textSecondary)
+                }
 
                 // Home recommendation source
                 Section(header: Text(tr("HOME RECOMMENDATIONS", "首页推荐")),
