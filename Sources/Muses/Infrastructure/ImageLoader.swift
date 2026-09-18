@@ -19,12 +19,12 @@ public final class ImageLoader {
     }
 
     public func cachedImage(for url: URL) -> PlatformImage? {
-        memory.object(forKey: (url.absoluteString + "#letterbox-v3") as NSString)
+        memory.object(forKey: (url.absoluteString + "#letterbox-v4") as NSString)
     }
 
     public func load(_ url: URL) -> Task<PlatformImage?, Never> {
         // Versioned so letterbox-strip algorithm upgrades invalidate stale cached thumbs.
-        let keyStr = url.absoluteString + "#letterbox-v3"
+        let keyStr = url.absoluteString + "#letterbox-v4"
         let key = keyStr as NSString
         if let hit = memory.object(forKey: key) {
             return Task { hit }
@@ -32,20 +32,34 @@ public final class ImageLoader {
         if let existing = inFlight[keyStr] { return existing }
         let task = Task<PlatformImage?, Never> { [self] in
             defer { Task { @MainActor in self.inFlight[keyStr] = nil } }
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                #if canImport(UIKit)
-                guard !Task.isCancelled, let decoded = UIImage(data: data) else { return nil }
-                #else
-                guard !Task.isCancelled, let decoded = NSImage(data: data) else { return nil }
-                #endif
-                let img = YouTubeThumbnail.cropLetterboxIfNeeded(decoded, url: url)
-                let cost = data.count
-                self.memory.setObject(img, forKey: key, cost: cost)
-                return img
-            } catch {
-                return nil
+            let urls: [URL] = {
+                if let id = YouTubeThumbnail.videoId(from: url) {
+                    return YouTubeThumbnail.candidateURLs(videoId: id)
+                }
+                return [url]
+            }()
+            for candidate in urls {
+                do {
+                    let (data, response) = try await URLSession.shared.data(from: candidate)
+                    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                        continue
+                    }
+                    #if canImport(UIKit)
+                    guard !Task.isCancelled, let decoded = UIImage(data: data) else { continue }
+                    #else
+                    guard !Task.isCancelled, let decoded = NSImage(data: data) else { continue }
+                    #endif
+                    // Skip tiny YT error placeholders when a better candidate may exist.
+                    if decoded.size.width < 120, candidate != urls.last { continue }
+                    let img = YouTubeThumbnail.cropLetterboxIfNeeded(decoded, url: candidate)
+                    let cost = data.count
+                    self.memory.setObject(img, forKey: key, cost: cost)
+                    return img
+                } catch {
+                    continue
+                }
             }
+            return nil
         }
         inFlight[keyStr] = task
         return task

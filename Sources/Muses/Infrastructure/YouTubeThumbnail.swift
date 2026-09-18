@@ -10,12 +10,20 @@ public typealias PlatformImage = NSImage
 
 /// YouTube thumbnail URLs and letterbox stripping.
 public enum YouTubeThumbnail {
+    /// Stable fetch target. Many videos 404 on hq720; hqdefault is reliable and letterbox-cropped.
     public static func urlString(videoId: String) -> String {
-        "https://i.ytimg.com/vi/\(videoId)/hq720.jpg"
+        "https://i.ytimg.com/vi/\(videoId)/hqdefault.jpg"
     }
 
     public static func url(videoId: String) -> URL? {
         URL(string: urlString(videoId: videoId))
+    }
+
+    public static func videoId(from url: URL) -> String? {
+        let parts = url.path.split(separator: "/").map(String.init)
+        guard let vi = parts.firstIndex(of: "vi"), vi + 1 < parts.count else { return nil }
+        let id = parts[vi + 1]
+        return id.isEmpty ? nil : id
     }
 
     public static func isLetterboxed(_ url: URL) -> Bool {
@@ -35,7 +43,16 @@ public enum YouTubeThumbnail {
             || path.contains("/default.")
     }
 
-    /// Strip baked top/bottom bars so square `scaledToFill` can width-cover and crop the sides.
+    /// Candidate URLs for a video, best-first. Caller may fall back on 404.
+    public static func candidateURLs(videoId: String) -> [URL] {
+        [
+            "https://i.ytimg.com/vi/\(videoId)/maxresdefault.jpg",
+            "https://i.ytimg.com/vi/\(videoId)/hq720.jpg",
+            "https://i.ytimg.com/vi/\(videoId)/sddefault.jpg",
+            urlString(videoId: videoId)
+        ].compactMap(URL.init(string:))
+    }
+
     public static func cropLetterboxIfNeeded(_ image: PlatformImage, url: URL? = nil) -> PlatformImage {
         var result = cropFourByThreeLetterbox(image)
         result = cropRelativeLetterboxBars(result)
@@ -48,14 +65,14 @@ public enum YouTubeThumbnail {
         let height = CGFloat(cg.height)
         guard height > 0 else { return image }
         let aspect = width / height
-        guard aspect >= 1.22 && aspect <= 1.48 else { return image }
+        // hqdefault family ~4:3. Always strip the standard 45/360 bars.
+        guard aspect >= 1.20 && aspect <= 1.50 else { return image }
         let bar = (height * 45.0 / 360.0).rounded(.down)
         let cropHeight = height - bar * 2
-        guard bar > 0, cropHeight > 8 else { return image }
+        guard bar >= 1, cropHeight > 8 else { return image }
         return cropped(image, cg: cg, rect: CGRect(x: 0, y: bar, width: width, height: cropHeight)) ?? image
     }
 
-    /// Crop top/bottom bands that are much darker than the vertical center (works for navy/gray bars).
     private static func cropRelativeLetterboxBars(_ image: PlatformImage) -> PlatformImage {
         guard let rgba = rgbaBytes(from: image) else { return image }
         let width = rgba.width
@@ -78,7 +95,6 @@ public enum YouTubeThumbnail {
             return sum / Double(max(1, count))
         }
 
-        // Center band reference (avoid being fooled by dark artwork edges).
         let midStart = height * 2 / 5
         let midEnd = height * 3 / 5
         var midSum = 0.0
@@ -90,27 +106,19 @@ public enum YouTubeThumbnail {
             y += 2
         }
         let mid = midSum / Double(max(1, midCount))
-        // If the whole image is dark, don't guess.
-        guard mid > 60 else { return image }
-
-        let threshold = max(36.0, mid * 0.28)
+        guard mid > 48 else { return image }
+        let threshold = max(30.0, mid * 0.32)
 
         var top = 0
         while top < height / 3 && rowLuma(top) < threshold { top += 1 }
         var bottom = 0
         while bottom < height / 3 && rowLuma(height - 1 - bottom) < threshold { bottom += 1 }
 
-        let minBar = max(4, height / 45)
-        // Prefer symmetric letterbox; allow slightly uneven bars.
+        let minBar = max(3, height / 50)
         guard top >= minBar && bottom >= minBar else { return image }
-
         let cropHeight = height - top - bottom
         guard cropHeight > height / 3, let cg = cgImage(from: image) else { return image }
-        return cropped(
-            image,
-            cg: cg,
-            rect: CGRect(x: 0, y: top, width: width, height: cropHeight)
-        ) ?? image
+        return cropped(image, cg: cg, rect: CGRect(x: 0, y: top, width: width, height: cropHeight)) ?? image
     }
 
     private struct RGBABuffer {
