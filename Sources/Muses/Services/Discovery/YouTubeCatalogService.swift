@@ -9,13 +9,17 @@ import SwiftData
 final class YouTubeCatalogService {
     private let modelContainer: ModelContainer
     private let bridge: (any YTDlpBridgeProtocol)?
+    private let innertube: InnertubeClient?
     private(set) var revision = 0
     private var discographyCache: [String: ArtistOnlineDiscography] = [:]
     private var albumTracksCache: [String: [YTDlpBridge.YTDlpPlaylistEntry]] = [:]
 
-    init(modelContainer: ModelContainer, bridge: (any YTDlpBridgeProtocol)? = nil) {
+    init(modelContainer: ModelContainer,
+         bridge: (any YTDlpBridgeProtocol)? = nil,
+         innertube: InnertubeClient? = nil) {
         self.modelContainer = modelContainer
         self.bridge = bridge
+        self.innertube = innertube
     }
 
     /// Rebuild cache rows for all playable tracks from the library and playlists.
@@ -328,12 +332,12 @@ final class YouTubeCatalogService {
 
     // MARK: - Online Discovery
     
-    /// Fetches online discography (top songs, releases, singles) for an artist using yt-dlp.
+    /// Fetches online discography (top songs, releases, singles) via Innertube (preferred) or bridge fallback.
     func fetchArtistOnlineDiscography(artist: CatalogArtistProjection) async throws -> ArtistOnlineDiscography {
         if let cached = discographyCache[artist.stableID] {
             return cached
         }
-        guard let bridge else {
+        guard bridge != nil || innertube != nil else {
             return ArtistOnlineDiscography(artistName: artist.name)
         }
 
@@ -344,14 +348,13 @@ final class YouTubeCatalogService {
             return nil
         }()
 
-        let topSongs: [YTDlpBridge.YTDlpPlaylistEntry] = (try? await bridge.searchYouTube(
+        let topSongs: [YTDlpBridge.YTDlpPlaylistEntry] = await searchCatalog(
             query: "\(artist.name) official audio",
-            limit: 12,
-            timeout: 25
-        )) ?? []
+            limit: 12
+        )
 
         var rawReleases: [YTDlpBridge.YTDlpPlaylistEntry] = []
-        if let channelID {
+        if let channelID, let bridge {
             let releasesURL = "https://www.youtube.com/channel/\(channelID)/releases"
             if let entries = try? await bridge.fetchPlaylist(url: releasesURL, timeout: 35),
                !entries.isEmpty {
@@ -359,11 +362,10 @@ final class YouTubeCatalogService {
             }
         }
         if rawReleases.isEmpty {
-            rawReleases = (try? await bridge.searchYouTube(
+            rawReleases = await searchCatalog(
                 query: "\(artist.name) album",
-                limit: 12,
-                timeout: 25
-            )) ?? []
+                limit: 12
+            )
         }
 
         var albums: [OnlineReleaseItem] = []
@@ -404,6 +406,46 @@ final class YouTubeCatalogService {
     }
 
     /// Fetches the full official tracklist for a release from YouTube Music.
+
+    // MARK: - Innertube / bridge search
+
+    private func searchCatalog(query: String, limit: Int) async -> [YTDlpBridge.YTDlpPlaylistEntry] {
+        if let innertube {
+            if let json = try? await innertube.search(query: query, timeout: 25) {
+                let parsed = InnertubeSearchParser.entries(from: json, limit: limit)
+                if !parsed.isEmpty { return parsed }
+            }
+        }
+        guard let bridge else { return [] }
+        return (try? await bridge.searchYouTube(query: query, limit: limit, timeout: 25)) ?? []
+    }
+
+    /// Charts / new releases via Innertube browse ids when available.
+    func fetchCatalogShelf(browseId: String, limit: Int = 20) async -> [YTDlpBridge.YTDlpPlaylistEntry] {
+        guard let innertube else {
+            return await searchCatalog(query: shelfQuery(for: browseId), limit: limit)
+        }
+        if let entries = try? await InnertubeCatalogBrowse.entries(
+            client: innertube, browseId: browseId, limit: limit
+        ), !entries.isEmpty {
+            return entries
+        }
+        return await searchCatalog(query: shelfQuery(for: browseId), limit: limit)
+    }
+
+    private func shelfQuery(for browseId: String) -> String {
+        switch browseId {
+        case YouTubeMusicCatalog.BrowseID.charts:
+            return "trending charts"
+        case YouTubeMusicCatalog.BrowseID.newReleases:
+            return "new music releases"
+        case YouTubeMusicCatalog.BrowseID.moodsAndGenres:
+            return "moods playlists"
+        default:
+            return "music"
+        }
+    }
+
     func fetchAlbumOnlineTracks(release: CatalogReleaseProjection) async throws -> [YTDlpBridge.YTDlpPlaylistEntry] {
         if let cached = albumTracksCache[release.stableID] {
             return cached

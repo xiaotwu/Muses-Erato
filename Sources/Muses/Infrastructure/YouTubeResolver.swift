@@ -176,6 +176,23 @@ public final class YouTubeResolver: YTDlpBridgeProtocol {
     }
 
     public func searchYouTube(query: String, limit: Int = 20, timeout: TimeInterval = 15) async throws -> [YTDlpPlaylistEntry] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        if let innertubeHits = try? await searchViaInnertube(query: trimmed, limit: limit, timeout: timeout),
+           !innertubeHits.isEmpty {
+            return innertubeHits
+        }
+
+        return await searchViaPiped(query: trimmed, limit: limit, timeout: timeout)
+    }
+
+    private func searchViaInnertube(query: String, limit: Int, timeout: TimeInterval) async throws -> [YTDlpPlaylistEntry] {
+        let json = try await innertube.search(query: query, timeout: timeout)
+        return InnertubeSearchParser.entries(from: json, limit: limit)
+    }
+
+    private func searchViaPiped(query: String, limit: Int, timeout: TimeInterval) async -> [YTDlpPlaylistEntry] {
         guard let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             return []
         }
@@ -208,7 +225,7 @@ public final class YouTubeResolver: YTDlpBridgeProtocol {
                     )
                 }
                 if !parsed.isEmpty {
-                    return parsed
+                    return Array(parsed)
                 }
             }
         }

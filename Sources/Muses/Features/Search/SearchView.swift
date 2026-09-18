@@ -5,6 +5,7 @@ import SwiftUI
 struct SearchView: View {
     @Bindable var playback: PlaybackService
     @Environment(LibraryService.self) private var library
+    @Environment(YouTubeSearchService.self) private var youTubeSearch
 
     @State private var query: String = ""
     @State private var isSearching: Bool = false
@@ -217,10 +218,16 @@ struct SearchView: View {
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
 
-            if let res = try? await YouTubeResolver.shared.searchYouTube(query: trimmed, limit: 15) {
+            do {
+                let res = try await youTubeSearch.search(query: trimmed, limit: 15)
                 guard !Task.isCancelled else { return }
                 self.results = res
-                self.rememberSearch(trimmed)
+                if !res.isEmpty {
+                    self.rememberSearch(trimmed)
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.results = []
             }
             self.isSearching = false
         }

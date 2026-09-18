@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import Observation
 
-/// YouTube search service: wraps `YTDlpBridge.searchYouTube` and creates `.youtube` Tracks.
+/// YouTube search service: resolves via `YTDlpBridge.searchYouTube` (Innertube-first, Piped fallback) and creates `.youtube` Tracks.
 ///
 /// Flow: the user types keywords → `search(query:)` returns the result list →
 /// `importAsTrack(entry:)` persists a Track and returns its snapshot.
