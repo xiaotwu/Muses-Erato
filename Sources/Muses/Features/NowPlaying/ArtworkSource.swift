@@ -111,17 +111,11 @@ struct ArtworkView: View {
 
             switch source {
             case .remote(let url):
-                CachedAsyncImage(
+                RemoteArtworkRender(
                     url: url,
-                    content: {
-                        ResolvedArtworkImage(
-                            image: $0,
-                            presentation: presentation,
-                            width: targetSize,
-                            height: resolvedHeight
-                        )
-                    },
-                    placeholder: { Color.clear }
+                    presentation: presentation,
+                    width: targetSize,
+                    height: resolvedHeight
                 )
             case .placeholder:
                 placeholderGlyph
@@ -139,6 +133,63 @@ struct ArtworkView: View {
 
 }
 
+
+private struct RemoteArtworkRender: View {
+    let url: URL
+    let presentation: ArtworkPresentation
+    let width: CGFloat
+    let height: CGFloat
+
+    @State private var image: PlatformImage?
+    @State private var identity: String?
+
+    var body: some View {
+        Group {
+            if let image {
+                switch presentation {
+                case .fill:
+                    #if canImport(UIKit)
+                    AspectFillImage(image: image)
+                        .frame(width: width, height: height)
+                        .clipped()
+                    #else
+                    Color.clear
+                        .frame(width: width, height: height)
+                        .overlay {
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFill()
+                        }
+                        .clipped()
+                    #endif
+                case .fitOnAmbient:
+                    ResolvedArtworkImage(
+                        image: {
+                            #if canImport(UIKit)
+                            Image(uiImage: image)
+                            #else
+                            Image(nsImage: image)
+                            #endif
+                        }(),
+                        presentation: .fitOnAmbient,
+                        width: width,
+                        height: height
+                    )
+                }
+            } else {
+                Color.clear.frame(width: width, height: height)
+            }
+        }
+        .task(id: url.absoluteString) {
+            let loaded = await ImageLoader.shared.load(url).value
+            if !Task.isCancelled {
+                image = loaded
+                identity = url.absoluteString
+            }
+        }
+    }
+}
+
 private struct ResolvedArtworkImage: View {
     let image: Image
     let presentation: ArtworkPresentation
@@ -149,7 +200,6 @@ private struct ResolvedArtworkImage: View {
     var body: some View {
         switch presentation {
         case .fill:
-            // Reliable cover: fixed slot + overlay fill (crops left/right for landscape).
             Color.clear
                 .frame(width: width, height: height)
                 .overlay {

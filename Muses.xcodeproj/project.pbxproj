@@ -78,6 +78,7 @@
 		504D2A6179027DE6A08BFCC1 /* FakePlayerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C429011C30EA9BB3AB1C06C /* FakePlayerEngine.swift */; };
 		5514420DEA56B2247F018DD5 /* YouTubeResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6437CC9F8A38DD7F3BAFD70D /* YouTubeResolver.swift */; };
 		558A5BADC3153838B85D86C1 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9F80C94442DA3DEDDE01218 /* PlaylistItem.swift */; };
+		566EFA031D966616E10D62F5 /* AspectFillImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0EFDA59126421D946E074D8 /* AspectFillImage.swift */; };
 		56B48452DA495DEB69F2F471 /* LyricsIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB85B8E581535030874E0489 /* LyricsIntelligence.swift */; };
 		57445BC90FB533011A167AE9 /* AppComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923106F96428A785F2D48EDC /* AppComposition.swift */; };
 		58A122A6B3F2C1996977A143 /* YouTubeMusicCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98E548CA824AB1460A80BE0D /* YouTubeMusicCatalog.swift */; };
@@ -410,6 +411,7 @@
 		BEECD9ABCB4DCB9D8884528E /* HomeRecommendationMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRecommendationMode.swift; sourceTree = "<group>"; };
 		C03F6612D01A0DDB4DD8B141 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		C0B4D3431CDB0C710E970221 /* PlayerState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerState.swift; sourceTree = "<group>"; };
+		C0EFDA59126421D946E074D8 /* AspectFillImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AspectFillImage.swift; sourceTree = "<group>"; };
 		C1A58E0112E094F2FA15249A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C27B836591D8F8C2E64037F5 /* ArtworkCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkCache.swift; sourceTree = "<group>"; };
 		C2838CA6B7368BD0956D5387 /* ModeSwitchingHomeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeSwitchingHomeProvider.swift; sourceTree = "<group>"; };
@@ -696,6 +698,7 @@
 			isa = PBXGroup;
 			children = (
 				01B2F8A5B66478292D8245AC /* AlbumObject.swift */,
+				C0EFDA59126421D946E074D8 /* AspectFillImage.swift */,
 				10BE398AA11E074432FD02D9 /* BrowseBackground.swift */,
 				39299E69D7E9B286A83DF227 /* ChromeIconButton.swift */,
 				2526B8DB6AA4FC58C651B907 /* CollectionPage.swift */,
@@ -1289,6 +1292,7 @@
 				BDA0A5E7AB7305C2F60FE126 /* ArtistOnlineDiscography.swift in Sources */,
 				CEEE7786EE9C42DB25D533F6 /* ArtworkCache.swift in Sources */,
 				018B78EE29B05DDD3E1B4243 /* ArtworkSource.swift in Sources */,
+				566EFA031D966616E10D62F5 /* AspectFillImage.swift in Sources */,
 				0C4B75F5AB8E6169F38573A5 /* AudioInfoPanel.swift in Sources */,
 				346E243A2CFCE8EF747E05A5 /* AutomationRule.swift in Sources */,
 				B6C42116466E68E7A3CDCDB2 /* AutomationRulesView.swift in Sources */,

@@ -85,9 +85,9 @@ struct MiniPlayerBar: View {
                 }
                 .frame(height: 2.5)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .musesGlass(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, role: .floatingPlayer)
             .laserStroke(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, lineWidth: 0.9, opacity: 0.62)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .offset(y: dragOffset)
             .gesture(
                 DragGesture()
