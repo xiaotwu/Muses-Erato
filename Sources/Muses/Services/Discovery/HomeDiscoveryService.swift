@@ -443,7 +443,8 @@ final class HomeDiscoveryService {
             timeBand: band,
             hour: hour,
             seedVideoIds: seedVideoIds(),
-            scope: HomeFeedScope(accountChannelID: accountChannelIDProvider()))
+            scope: HomeFeedScope(accountChannelID: accountChannelIDProvider()),
+            mode: HomeRecommendationMode.current)
     }
 
     private func topArtistNames(limit: Int) -> [String] {
@@ -497,7 +498,8 @@ final class HomeDiscoveryService {
             timeBand: band,
             hour: hour,
             seedVideoIds: seedVideoIds(),
-            scope: HomeFeedScope(accountChannelID: accountChannelIDProvider()))
+            scope: HomeFeedScope(accountChannelID: accountChannelIDProvider()),
+            mode: HomeRecommendationMode.current)
     }
 }
 

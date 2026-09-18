@@ -124,6 +124,8 @@ enum PrefKey {
     /// Resume the audio queue after the YouTube video overlay is closed.
     static let resumeAfterVideo = "muses.playback.resumeAfterVideo"
     static let ytPersonalDiscovery = "muses.yt.personalDiscovery"
+    /// Home recommendation source: muses (local) or youtubeMusic (Innertube).
+    static let homeRecommendationMode = "muses.home.recommendationMode"
     // MARK: - Feature flags (product upgrade switches; default false = existing behavior, opt in per feature)
     static let ffSmartHistory       = "muses.ff.smartHistory"
     static let ffSessions           = "muses.ff.sessions"

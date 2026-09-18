@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage(PrefKey.replayGainEnabled) private var replayGainEnabled: Bool = true
     @AppStorage(PrefKey.resumeAfterVideo) private var resumeAfterVideo: Bool = true
     @AppStorage(PrefKey.ytPersonalDiscovery) private var ytPersonalDiscovery: Bool = true
+    @AppStorage(PrefKey.homeRecommendationMode) private var homeRecommendationModeRaw: String = HomeRecommendationMode.muses.rawValue
 
     @State private var showClearCacheAlert = false
     @State private var cacheClearedMessage = false
@@ -56,6 +57,19 @@ struct SettingsView: View {
 
                     Toggle(tr("Resume music when video closes", "关闭视频画中画后继续播放"), isOn: $resumeAfterVideo)
                         .tint(BrandColors.accent)
+                }
+
+
+                // Home recommendation source
+                Section(header: Text(tr("HOME RECOMMENDATIONS", "首页推荐")),
+                        footer: Text(HomeRecommendationMode(rawValue: homeRecommendationModeRaw)?.subtitle
+                                    ?? HomeRecommendationMode.muses.subtitle)) {
+                    Picker(tr("Recommendation source", "推荐来源"), selection: $homeRecommendationModeRaw) {
+                        ForEach(HomeRecommendationMode.allCases) { mode in
+                            Text(mode.title).tag(mode.rawValue)
+                        }
+                    }
+                    .tint(BrandColors.accent)
                 }
 
                 // YouTube Integration

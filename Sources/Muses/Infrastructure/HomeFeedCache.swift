@@ -57,7 +57,7 @@ final class HomeFeedCache {
     static func key(for input: HomeDiscoveryInput) -> String {
         let top = input.topArtistNames.prefix(3).joined(separator: ",")
         let liked = input.likedArtistNames.prefix(2).joined(separator: ",")
-        return "feed|band=\(input.timeBand.rawValue)|top=\(top)|liked=\(liked)"
+        return "feed|mode=\(input.mode.rawValue)|band=\(input.timeBand.rawValue)|top=\(top)|liked=\(liked)"
     }
 
     func get(for input: HomeDiscoveryInput,
