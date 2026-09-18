@@ -74,7 +74,7 @@ struct HomeView: View {
                 }
                 .padding(.top, AppleMusicSpacing.pageTop)
             }
-            .background(BrandColors.background)
+            .background(BrowseBackground())
             .navigationTitle(tr("Home", "首页"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

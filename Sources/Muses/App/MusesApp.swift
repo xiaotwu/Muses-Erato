@@ -84,7 +84,71 @@ struct MusesApp: App {
                 .task {
                     await updateService.checkIfDue()
                     watchSession.publishIfNeeded()
+                    #if DEBUG
+                    await Self.runDebugPlaylistSeedIfNeeded(
+                        importService: youTubeImportService,
+                        playback: playback,
+                        container: container
+                    )
+                    #endif
                 }
         }
     }
 }
+
+
+#if DEBUG
+extension MusesApp {
+    /// DEBUG-only: UserDefaults `muses.debug.seedPlaylistURL` (String) + `muses.debug.seedPlaylistDone` (Bool).
+    /// Optional `muses.debug.autoPlaySeed` (Bool, default false) plays the first imported track once.
+    @MainActor
+    static func runDebugPlaylistSeedIfNeeded(
+        importService: YouTubeImportService,
+        playback: PlaybackService,
+        container: ModelContainer
+    ) async {
+        let defaults = UserDefaults.standard
+        let urlKey = "muses.debug.seedPlaylistURL"
+        let doneKey = "muses.debug.seedPlaylistDone"
+        let autoPlayKey = "muses.debug.autoPlaySeed"
+        let log = AppLog.for("DebugPlaylistSeed")
+
+        guard let url = defaults.string(forKey: urlKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !url.isEmpty else { return }
+        if defaults.bool(forKey: doneKey) {
+            log.info("Seed already done; skip \(url, privacy: .public)")
+            return
+        }
+
+        do {
+            let importID = try await importService.importPlaylist(url: url)
+            defaults.set(true, forKey: doneKey)
+            log.info("Seeded playlist \(url, privacy: .public) → \(importID.uuidString, privacy: .public)")
+
+            guard defaults.bool(forKey: autoPlayKey) else { return }
+            let context = ModelContext(container)
+            let descriptor = FetchDescriptor<YouTubeImport>(
+                predicate: #Predicate { $0.id == importID }
+            )
+            guard let imported = try context.fetch(descriptor).first else {
+                log.error("Seed import row missing after success")
+                return
+            }
+            let snaps = (imported.items ?? [])
+                .sorted { $0.order < $1.order }
+                .compactMap(\.track)
+                .filter { !$0.youTubeId.isEmpty }
+                .map(TrackSnapshot.init(from:))
+            guard let first = snaps.first else {
+                log.error("Seed import has no playable tracks")
+                return
+            }
+            playback.playTrack(first, context: snaps, from: .import)
+            log.info("Auto-played seed track \(first.title, privacy: .public)")
+        } catch {
+            log.error("Seed import failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+}
+#endif

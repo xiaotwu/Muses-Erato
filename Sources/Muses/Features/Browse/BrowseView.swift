@@ -36,7 +36,7 @@ struct BrowseView: View {
                 }
                 .padding(.top, AppleMusicSpacing.pageTop)
             }
-            .background(BrandColors.background)
+            .background(BrowseBackground())
             .navigationTitle(tr("Browse", "新发现"))
         }
     }

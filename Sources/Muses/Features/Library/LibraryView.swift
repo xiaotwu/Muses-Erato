@@ -51,7 +51,7 @@ struct LibraryView: View {
                 }
                 .padding(.top, AppleMusicSpacing.pageTop)
             }
-            .background(BrandColors.background)
+            .background(BrowseBackground())
             .navigationTitle(tr("Library", "资料库"))
         }
     }
@@ -60,23 +60,32 @@ struct LibraryView: View {
 
     private var filterPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 ForEach(LibraryCategory.allCases) { cat in
+                    let selected = selectedFilter == cat
                     Button {
                         triggerHapticFeedback()
-                        selectedFilter = cat
+                        withAnimation(.snappy(duration: 0.24)) {
+                            selectedFilter = cat
+                        }
                     } label: {
                         Text(cat.localizedTitle)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(selectedFilter == cat ? Color.white : BrandColors.textPrimary)
+                            .font(.system(size: 14, weight: selected ? .semibold : .medium))
+                            .foregroundStyle(BrandColors.textPrimary)
                             .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                selectedFilter == cat ? BrandColors.accent : BrandColors.surface,
-                                in: Capsule()
-                            )
+                            .frame(minHeight: AppleMusicSpacing.hitTarget)
+                            .contentShape(Capsule())
+                            .background {
+                                if selected {
+                                    Color.clear
+                                        .musesGlassCapsule(tint: BrandColors.accent.opacity(0.25), role: .compactControl)
+                                } else {
+                                    Capsule().fill(BrandColors.surface.opacity(0.28))
+                                }
+                            }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
             .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
@@ -235,7 +244,7 @@ struct LibraryView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
             }
-            .background(BrandColors.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .musesGlass(cornerRadius: 16, role: .compactControl)
             .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
         }
     }
