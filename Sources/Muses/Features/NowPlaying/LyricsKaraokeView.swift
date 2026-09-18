@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 #endif
 
-/// Karaoke lyrics stage — centered lines in a laser glass card, matching NP chrome.
+/// Borderless karaoke lyrics — typography-first, no glass card or laser frame.
 public struct LyricsKaraokeView: View {
     let lyrics: String?
     let currentPosition: Double
@@ -32,93 +32,59 @@ public struct LyricsKaraokeView: View {
                 lyricsScroll
             }
         }
-        .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(BrandColors.hairline.opacity(0.55), lineWidth: 0.6)
-                .allowsHitTesting(false)
-        }
-        .laserStroke(cornerRadius: 28, lineWidth: 1.0, opacity: 0.70)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
         .onAppear { parseLyrics() }
         .onChange(of: lyrics) { _, _ in parseLyrics() }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "quote.bubble")
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(.white.opacity(0.45))
-                .frame(width: 72, height: 72)
-                .musesGlass(in: Circle(), tint: Color.white.opacity(0.10), role: .compactControl)
-                .laserStrokeCircle(lineWidth: 0.9, opacity: 0.55)
+        VStack(spacing: 10) {
             Text(tr("No Lyrics Available", "暂无歌词", zhHant: "暫無歌詞"))
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.72))
+                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                .tracking(0.4)
+                .foregroundStyle(.white.opacity(0.78))
             Text(tr("Use the cover button to return", "点按左上角返回封面", zhHant: "點按左上角返回封面"))
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.42))
+                .font(.system(size: 14, weight: .regular, design: .rounded))
+                .foregroundStyle(.white.opacity(0.38))
         }
+        .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 32)
     }
 
     private var lyricsScroll: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .center, spacing: 22) {
-                    Color.clear.frame(height: 72)
+                VStack(alignment: .center, spacing: 0) {
+                    Color.clear.frame(height: 88)
 
                     ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        let distance = abs(index - max(activeLineIndex, 0))
                         let isActive = index == activeLineIndex
-                        let isNear = abs(index - activeLineIndex) == 1
 
                         Button {
                             triggerHapticFeedback()
                             onSeek(line.time)
                         } label: {
-                            VStack(spacing: 8) {
-                                Text(line.text)
-                                    .font(.system(
-                                        size: isActive ? 24 : (isNear ? 18 : 16),
-                                        weight: isActive ? .bold : .semibold,
-                                        design: .rounded
-                                    ))
-                                    .foregroundStyle(
-                                        isActive
-                                            ? Color.white
-                                            : Color.white.opacity(isNear ? 0.55 : 0.28)
-                                    )
-                                    .multilineTextAlignment(.center)
-                                    .frame(maxWidth: .infinity)
-                                    .shadow(
-                                        color: isActive ? Color.white.opacity(0.28) : .clear,
-                                        radius: isActive ? 10 : 0
-                                    )
-
-                                // Laser underline for the singing line.
-                                Capsule()
-                                    .fill(
-                                        AngularGradient(
-                                            colors: BrandColors.laserSpectrum.map {
-                                                $0.opacity(isActive ? 0.85 : 0)
-                                            },
-                                            center: .center
-                                        )
-                                    )
-                                    .frame(width: isActive ? 48 : 0, height: 2)
-                                    .opacity(isActive ? 1 : 0)
-                            }
-                            .padding(.vertical, isActive ? 6 : 2)
-                            .animation(
-                                reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.78),
-                                value: isActive
-                            )
+                            Text(line.text)
+                                .font(font(for: distance, active: isActive))
+                                .tracking(isActive ? 0.6 : 0.2)
+                                .foregroundStyle(foreground(for: distance, active: isActive))
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(4)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, isActive ? 14 : 10)
+                                .shadow(
+                                    color: isActive && !reduceMotion
+                                        ? Color.white.opacity(0.22)
+                                        : .clear,
+                                    radius: isActive ? 12 : 0
+                                )
+                                .scaleEffect(isActive ? 1.02 : 1.0)
+                                .animation(
+                                    reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.82),
+                                    value: isActive
+                                )
                         }
                         .buttonStyle(.plain)
                         .id(line.id)
@@ -126,16 +92,39 @@ public struct LyricsKaraokeView: View {
                         .accessibilityAddTraits(isActive ? .isSelected : [])
                     }
 
-                    Color.clear.frame(height: 120)
+                    Color.clear.frame(height: 140)
                 }
-                .padding(.horizontal, 22)
+                .padding(.horizontal, 28)
             }
             .onChange(of: activeLineIndex) { _, newIndex in
                 guard newIndex >= 0, newIndex < lines.count else { return }
-                withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.82)) {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.48, dampingFraction: 0.84)) {
                     proxy.scrollTo(lines[newIndex].id, anchor: .center)
                 }
             }
+        }
+    }
+
+    private func font(for distance: Int, active: Bool) -> Font {
+        if active {
+            return .system(size: 28, weight: .bold, design: .rounded)
+        }
+        switch distance {
+        case 1:
+            return .system(size: 20, weight: .semibold, design: .rounded)
+        case 2:
+            return .system(size: 17, weight: .medium, design: .rounded)
+        default:
+            return .system(size: 15, weight: .regular, design: .rounded)
+        }
+    }
+
+    private func foreground(for distance: Int, active: Bool) -> Color {
+        if active { return Color.white }
+        switch distance {
+        case 1: return Color.white.opacity(0.52)
+        case 2: return Color.white.opacity(0.30)
+        default: return Color.white.opacity(0.16)
         }
     }
 
@@ -190,7 +179,7 @@ public struct LyricsKaraokeView: View {
 
     private func triggerHapticFeedback() {
         #if os(iOS)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
     }
 }

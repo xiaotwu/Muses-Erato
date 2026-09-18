@@ -137,17 +137,9 @@ struct NowPlayingView: View {
 
             if showLyrics {
                 Text(tr("Lyrics", "歌词", zhHant: "歌詞"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay {
-                        Capsule()
-                            .stroke(BrandColors.hairline.opacity(0.55), lineWidth: 0.6)
-                            .allowsHitTesting(false)
-                    }
-                    .laserStrokeCapsule(lineWidth: 0.9, opacity: 0.65)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .tracking(1.2)
+                    .foregroundStyle(.white.opacity(0.78))
             }
 
             Spacer(minLength: 8)
@@ -192,15 +184,8 @@ struct NowPlayingView: View {
         Group {
             if lyricsLoading && displayedLyrics == nil {
                 ProgressView()
-                    .tint(.white)
+                    .tint(.white.opacity(0.85))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                    )
-                    .laserStroke(cornerRadius: 28, lineWidth: 1.0, opacity: 0.70)
-                    .padding(.horizontal, 16)
             } else {
                 LyricsKaraokeView(
                     lyrics: displayedLyrics,
