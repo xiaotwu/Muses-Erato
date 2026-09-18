@@ -64,6 +64,15 @@ struct MainTabView: View {
             NowPlayingView(playback: playback, isPresented: $showNowPlaying)
                 .environment(playback)
         }
+        #if DEBUG
+        .onAppear {
+            let key = "muses.debug.expandNowPlaying"
+            if UserDefaults.standard.bool(forKey: key) {
+                UserDefaults.standard.set(false, forKey: key)
+                showNowPlaying = true
+            }
+        }
+        #endif
         .sheet(isPresented: $showSettings) {
             SettingsView(playback: playback)
                 .environment(playback)
