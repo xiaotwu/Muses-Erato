@@ -6,6 +6,10 @@ import Observation
 ///
 /// Provides a snapshot of the current `ListeningContext` at playback transitions.
 /// Bridges AVAudioSession for headphones and audio route detection.
+///
+/// Gated by `PrefKey.ffContext`. Does **not** invent macOS frontmost-app tracking on iOS;
+/// `frontmostAppBundleId` stays nil unless a future iOS-safe signal exists and
+/// `PrefKey.contextTrackActiveApp` is explicitly enabled (still nil on iOS today).
 @Observable
 @MainActor
 final class ContextService {
@@ -21,18 +25,26 @@ final class ContextService {
     }
 
     /// Captures current context for listening event analysis.
+    /// Returns nil when `PrefKey.ffContext` is off.
     func capture() -> ListeningContext? {
+        guard UserDefaults.standard.bool(forKey: PrefKey.ffContext) else { return nil }
+
         let now = Date()
         let hour = calendar.component(.hour, from: now)
         let dow = calendar.component(.weekday, from: now)
         let isWeekend = dow == 1 || dow == 7
         let dev = Self.defaultDevice()
 
+        // iOS has no supported frontmost-app API equivalent to macOS NSWorkspace.
+        // Never fabricate a bundle id; leave nil even when trackActiveApp is on.
+        let frontmost: String? = nil
+        _ = UserDefaults.standard.bool(forKey: PrefKey.contextTrackActiveApp)
+
         return ListeningContext(
             hour: hour,
             dayOfWeek: dow,
             isWeekend: isWeekend,
-            frontmostAppBundleId: "com.xiaotwu.muses.erato",
+            frontmostAppBundleId: frontmost,
             outputDeviceName: dev.outputDeviceName,
             isHeadphones: dev.isHeadphones
         )
