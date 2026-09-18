@@ -1,6 +1,9 @@
 import SwiftUI
 
 public enum MusesMotion {
+    /// liqui.design-inspired press scale for chrome / transport controls.
+    public static let pressScale: CGFloat = 0.97
+
     public static let hover: TimeInterval = 0.15
     public static let overlay: TimeInterval = 0.20
     public static let drawer: TimeInterval = 0.25
@@ -35,5 +38,9 @@ public enum MusesMotion {
 
     public static func collectionCardAnimation(reduceMotion: Bool) -> Animation? {
         reduceMotion ? nil : .easeOut(duration: collectionCardActivation)
+    }
+
+    public static func pressAnimation(reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.72)
     }
 }

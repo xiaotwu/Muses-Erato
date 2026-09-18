@@ -16,10 +16,12 @@ public enum AppleMusicSpacing {
     public static let section: CGFloat = 28
     public static let browseTitleTop: CGFloat = 16
     public static let headerToPrimary: CGFloat = 28
+    /// Minimum comfortable hit target (Apple HIG).
+    public static let hitTarget: CGFloat = 44
 }
 
 public enum OverlayChromeMetrics {
-    public static let scrollBottomInset: CGFloat = 110
+    public static let scrollBottomInset: CGFloat = 120
 }
 
 enum PlaylistOverviewMetrics {

@@ -175,7 +175,8 @@ struct SettingsView: View {
                         dismiss()
                     }
                     .font(.headline)
-                    .foregroundStyle(BrandColors.accent)
+                    .musesAction(prominent: true)
+                    .tint(BrandColors.accent)
                 }
             }
             .alert(tr("Clear Audio Cache?", "确认清空音频缓存？"), isPresented: $showClearCacheAlert) {

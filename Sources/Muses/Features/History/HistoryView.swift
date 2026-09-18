@@ -266,6 +266,7 @@ struct HistoryView: View {
                 .font(.callout)
                 .foregroundStyle(BrandColors.textSecondary)
             Button(tr("Try Again", "重试")) { reload() }
+                .musesAction(prominent: true)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
