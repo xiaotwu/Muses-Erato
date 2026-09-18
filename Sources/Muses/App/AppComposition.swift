@@ -27,12 +27,16 @@ struct AppComposition {
     let youTubeSearch: YouTubeSearchService
     let youTubePlaylistSync: YouTubePlaylistSyncService
     let nowPlayingManager: NowPlayingManager
+    let youTubeMusicSession: YouTubeMusicAccountSession
     let homeProviderHasWebEnhancement: Bool
 
     /// Registers feature-flag / WebHome defaults (first-run only; never overwrites user choices).
     static func registerPreferenceDefaults() {
         UserDefaults.standard.register(defaults: FeatureFlagDefaults.enabledByDefault as [String: Any])
         UserDefaults.standard.register(defaults: WebHomePreferenceDefaults.values)
+        UserDefaults.standard.register(defaults: [
+            PrefKey.homeRecommendationMode: HomeRecommendationMode.muses.rawValue
+        ])
     }
 
     /// Builds the iOS production graph. Empty `playback.state.track` is intentional — no sample track.
@@ -77,7 +81,13 @@ struct AppComposition {
         let lyrics = LyricsService(modelContainer: modelContainer)
 
         let bridge = YouTubeResolver.shared
-        let account = YouTubeAccountService()
+        // Dual Home modes: Muses (local library) vs YouTube Music (Innertube browse).
+        // No macOS WebHome helper / cookie extraction on the default path.
+        let oauthSession = GoogleOAuthSession(keychain: KeychainStore())
+        let account = YouTubeAccountService(session: oauthSession)
+        let innertube = InnertubeClient()
+        let youTubeMusicSession = YouTubeMusicAccountSession(oauth: oauthSession, innertube: innertube)
+
         let youTubeImport = YouTubeImportService(bridge: bridge, modelContainer: modelContainer)
         let youTubeSearch = YouTubeSearchService(bridge: bridge, modelContainer: modelContainer)
         let youTubePlaylistSync = YouTubePlaylistSyncService(
@@ -86,11 +96,9 @@ struct AppComposition {
         )
         let nowPlayingManager = NowPlayingManager(playback, library: library, queue: queue)
 
-        // Baseline-only Home provider: no macOS WebHome helper / cookie extraction on the default path.
-        let baselineProvider = YTDlpDiscoveryProvider { query, limit in
-            try await bridge.searchYouTube(query: query, limit: limit)
-        }
-        let homeProvider = LayeredHomeProvider(baseline: baselineProvider, webEnhancement: nil)
+        let musesHome = MusesHomeProvider(library: library)
+        let ytmHome = YouTubeMusicHomeProvider(client: innertube, accountSession: youTubeMusicSession)
+        let homeProvider = ModeSwitchingHomeProvider(muses: musesHome, youtubeMusic: ytmHome)
         assert(homeProvider.hasWebEnhancement == false)
 
         let homeDiscovery = HomeDiscoveryService(
@@ -127,6 +135,7 @@ struct AppComposition {
             youTubeSearch: youTubeSearch,
             youTubePlaylistSync: youTubePlaylistSync,
             nowPlayingManager: nowPlayingManager,
+            youTubeMusicSession: youTubeMusicSession,
             homeProviderHasWebEnhancement: homeProvider.hasWebEnhancement
         )
     }

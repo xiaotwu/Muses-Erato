@@ -53,6 +53,8 @@ struct HomeDiscoveryInput: Sendable, Equatable {
     /// Cache and refresh ownership. This is never optional: a signed-out load
     /// cannot accidentally reuse another account's saved Home response.
     let scope: HomeFeedScope
+    /// Recommendation source; included in cache identity so modes never cross-contaminate.
+    let mode: HomeRecommendationMode
 
     init(topArtistNames: [String],
          recentlyPlayedArtistNames: [String],
@@ -60,7 +62,8 @@ struct HomeDiscoveryInput: Sendable, Equatable {
          timeBand: ListeningContext.TimeBand,
          hour: Int,
          seedVideoIds: [String] = [],
-         scope: HomeFeedScope) {
+         scope: HomeFeedScope,
+         mode: HomeRecommendationMode = .muses) {
         self.topArtistNames = topArtistNames
         self.recentlyPlayedArtistNames = recentlyPlayedArtistNames
         self.likedArtistNames = likedArtistNames
@@ -68,6 +71,7 @@ struct HomeDiscoveryInput: Sendable, Equatable {
         self.hour = hour
         self.seedVideoIds = seedVideoIds
         self.scope = scope
+        self.mode = mode
     }
 
     static func == (lhs: HomeDiscoveryInput, rhs: HomeDiscoveryInput) -> Bool {
@@ -78,6 +82,7 @@ struct HomeDiscoveryInput: Sendable, Equatable {
             && lhs.hour == rhs.hour
             && lhs.seedVideoIds == rhs.seedVideoIds
             && lhs.scope == rhs.scope
+            && lhs.mode == rhs.mode
     }
 
     /// Merges YouTube account personalization signals (background refresh path): folds the
@@ -102,7 +107,8 @@ struct HomeDiscoveryInput: Sendable, Equatable {
             timeBand: timeBand,
             hour: hour,
             seedVideoIds: seedVideoIds,
-            scope: scope)
+            scope: scope,
+            mode: mode)
     }
 }
 

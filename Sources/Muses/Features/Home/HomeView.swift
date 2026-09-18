@@ -12,6 +12,7 @@ struct HomeView: View {
 
     @State private var situationalSections: [SituationalSection] = []
     @State private var isLoadingSituational = false
+    @AppStorage(PrefKey.homeRecommendationMode) private var homeRecommendationModeRaw: String = HomeRecommendationMode.muses.rawValue
 
     init(playback: PlaybackService, showSettings: Binding<Bool>) {
         self.playback = playback
@@ -77,6 +78,23 @@ struct HomeView: View {
             .navigationTitle(tr("Home", "首页"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker(
+                            tr("Recommendation source", "推荐来源"),
+                            selection: $homeRecommendationModeRaw
+                        ) {
+                            ForEach(HomeRecommendationMode.allCases) { mode in
+                                Text(mode.title).tag(mode.rawValue)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "sparkles.rectangle.stack")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(BrandColors.textPrimary)
+                    }
+                    .accessibilityLabel(tr("Recommendation source", "推荐来源"))
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         triggerHaptic()
                         showSettings = true
@@ -86,6 +104,9 @@ struct HomeView: View {
                             .foregroundStyle(BrandColors.textPrimary)
                     }
                 }
+            }
+            .onChange(of: homeRecommendationModeRaw) { _, _ in
+                homeDiscovery.reload()
             }
             .task {
                 homeDiscovery.load()
