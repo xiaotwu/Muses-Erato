@@ -126,9 +126,30 @@ extension MusesApp {
         }
 
         do {
-            let importID = try await importService.importPlaylist(url: url)
+            let importID: UUID
+            if let preloaded = Self.loadDebugSeedPlaylistJSON() {
+                let entries = preloaded.entries.map {
+                    YTDlpBridge.YTDlpPlaylistEntry(
+                        id: $0.id,
+                        title: $0.title,
+                        uploader: $0.uploader,
+                        duration: $0.duration,
+                        playlistTitle: preloaded.title
+                    )
+                }
+                importID = try await importService.importPreloadedPlaylist(
+                    playlistId: preloaded.playlistId,
+                    url: preloaded.url,
+                    title: preloaded.title,
+                    channel: preloaded.channel,
+                    entries: entries
+                )
+                log.info("Seeded from JSON \(preloaded.playlistId, privacy: .public) → \(importID.uuidString, privacy: .public)")
+            } else {
+                importID = try await importService.importPlaylist(url: url)
+                log.info("Seeded playlist \(url, privacy: .public) → \(importID.uuidString, privacy: .public)")
+            }
             defaults.set(true, forKey: doneKey)
-            log.info("Seeded playlist \(url, privacy: .public) → \(importID.uuidString, privacy: .public)")
 
             guard defaults.bool(forKey: autoPlayKey) else { return }
             let context = ModelContext(container)
@@ -157,6 +178,38 @@ extension MusesApp {
                 await playFirstLibraryTrackIfPossible(playback: playback, container: container, log: log)
             }
         }
+    }
+
+
+    private struct DebugSeedPlaylistFile: Decodable {
+        let playlistId: String
+        let url: String
+        let title: String
+        let channel: String
+        let entries: [DebugSeedEntry]
+    }
+
+    private struct DebugSeedEntry: Decodable {
+        let id: String
+        let title: String
+        let uploader: String?
+        let duration: Double?
+    }
+
+    @MainActor
+    private static func loadDebugSeedPlaylistJSON() -> DebugSeedPlaylistFile? {
+        let urls = [
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("muses-debug-seed.json"),
+            Bundle.main.url(forResource: "muses-debug-seed", withExtension: "json")
+        ].compactMap { $0 }
+        for url in urls {
+            guard let data = try? Data(contentsOf: url),
+                  let decoded = try? JSONDecoder().decode(DebugSeedPlaylistFile.self, from: data),
+                  !decoded.entries.isEmpty else { continue }
+            return decoded
+        }
+        return nil
     }
 
     @MainActor

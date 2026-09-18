@@ -38,9 +38,11 @@ struct MainTabView: View {
 
             VStack(spacing: AppleMusicTokens.miniPlayerDockMargin) {
                 if playback.state.track != nil {
-                    // Same horizontal span as the tab+Search row below (no extra insets).
+                    // Glass applied here at the same maxWidth as the tab+Search row.
                     MiniPlayerBar(playback: playback, isNowPlayingExpanded: $showNowPlaying)
                         .frame(maxWidth: .infinity)
+                        .musesGlass(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, role: .floatingPlayer)
+                        .laserStroke(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, lineWidth: 0.9, opacity: 0.62)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
