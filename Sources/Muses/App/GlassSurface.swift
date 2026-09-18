@@ -74,6 +74,11 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
 }
 
 public extension View {
+    func musesTitleGlow() -> some View {
+        shadow(color: BrandColors.textPrimary.opacity(0.28), radius: AppleMusicTokens.selectedGlowRadius)
+            .shadow(color: BrandColors.textPrimary.opacity(0.12), radius: 1)
+    }
+
     /// Applies the Muses Liquid Glass effect to any custom shape.
     func musesGlass<S: Shape>(in shape: S, tint: Color? = nil, role: MusesGlassRole = .floatingPlayer) -> some View {
         modifier(MusesGlassModifier(shape: shape, tint: tint, role: role))
