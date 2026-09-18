@@ -10,6 +10,28 @@ struct EQBand: Codable, Equatable, Sendable {
     }
 }
 
+/// 10-band UI on a 32-slot `AVAudioUnitEQ`: the first 10 slots take the UI bands, the rest stay bypassed.
+enum EQBandMapping {
+    static let engineSlotCount = 32
+
+    struct Assignment: Equatable, Sendable {
+        var frequency: Double
+        var gain: Float
+        var q: Float
+        var bypass: Bool
+    }
+
+    static func assignments(from uiBands: [EQBand], slotCount: Int = engineSlotCount) -> [Assignment] {
+        (0..<slotCount).map { index in
+            if index < uiBands.count {
+                let band = uiBands[index]
+                return Assignment(frequency: band.frequency, gain: band.gain, q: band.q, bypass: false)
+            }
+            return Assignment(frequency: 1000, gain: 0, q: 1, bypass: true)
+        }
+    }
+}
+
 enum EQPresets {
     static let flat: [EQBand] = [
         EQBand(frequency: 31, gain: 0, q: 1.0),

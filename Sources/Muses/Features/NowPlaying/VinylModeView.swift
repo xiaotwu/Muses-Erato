@@ -22,53 +22,15 @@ struct VinylModeView: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !shouldRotate)) { timeline in
-            ZStack {
-                // Vinyl outer grooved ring
-                Circle()
-                    .fill(Color(white: 0.12))
-                    .frame(width: size, height: size)
-                    .shadow(color: .black.opacity(0.35), radius: 24, x: 0, y: 12)
-                
-                // Fine grooves
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-                    .frame(width: size * 0.92, height: size * 0.92)
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.04), lineWidth: 1)
-                    .frame(width: size * 0.82, height: size * 0.82)
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
-                    .frame(width: size * 0.72, height: size * 0.72)
-
-                // Vinyl sheen gradient
-                AngularGradient(
-                    gradient: Gradient(colors: [
-                        Color.white.opacity(0.0),
-                        Color.white.opacity(0.12),
-                        Color.white.opacity(0.0),
-                        Color.white.opacity(0.08),
-                        Color.white.opacity(0.0)
-                    ]),
-                    center: .center
-                )
-                .frame(width: size, height: size)
-                .clipShape(Circle())
-
-                // Center label (Album Art)
-                ArtworkView(source: source, cornerRadius: size * 0.3, glyphSize: size * 0.15, clipCircle: true, targetSize: size * 0.6)
-                    .clipShape(Circle())
-                    .overlay(
-                        Circle().strokeBorder(Color.black.opacity(0.2), lineWidth: 2)
-                    )
-
-                // Spindle hole
-                Circle()
-                    .fill(Color.black)
-                    .frame(width: 16, height: 16)
-                    .overlay(
-                        Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                    )
-            }
+            ArtworkView(
+                source: source,
+                cornerRadius: size / 2,
+                glyphSize: size * 0.18,
+                clipCircle: true,
+                targetSize: size
+            )
+            .clipShape(Circle())
+            .shadow(color: .black.opacity(0.35), radius: 24, y: 12)
             .rotationEffect(.degrees(VinylRotation.angle(
                 accumulatedDegrees: accumulatedDegrees,
                 activeSince: activeSince,

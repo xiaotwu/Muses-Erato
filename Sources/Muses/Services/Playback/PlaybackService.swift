@@ -10,7 +10,7 @@ final class PlaybackService {
     let queue: QueueService
     /// Library service used to record play history (`recordPlay`). Optional in tests (nil skips recording).
     weak var library: LibraryService?
-    /// Cross-feature playback event bus (History/Session/Context/Inbox/Focus subscribe).
+    /// Cross-feature playback event bus (History/Context subscribe).
     /// Owned by PlaybackService as a singleton; external subscribers register via `eventBus.subscribe`.
     let eventBus = PlaybackEventBus()
     private(set) var volume: Float
@@ -270,8 +270,12 @@ final class PlaybackService {
         engine.setVolume(volume)
     }
     func setEQ(_ bands: [EQBand]) {
+        lastEQBands = bands
         engine.setEQ(bands)
     }
+
+    private(set) var lastEQBands: [EQBand] = EQPresets.flat
+    var isEQAvailable: Bool { engine.isEQAvailable }
     func installSpectrumHandler(_ h: @escaping (SpectrumFrame) -> Void) {
         spectrumHandler = h
         engine.installSpectrumTap(h)
@@ -317,6 +321,23 @@ final class PlaybackService {
         // If the previous track is the one already playing (at head / empty history), skip reload to avoid flicker
         if item.track.id == state.track?.id { return }
         playbackRequested = true
+        scheduleLoad(item.track)
+    }
+
+    /// Play a concrete index in the current queue without rebuilding context.
+    func playQueueIndex(_ index: Int) {
+        // Keep compile-friendly without MusesShared; same bounds as WatchRemoteCodec.validatedPlayIndex.
+        guard index >= 0, index < queue.items.count else { return }
+        let item = queue.items[index]
+        if item.track.id == state.track?.id {
+            play()
+            return
+        }
+        postDisplacementForCurrent()
+        playbackRequested = true
+        startedTrackId = nil
+        queue.currentIndex = index
+        queue.persist()
         scheduleLoad(item.track)
     }
 
