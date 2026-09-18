@@ -1,11 +1,15 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
-/// High-precision real-time synchronized karaoke lyrics view.
+/// Borderless karaoke lyrics — typography-first, no glass card or laser frame.
 public struct LyricsKaraokeView: View {
     let lyrics: String?
     let currentPosition: Double
     let onSeek: (Double) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var lines: [ParsedLyricLine] = []
 
     public init(lyrics: String?, currentPosition: Double, onSeek: @escaping (Double) -> Void) {
@@ -23,62 +27,104 @@ public struct LyricsKaraokeView: View {
     public var body: some View {
         Group {
             if lines.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "quote.bubble")
-                        .font(.system(size: 48, weight: .light))
-                        .foregroundStyle(.white.opacity(0.35))
-                    Text(tr("No Lyrics Available", "暂无歌词"))
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                emptyState
             } else {
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 26) {
-                            // Top padding so first line can scroll to center
-                            Color.clear.frame(height: 120)
+                lyricsScroll
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { parseLyrics() }
+        .onChange(of: lyrics) { _, _ in parseLyrics() }
+    }
 
-                            ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
-                                let isActive = index == activeLineIndex
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Text(tr("No Lyrics Available", "暂无歌词", zhHant: "暫無歌詞"))
+                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                .tracking(0.4)
+                .foregroundStyle(.white.opacity(0.78))
+            Text(tr("Use the cover button to return", "点按左上角返回封面", zhHant: "點按左上角返回封面"))
+                .font(.system(size: 14, weight: .regular, design: .rounded))
+                .foregroundStyle(.white.opacity(0.38))
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 32)
+    }
 
-                                Button {
-                                    triggerHapticFeedback()
-                                    onSeek(line.time)
-                                } label: {
-                                    Text(line.text)
-                                        .font(.system(size: isActive ? 26 : 22, weight: isActive ? .bold : .semibold, design: .rounded))
-                                        .foregroundStyle(isActive ? Color.white : Color.white.opacity(0.38))
-                                        .scaleEffect(isActive ? 1.04 : 1.0, anchor: .leading)
-                                        .shadow(color: isActive ? Color.white.opacity(0.3) : Color.clear, radius: 8, x: 0, y: 0)
-                                        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isActive)
-                                        .multilineTextAlignment(.leading)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .buttonStyle(.plain)
-                                .id(line.id)
-                            }
+    private var lyricsScroll: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .center, spacing: 0) {
+                    Color.clear.frame(height: 88)
 
-                            // Bottom padding so last line can scroll to center
-                            Color.clear.frame(height: 200)
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        let distance = abs(index - max(activeLineIndex, 0))
+                        let isActive = index == activeLineIndex
+
+                        Button {
+                            triggerHapticFeedback()
+                            onSeek(line.time)
+                        } label: {
+                            Text(line.text)
+                                .font(font(for: distance, active: isActive))
+                                .tracking(isActive ? 0.6 : 0.2)
+                                .foregroundStyle(foreground(for: distance, active: isActive))
+                                .multilineTextAlignment(.center)
+                                .lineSpacing(4)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, isActive ? 14 : 10)
+                                .shadow(
+                                    color: isActive && !reduceMotion
+                                        ? Color.white.opacity(0.22)
+                                        : .clear,
+                                    radius: isActive ? 12 : 0
+                                )
+                                .scaleEffect(isActive ? 1.02 : 1.0)
+                                .animation(
+                                    reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.82),
+                                    value: isActive
+                                )
                         }
-                        .padding(.horizontal, 28)
+                        .buttonStyle(.plain)
+                        .id(line.id)
+                        .accessibilityLabel(line.text)
+                        .accessibilityAddTraits(isActive ? .isSelected : [])
                     }
-                    .onChange(of: activeLineIndex) { _, newIndex in
-                        if newIndex >= 0 && newIndex < lines.count {
-                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                proxy.scrollTo(lines[newIndex].id, anchor: .center)
-                            }
-                        }
-                    }
+
+                    Color.clear.frame(height: 140)
+                }
+                .padding(.horizontal, 28)
+            }
+            .onChange(of: activeLineIndex) { _, newIndex in
+                guard newIndex >= 0, newIndex < lines.count else { return }
+                withAnimation(reduceMotion ? nil : .spring(response: 0.48, dampingFraction: 0.84)) {
+                    proxy.scrollTo(lines[newIndex].id, anchor: .center)
                 }
             }
         }
-        .onAppear {
-            parseLyrics()
+    }
+
+    private func font(for distance: Int, active: Bool) -> Font {
+        if active {
+            return .system(size: 28, weight: .bold, design: .rounded)
         }
-        .onChange(of: lyrics) { _, _ in
-            parseLyrics()
+        switch distance {
+        case 1:
+            return .system(size: 20, weight: .semibold, design: .rounded)
+        case 2:
+            return .system(size: 17, weight: .medium, design: .rounded)
+        default:
+            return .system(size: 15, weight: .regular, design: .rounded)
+        }
+    }
+
+    private func foreground(for distance: Int, active: Bool) -> Color {
+        if active { return Color.white }
+        switch distance {
+        case 1: return Color.white.opacity(0.52)
+        case 2: return Color.white.opacity(0.30)
+        default: return Color.white.opacity(0.16)
         }
     }
 
@@ -102,29 +148,25 @@ public struct LyricsKaraokeView: View {
         }
 
         var parsed: [ParsedLyricLine] = []
-        let rawLines = text.components(separatedBy: .newlines)
-
-        for raw in rawLines {
+        for raw in text.components(separatedBy: .newlines) {
             let trimmed = raw.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else { continue }
 
-            // Match [mm:ss.xx] or [mm:ss]
             if let openBracket = trimmed.firstIndex(of: "["),
                let closeBracket = trimmed.firstIndex(of: "]"),
                openBracket < closeBracket {
                 let tag = String(trimmed[trimmed.index(after: openBracket)..<closeBracket])
-                let lyricText = String(trimmed[trimmed.index(after: closeBracket)...]).trimmingCharacters(in: .whitespaces)
-
+                let lyricText = String(trimmed[trimmed.index(after: closeBracket)...])
+                    .trimmingCharacters(in: .whitespaces)
                 if let timeSec = parseTimestamp(tag), !lyricText.isEmpty {
                     parsed.append(ParsedLyricLine(time: timeSec, text: lyricText))
                 }
             } else {
-                // Plain text line
                 parsed.append(ParsedLyricLine(time: 0, text: trimmed))
             }
         }
 
-        self.lines = parsed.sorted { $0.time < $1.time }
+        lines = parsed.sorted { $0.time < $1.time }
     }
 
     private func parseTimestamp(_ tag: String) -> Double? {
@@ -137,8 +179,7 @@ public struct LyricsKaraokeView: View {
 
     private func triggerHapticFeedback() {
         #if os(iOS)
-        let generator = UIImpactFeedbackGenerator(style: .medium)
-        generator.impactOccurred()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
     }
 }

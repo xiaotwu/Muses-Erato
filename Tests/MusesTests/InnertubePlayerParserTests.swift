@@ -72,4 +72,24 @@ final class InnertubePlayerParserTests: XCTestCase {
         )
         XCTAssertFalse(url.absoluteString.isEmpty)
     }
+
+    func testPrefersAppleDecodableAACOverWebM() {
+        let url = InnertubePlayerParser.audioURL(from: [
+            "streamingData": [
+                "adaptiveFormats": [
+                    [
+                        "mimeType": "audio/webm; codecs=\"opus\"",
+                        "bitrate": 160000,
+                        "url": "https://example.com/a.webm"
+                    ],
+                    [
+                        "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+                        "bitrate": 128000,
+                        "url": "https://example.com/a.m4a"
+                    ]
+                ]
+            ]
+        ])
+        XCTAssertEqual(url?.absoluteString, "https://example.com/a.m4a")
+    }
 }

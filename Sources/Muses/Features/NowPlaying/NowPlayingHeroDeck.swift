@@ -87,21 +87,23 @@ struct NowPlayingHeroDeck: View {
 
     private func heroCard(item: QueueItem, side: CGFloat, isCenter: Bool) -> some View {
         let source = ArtworkSource.resolve(for: item.track)
+        // Rectangular cover card (matches CoverArtModeView), not vinyl circle.
+        let corner = min(24, side * 0.08)
         return ArtworkView(
             source: source,
-            cornerRadius: side / 2,
+            cornerRadius: corner,
             glyphSize: side * 0.18,
-            clipCircle: true,
-            targetSize: side
+            clipCircle: false,
+            targetSize: side,
+            presentation: .fill
         )
-        .clipShape(Circle())
         .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
-        .modifier(NowPlayingSpinModifier(isPlaying: isCenter && isPlaying && !reduceMotion))
         .onTapGesture {
             if isCenter { onOpenLyrics() }
         }
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(item.track.title)
+        .accessibilityValue(isPlaying && isCenter ? tr("Playing", "播放中", zhHant: "播放中") : "")
         .accessibilityHint(tr("Shows lyrics", "显示歌词", zhHant: "顯示歌詞"))
     }
 
@@ -115,36 +117,5 @@ struct NowPlayingHeroDeck: View {
                 onSelectIndex(next)
             }
         }
-    }
-}
-
-private struct NowPlayingSpinModifier: ViewModifier {
-    let isPlaying: Bool
-    @State private var accumulatedDegrees: Double = 0
-    @State private var activeSince: Date?
-
-    func body(content: Content) -> some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isPlaying)) { timeline in
-            content.rotationEffect(.degrees(VinylRotation.angle(
-                accumulatedDegrees: accumulatedDegrees,
-                activeSince: activeSince,
-                at: timeline.date,
-                isRotating: isPlaying
-            )))
-        }
-        .onAppear { synchronize(at: Date()) }
-        .onChange(of: isPlaying) { _, _ in synchronize(at: Date()) }
-    }
-
-    private func synchronize(at date: Date) {
-        if let activeSince {
-            accumulatedDegrees = VinylRotation.angle(
-                accumulatedDegrees: accumulatedDegrees,
-                activeSince: activeSince,
-                at: date,
-                isRotating: true
-            )
-        }
-        activeSince = isPlaying ? date : nil
     }
 }

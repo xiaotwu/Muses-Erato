@@ -35,8 +35,8 @@ struct YouTubeImportsView: View {
                     } label: {
                         Label(tr("Import YouTube Playlist", "导入 YouTube 歌单"), systemImage: "plus")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(BrandColors.magenta)
+                    .musesAction(prominent: true)
+                    .tint(BrandColors.accent)
                     .disabled(importing)
                 }
                 .padding(.horizontal, 20)
@@ -144,7 +144,7 @@ struct YouTubeImportCard: View {
                                 Label(tr("Check Remote", "检查远端"), systemImage: "arrow.down.to.line")
                             }
                         }
-                        .buttonStyle(.bordered).disabled(syncing)
+                        .musesControls().disabled(syncing)
 
                         Button {
                             if let url = URL(string: imp.url) {
@@ -155,17 +155,17 @@ struct YouTubeImportCard: View {
                                 #endif
                             }
                         } label: { Label(tr("Open in YT", "在 YT 中打开"), systemImage: "arrow.up.right.square") }
-                        .buttonStyle(.bordered)
+                        .musesControls()
 
                         Button(role: .destructive) {
                             deleteImport()
                         } label: { Label(tr("Delete", "删除"), systemImage: "trash") }
-                        .buttonStyle(.bordered)
+                        .musesControls()
 
                         Button {
                             playAll()
                         } label: { Label(tr("Play", "播放"), systemImage: "play.fill") }
-                        .buttonStyle(.borderedProminent).tint(BrandColors.magenta)
+                        .musesAction(prominent: true)
                     }
                     .padding(.top, 2)
                     if let syncError {
@@ -275,21 +275,13 @@ struct YouTubeImportCard: View {
     }
 
     private var artworkView: some View {
-        Group {
-            if let urlStr = imp.artworkUrl, let url = URL(string: urlStr) {
-                AsyncImage(url: url) { phase in
-                    if let img = phase.image { img.resizable().scaledToFill() }
-                    else { placeholder }
-                }
-            } else {
-                placeholder
-            }
-        }
-    }
-    private var placeholder: some View {
-        RoundedRectangle(cornerRadius: 8).fill(BrandColors.surface)
-            .overlay(Image(systemName: "music.note.list")
-                .font(.title2).foregroundStyle(BrandColors.textSecondary.opacity(0.5)))
+        ArtworkView(
+            source: ArtworkSource.resolve(remoteURL: imp.artworkUrl, youTubeId: nil),
+            cornerRadius: 8,
+            glyphSize: 18,
+            targetSize: 48,
+            presentation: .fill
+        )
     }
 
     private var visibleSnaps: [TrackSnapshot] {

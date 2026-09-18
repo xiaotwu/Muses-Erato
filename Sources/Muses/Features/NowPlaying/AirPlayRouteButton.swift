@@ -1,10 +1,11 @@
-import SwiftUI
 import AVKit
+import SwiftUI
 
-/// System AirPlay route picker for the Now Playing transport.
+/// System AirPlay route picker for the Now Playing audio sheet.
 struct AirPlayRouteButton: UIViewRepresentable {
     var tint: UIColor = .white
-    var activeTint: UIColor = UIColor(red: 250 / 255, green: 88 / 255, blue: 106 / 255, alpha: 1)
+    /// Active route tint — brand-neutral white (not coral).
+    var activeTint: UIColor = .white
 
     func makeUIView(context: Context) -> AVRoutePickerView {
         let view = AVRoutePickerView()

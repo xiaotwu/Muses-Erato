@@ -24,12 +24,12 @@ struct VinylModeView: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !shouldRotate)) { timeline in
             ArtworkView(
                 source: source,
-                cornerRadius: size / 2,
+                cornerRadius: min(24, size * 0.08),
                 glyphSize: size * 0.18,
-                clipCircle: true,
+                clipCircle: false,
                 targetSize: size
             )
-            .clipShape(Circle())
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.35), radius: 24, y: 12)
             .rotationEffect(.degrees(VinylRotation.angle(
                 accumulatedDegrees: accumulatedDegrees,

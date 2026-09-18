@@ -59,7 +59,7 @@ struct PlaylistsView: View {
                     Text(addError).lineLimit(2)
                     Spacer()
                     Button(tr("Dismiss", "关闭")) { self.addError = nil }
-                        .buttonStyle(.bordered)
+                        .musesControls()
                         .controlSize(.small)
                 }
                 .font(.caption)
@@ -75,7 +75,7 @@ struct PlaylistsView: View {
                         .lineLimit(1)
                     Spacer()
                     Button(tr("Undo", "撤销"), action: undoPlaylistDeletion)
-                        .buttonStyle(.bordered)
+                        .musesControls()
                         .controlSize(.small)
                 }
                 .font(.caption)
@@ -96,7 +96,7 @@ struct PlaylistsView: View {
                     }
                     Spacer()
                     Button(tr("Retry", "重试"), action: refresh)
-                        .buttonStyle(.bordered)
+                        .musesControls()
                         .controlSize(.small)
                 }
                 .foregroundStyle(BrandColors.textSecondary)
@@ -388,12 +388,12 @@ struct PlaylistsView: View {
                 .foregroundStyle(BrandColors.textSecondary)
             HStack(spacing: 10) {
                 Button(tr("New Playlist", "新建歌单")) { showCreateSheet = true }
-                    .buttonStyle(.borderedProminent)
-                    .tint(BrandColors.magenta)
+                    .musesAction(prominent: true)
+                    .tint(BrandColors.accent)
                 Button(tr("Import YouTube Playlist", "导入 YouTube 歌单")) {
                     showImportSheet = true
                 }
-                .buttonStyle(.bordered)
+                .musesControls()
             }
         }
         .frame(maxWidth: .infinity, minHeight: 260)
@@ -498,7 +498,7 @@ struct PlaylistsView: View {
                     Button(tr("Restore Locally", "恢复到本地")) {
                         restoreYouTubeImport(imported)
                     }
-                    .buttonStyle(.bordered)
+                    .musesControls()
                 }
                 .padding(10)
                 .background(BrandColors.surface,
@@ -680,8 +680,8 @@ struct NewPlaylistSheet: View {
                     isPresented = false
                     name = ""
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(BrandColors.magenta)
+                .musesAction(prominent: true)
+                .tint(BrandColors.accent)
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }

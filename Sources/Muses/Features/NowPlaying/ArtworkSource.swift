@@ -86,59 +86,123 @@ struct ArtworkView: View {
     private var resolvedHeight: CGFloat { targetHeight ?? targetSize }
 
     var body: some View {
-        Group {
+        let shape: AnyShape = clipCircle
+            ? AnyShape(Circle())
+            : AnyShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+
+        ZStack {
+            // Opaque base so any layout miss never shows page-black "letterbox".
+            shape.fill(BrandColors.surface)
+
             switch source {
             case .remote(let url):
-                CachedAsyncImage(
+                RemoteArtworkRender(
                     url: url,
-                    content: {
-                        ResolvedArtworkImage(
-                            image: $0,
-                            presentation: presentation,
-                            targetSize: targetSize
-                        )
-                    },
-                    placeholder: { placeholder }
+                    presentation: presentation,
+                    width: targetSize,
+                    height: resolvedHeight
                 )
             case .placeholder:
-                placeholder
+                placeholderGlyph
             }
         }
         .frame(width: targetSize, height: resolvedHeight)
-        .clipped()
-        .clipShape(clipCircle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)))
+        .clipShape(shape)
     }
 
-    private var placeholder: some View {
-        RoundedRectangle(cornerRadius: clipCircle ? min(targetSize, resolvedHeight) / 2 : cornerRadius, style: .continuous)
-            .fill(BrandColors.surface)
-            .overlay(
-                Image(systemName: "music.note")
-                    .font(.system(size: glyphSize))
-                    .foregroundStyle(BrandColors.textSecondary.opacity(0.5))
-            )
+    private var placeholderGlyph: some View {
+        Image(systemName: "music.note")
+            .font(.system(size: glyphSize))
+            .foregroundStyle(BrandColors.textSecondary.opacity(0.5))
+    }
+
+}
+
+
+private struct RemoteArtworkRender: View {
+    let url: URL
+    let presentation: ArtworkPresentation
+    let width: CGFloat
+    let height: CGFloat
+
+    @State private var image: PlatformImage?
+    @State private var identity: String?
+
+    var body: some View {
+        Group {
+            if let image {
+                switch presentation {
+                case .fill:
+                    #if canImport(UIKit)
+                    AspectFillImage(
+                        image: image,
+                        width: width,
+                        height: height,
+                        sourceURL: url
+                    )
+                    #else
+                    Color.clear
+                        .frame(width: width, height: height)
+                        .overlay {
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFill()
+                        }
+                        .clipped()
+                    #endif
+                case .fitOnAmbient:
+                    ResolvedArtworkImage(
+                        image: {
+                            #if canImport(UIKit)
+                            Image(uiImage: image)
+                            #else
+                            Image(nsImage: image)
+                            #endif
+                        }(),
+                        presentation: .fitOnAmbient,
+                        width: width,
+                        height: height
+                    )
+                }
+            } else {
+                Color.clear.frame(width: width, height: height)
+            }
+        }
+        .task(id: url.absoluteString) {
+            let loaded = await ImageLoader.shared.load(url).value
+            if !Task.isCancelled {
+                image = loaded
+                identity = url.absoluteString
+            }
+        }
     }
 }
 
 private struct ResolvedArtworkImage: View {
     let image: Image
     let presentation: ArtworkPresentation
-    let targetSize: CGFloat
+    let width: CGFloat
+    let height: CGFloat
 
     @ViewBuilder
     var body: some View {
         switch presentation {
         case .fill:
-            image
-                .resizable()
-                .scaledToFill()
+            Color.clear
+                .frame(width: width, height: height)
+                .overlay {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipped()
         case .fitOnAmbient:
             ZStack {
                 image
                     .resizable()
                     .scaledToFill()
                     .scaleEffect(1.18)
-                    .blur(radius: max(12, targetSize * 0.075), opaque: true)
+                    .blur(radius: max(12, width * 0.075), opaque: true)
                     .saturation(1.12)
                     .brightness(-0.12)
 
@@ -157,6 +221,8 @@ private struct ResolvedArtworkImage: View {
                     .scaledToFit()
                     .saturation(0.96)
             }
+            .frame(width: width, height: height)
+            .clipped()
         }
     }
 }

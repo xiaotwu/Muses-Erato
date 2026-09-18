@@ -285,8 +285,8 @@ struct PlaylistRevisionBrowserSheet: View {
             Button(tr("Restore Current", "恢复当前歌单")) {
                 pendingRestoreID = selectedRevisionID
             }
-            .buttonStyle(.borderedProminent)
-            .tint(BrandColors.magenta)
+            .musesAction(prominent: true)
+            .tint(BrandColors.accent)
             .disabled(selectedRevisionID == nil)
         }
         .padding(14)

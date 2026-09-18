@@ -16,11 +16,15 @@ struct MiniPlayerBar: View {
         if let track = playback.state.track {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
-                    // Album Artwork
-                    artworkView(for: track)
-                        .frame(width: 42, height: 42)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+                    // Album Artwork — shared fill path (letterbox strip + square crop)
+                    ArtworkView(
+                        source: ArtworkSource.resolve(for: track),
+                        cornerRadius: 10,
+                        glyphSize: 18,
+                        targetSize: 42,
+                        presentation: .fill
+                    )
+                    .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
 
                     // Track Title & Artist
                     VStack(alignment: .leading, spacing: 2) {
@@ -66,6 +70,7 @@ struct MiniPlayerBar: View {
                     .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
                 }
                 .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity)
                 .frame(height: AppleMusicTokens.miniPlayerHeight)
 
                 // Hairline Track Progress Bar
@@ -85,8 +90,7 @@ struct MiniPlayerBar: View {
                 }
                 .frame(height: 2.5)
             }
-            .musesGlass(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, role: .floatingPlayer)
-            .padding(.horizontal, AppleMusicSpacing.chromeOuter)
+            .frame(maxWidth: .infinity)
             .offset(y: dragOffset)
             .gesture(
                 DragGesture()
@@ -113,35 +117,6 @@ struct MiniPlayerBar: View {
                     isNowPlayingExpanded = true
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private func artworkView(for track: TrackSnapshot) -> some View {
-        if let urlStr = track.artworkUrl, let url = URL(string: urlStr) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
-                default:
-                    placeholderArtwork
-                }
-            }
-        } else {
-            placeholderArtwork
-        }
-    }
-
-    private var placeholderArtwork: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color.pink.opacity(0.8), Color.purple.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            Image(systemName: "music.note")
-                .font(.system(size: 18))
-                .foregroundStyle(.white)
         }
     }
 

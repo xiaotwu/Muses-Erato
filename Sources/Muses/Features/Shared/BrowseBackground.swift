@@ -12,7 +12,7 @@ public extension EnvironmentValues {
 }
 
 /// Soft multi-blob ambient wash so Liquid Glass has something to refract against.
-/// Uses `browseGradient` when provided; otherwise deep charcoal + muted magenta/coral accents.
+/// Uses `browseGradient` when provided; otherwise deep charcoal + soft gray/white wash (logo brand).
 public struct BrowseBackground: View {
     @Environment(\.browseGradient) private var colors
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -75,9 +75,9 @@ public struct BrowseBackground: View {
 
     private var resolvedPalette: [Color] {
         let fallback: [Color] = [
-            Color(red: 0.12, green: 0.10, blue: 0.14),
-            BrandColors.accent.opacity(0.85),
-            Color(red: 0.95, green: 0.45, blue: 0.42).opacity(0.7),
+            Color(white: 0.14),
+            Color(white: 0.42).opacity(0.55),
+            Color(white: 0.72).opacity(0.28),
         ]
         if colors.count >= 3 { return Array(colors.prefix(3)) }
         if colors.count == 2 { return colors + [fallback[2]] }

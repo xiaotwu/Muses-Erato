@@ -46,12 +46,15 @@ private struct MusesActionModifier: ViewModifier {
         let opaque = reduceTransparency || contrast == .increased
         if #available(iOS 26.0, *), !opaque {
             if prominent {
-                content.buttonStyle(.glassProminent).buttonBorderShape(.capsule)
+                content
+                    .buttonStyle(.glassProminent)
+                    .buttonBorderShape(.capsule)
+                    .tint(BrandColors.accent)
             } else {
                 content.buttonStyle(.glass).buttonBorderShape(.capsule)
             }
         } else if prominent {
-            content.buttonStyle(.borderedProminent)
+            content.buttonStyle(.borderedProminent).tint(BrandColors.accent)
         } else {
             content.buttonStyle(.bordered)
         }

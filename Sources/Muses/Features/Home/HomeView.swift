@@ -70,7 +70,7 @@ struct HomeView: View {
                         }
                     }
 
-                    Color.clear.frame(height: 120)
+                    Color.clear.frame(height: 160)
                 }
                 .padding(.top, AppleMusicSpacing.pageTop)
             }
@@ -143,6 +143,7 @@ struct HomeView: View {
                                     targetSize: 140
                                 )
                                 .frame(width: 140, height: 140)
+                                .clipped()
                                 .shadow(color: .black.opacity(0.1), radius: 6, y: 3)
 
                                 Text(track.title)
@@ -197,6 +198,7 @@ struct HomeView: View {
                                     targetSize: 140
                                 )
                                 .frame(width: 140, height: 140)
+                    .clipped()
 
                                 Text(track.title)
                                     .font(.system(size: 14, weight: .semibold))
@@ -268,6 +270,7 @@ struct HomeView: View {
                         targetSize: 140
                     )
                     .frame(width: 140, height: 140)
+                    .clipped()
 
                     Text(card.title)
                         .font(.system(size: 14, weight: .semibold))
@@ -297,6 +300,7 @@ struct HomeView: View {
                         targetSize: 140
                     )
                     .frame(width: 140, height: 140)
+                    .clipped()
 
                     Text(track.title)
                         .font(.system(size: 14, weight: .semibold))

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import os
 
 @main
 struct MusesApp: App {
@@ -118,13 +119,37 @@ extension MusesApp {
               !url.isEmpty else { return }
         if defaults.bool(forKey: doneKey) {
             log.info("Seed already done; skip \(url, privacy: .public)")
+            if defaults.bool(forKey: autoPlayKey) {
+                await playFirstLibraryTrackIfPossible(playback: playback, container: container, log: log)
+            }
             return
         }
 
         do {
-            let importID = try await importService.importPlaylist(url: url)
+            let importID: UUID
+            if let preloaded = Self.loadDebugSeedPlaylistJSON() {
+                let entries = preloaded.entries.map {
+                    YTDlpBridge.YTDlpPlaylistEntry(
+                        id: $0.id,
+                        title: $0.title,
+                        uploader: $0.uploader,
+                        duration: $0.duration,
+                        playlistTitle: preloaded.title
+                    )
+                }
+                importID = try await importService.importPreloadedPlaylist(
+                    playlistId: preloaded.playlistId,
+                    url: preloaded.url,
+                    title: preloaded.title,
+                    channel: preloaded.channel,
+                    entries: entries
+                )
+                log.info("Seeded from JSON \(preloaded.playlistId, privacy: .public) → \(importID.uuidString, privacy: .public)")
+            } else {
+                importID = try await importService.importPlaylist(url: url)
+                log.info("Seeded playlist \(url, privacy: .public) → \(importID.uuidString, privacy: .public)")
+            }
             defaults.set(true, forKey: doneKey)
-            log.info("Seeded playlist \(url, privacy: .public) → \(importID.uuidString, privacy: .public)")
 
             guard defaults.bool(forKey: autoPlayKey) else { return }
             let context = ModelContext(container)
@@ -140,7 +165,8 @@ extension MusesApp {
                 .compactMap(\.track)
                 .filter { !$0.youTubeId.isEmpty }
                 .map(TrackSnapshot.init(from:))
-            guard let first = snaps.first else {
+            let preferred = snaps.first(where: { $0.title.contains("威風") || $0.title.contains("威风") })
+            guard let first = preferred ?? snaps.first else {
                 log.error("Seed import has no playable tracks")
                 return
             }
@@ -148,7 +174,68 @@ extension MusesApp {
             log.info("Auto-played seed track \(first.title, privacy: .public)")
         } catch {
             log.error("Seed import failed: \(error.localizedDescription, privacy: .public)")
+            // Fallback: play first already-imported library track when re-import fails.
+            if defaults.bool(forKey: autoPlayKey) {
+                await playFirstLibraryTrackIfPossible(playback: playback, container: container, log: log)
+            }
         }
+    }
+
+
+    private struct DebugSeedPlaylistFile: Decodable {
+        let playlistId: String
+        let url: String
+        let title: String
+        let channel: String
+        let entries: [DebugSeedEntry]
+    }
+
+    private struct DebugSeedEntry: Decodable {
+        let id: String
+        let title: String
+        let uploader: String?
+        let duration: Double?
+    }
+
+    @MainActor
+    private static func loadDebugSeedPlaylistJSON() -> DebugSeedPlaylistFile? {
+        let urls = [
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("muses-debug-seed.json"),
+            Bundle.main.url(forResource: "muses-debug-seed", withExtension: "json")
+        ].compactMap { $0 }
+        for url in urls {
+            guard let data = try? Data(contentsOf: url),
+                  let decoded = try? JSONDecoder().decode(DebugSeedPlaylistFile.self, from: data),
+                  !decoded.entries.isEmpty else { continue }
+            return decoded
+        }
+        return nil
+    }
+
+    @MainActor
+    static func playFirstLibraryTrackIfPossible(
+        playback: PlaybackService,
+        container: ModelContainer,
+        log: Logger
+    ) async {
+        let context = ModelContext(container)
+        var descriptor = FetchDescriptor<Track>(sortBy: [SortDescriptor(\Track.addedAt, order: .reverse)])
+        descriptor.fetchLimit = 600
+        guard let tracks = try? context.fetch(descriptor), !tracks.isEmpty else {
+            log.error("No library tracks available to auto-play")
+            return
+        }
+        let snaps = tracks
+            .filter { !$0.youTubeId.isEmpty }
+            .map(TrackSnapshot.init(from:))
+        let preferred = snaps.first(where: { $0.title.contains("威風") || $0.title.contains("威风") })
+        guard let first = preferred ?? snaps.first else {
+            log.error("Library tracks lack YouTube ids")
+            return
+        }
+        playback.playTrack(first, context: snaps, from: .songs)
+        log.info("Auto-played library track \(first.title, privacy: .public) id=\(first.youTubeId, privacy: .public)")
     }
 }
 #endif

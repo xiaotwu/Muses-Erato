@@ -118,6 +118,16 @@ struct SettingsView: View {
                 }
 
                 // Language Preferences
+                
+                // Tools (History reachable after Library slim-down)
+                Section(header: Text(tr("TOOLS", "工具"))) {
+                    NavigationLink {
+                        HistoryView()
+                    } label: {
+                        Label(tr("Listening History", "收听历史"), systemImage: "clock.arrow.circlepath")
+                    }
+                }
+
                 Section(header: Text(tr("LANGUAGE & PREFERENCES", "通用偏好"))) {
                     Picker(tr("Language", "界面语言"), selection: $selectedLanguage) {
                         Text(tr("Follow System", "跟随系统")).tag("system")

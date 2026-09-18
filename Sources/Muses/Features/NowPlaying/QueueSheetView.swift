@@ -92,18 +92,13 @@ struct QueueSheetView: View {
 
     @ViewBuilder
     private func artworkView(for track: TrackSnapshot) -> some View {
-        if let urlStr = track.artworkUrl, let url = URL(string: urlStr) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let img):
-                    img.resizable().aspectRatio(contentMode: .fill)
-                default:
-                    Color.gray.opacity(0.3)
-                }
-            }
-        } else {
-            Color.gray.opacity(0.3)
-        }
+        ArtworkView(
+            source: ArtworkSource.resolve(for: track),
+            cornerRadius: 8,
+            glyphSize: 14,
+            targetSize: 44,
+            presentation: .fill
+        )
     }
 }
 

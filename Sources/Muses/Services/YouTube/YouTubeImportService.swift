@@ -166,6 +166,66 @@ final class YouTubeImportService {
         return imp.id
     }
 
+
+    /// DEBUG / QA helper: import an already-fetched entry list (skips network playlist fetch).
+    @discardableResult
+    func importPreloadedPlaylist(
+        playlistId: String,
+        url: String,
+        title: String,
+        channel: String,
+        entries: [YTDlpBridge.YTDlpPlaylistEntry]
+    ) async throws -> UUID {
+        let existingCtx = ModelContext(modelContainer)
+        if let existing = fetchImportByPlaylistId(playlistId, context: existingCtx) {
+            return existing.id
+        }
+        guard !entries.isEmpty else { throw YouTubeImportError.emptyPlaylist }
+
+        let ctx = ModelContext(modelContainer)
+        let imp = YouTubeImport(
+            playlistId: playlistId,
+            url: url,
+            title: title,
+            channel: channel
+        )
+        ctx.insert(imp)
+
+        var items: [YouTubeImportItem] = []
+        for (index, entry) in entries.enumerated() {
+            let durationMs = Int((entry.duration ?? 0) * 1000)
+            let artist = entry.uploader ?? channel
+            let item = YouTubeImportItem(
+                youTubeId: entry.id,
+                title: entry.title,
+                artist: artist,
+                durationMs: durationMs,
+                order: index
+            )
+            ctx.insert(item)
+            let track = track(for: entry, artist: artist, durationMs: durationMs, context: ctx)
+            applyReleaseIdentityIfAvailable(track: track, playlistID: playlistId,
+                                            order: index, title: title, artist: channel)
+            item.track = track
+            items.append(item)
+        }
+        imp.items = items
+        imp.lastSyncedAt = Date()
+        if let first = entries.first {
+            let artworkURLString = thumbnailURL(forVideoId: first.id)
+            imp.artworkUrl = artworkURLString
+            if let artworkURL = URL(string: artworkURLString),
+               let imageData = await get(artworkURL) {
+                _ = try? artworkCache.store(imageData)
+            }
+        }
+        attachCatalogMetadata(for: imp, context: ctx)
+        try ctx.save()
+        catalog?.rebuildFromTrackMetadata()
+        log.info("Preloaded playlist \(playlistId) (\(title)) with \(items.count) entries")
+        return imp.id
+    }
+
     // MARK: - Single video import
 
     /// Imports a single YouTube video as a `.youtube` track (returns the existing one for a known youTubeId).

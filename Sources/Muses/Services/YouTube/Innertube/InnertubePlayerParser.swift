@@ -10,13 +10,36 @@ enum InnertubePlayerParser {
             let mime = (format["mimeType"] as? String) ?? ""
             return mime.contains("audio/") || format["audioQuality"] != nil
         }
-        let ranked = (audio.isEmpty ? combined : audio).sorted {
-            numericBitrate($0) > numericBitrate($1)
+        let pool = audio.isEmpty ? combined : audio
+        // iOS AVFoundation decodes AAC/MP4 reliably; Opus/WebM often resolves but stays silent.
+        let ranked = pool.sorted { lhs, rhs in
+            let ls = appleAudioScore(lhs)
+            let rs = appleAudioScore(rhs)
+            if ls != rs { return ls > rs }
+            return numericBitrate(lhs) > numericBitrate(rhs)
         }
         for format in ranked {
             if let url = url(fromFormat: format) { return url }
         }
         return nil
+    }
+
+    /// Higher = preferred for native iOS playback.
+    private static func appleAudioScore(_ format: [String: Any]) -> Int {
+        let mime = ((format["mimeType"] as? String) ?? "").lowercased()
+        if mime.contains("audio/mp4") || mime.contains("audio/aac") || mime.contains("mp4a") {
+            return 300
+        }
+        if mime.contains("audio/mp3") || mime.contains("mpeg") {
+            return 200
+        }
+        if mime.contains("audio/webm") || mime.contains("opus") {
+            return 50
+        }
+        if mime.contains("audio/") {
+            return 100
+        }
+        return 0
     }
 
     static func url(fromFormat format: [String: Any]) -> URL? {
