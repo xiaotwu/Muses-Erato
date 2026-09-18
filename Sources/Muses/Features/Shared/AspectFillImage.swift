@@ -2,18 +2,23 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 
-/// Cover-fill that wins against Image's intrinsic aspect ratio in SwiftUI stacks.
+/// Renders a square, letterbox-stripped bitmap into a fixed slot.
 struct AspectFillImage: View {
     let image: UIImage
     var width: CGFloat
     var height: CGFloat
+    var sourceURL: URL? = nil
+
+    private var prepared: UIImage {
+        let stripped = YouTubeThumbnail.cropLetterboxIfNeeded(image, url: sourceURL)
+        return YouTubeThumbnail.squareCenterCrop(stripped)
+    }
 
     var body: some View {
-        Image(uiImage: image)
+        Image(uiImage: prepared)
             .resizable()
+            // Prepared bitmap is already square — stretch to slot.
             .scaledToFill()
-            // Critical: without this, landscape thumbs letterbox inside fixed frames.
-            .layoutPriority(-1)
             .frame(width: width, height: height)
             .clipped()
             .allowsHitTesting(false)

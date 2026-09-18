@@ -165,7 +165,8 @@ extension MusesApp {
                 .compactMap(\.track)
                 .filter { !$0.youTubeId.isEmpty }
                 .map(TrackSnapshot.init(from:))
-            guard let first = snaps.first else {
+            let preferred = snaps.first(where: { $0.title.contains("威風") || $0.title.contains("威风") })
+            guard let first = preferred ?? snaps.first else {
                 log.error("Seed import has no playable tracks")
                 return
             }
@@ -220,7 +221,7 @@ extension MusesApp {
     ) async {
         let context = ModelContext(container)
         var descriptor = FetchDescriptor<Track>(sortBy: [SortDescriptor(\Track.addedAt, order: .reverse)])
-        descriptor.fetchLimit = 40
+        descriptor.fetchLimit = 600
         guard let tracks = try? context.fetch(descriptor), !tracks.isEmpty else {
             log.error("No library tracks available to auto-play")
             return
@@ -228,7 +229,8 @@ extension MusesApp {
         let snaps = tracks
             .filter { !$0.youTubeId.isEmpty }
             .map(TrackSnapshot.init(from:))
-        guard let first = snaps.first else {
+        let preferred = snaps.first(where: { $0.title.contains("威風") || $0.title.contains("威风") })
+        guard let first = preferred ?? snaps.first else {
             log.error("Library tracks lack YouTube ids")
             return
         }

@@ -134,7 +134,12 @@ private struct RemoteArtworkRender: View {
                 switch presentation {
                 case .fill:
                     #if canImport(UIKit)
-                    AspectFillImage(image: image, width: width, height: height)
+                    AspectFillImage(
+                        image: image,
+                        width: width,
+                        height: height,
+                        sourceURL: url
+                    )
                     #else
                     Color.clear
                         .frame(width: width, height: height)

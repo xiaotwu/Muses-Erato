@@ -59,6 +59,23 @@ public enum YouTubeThumbnail {
         return result
     }
 
+    /// Center-crop to a square bitmap so square UI slots never letterbox/pillarbox.
+    public static func squareCenterCrop(_ image: PlatformImage) -> PlatformImage {
+        guard let cg = cgImage(from: image) else { return image }
+        let width = CGFloat(cg.width)
+        let height = CGFloat(cg.height)
+        guard width > 0, height > 0 else { return image }
+        let side = min(width, height)
+        let rect = CGRect(
+            x: ((width - side) / 2).rounded(.down),
+            y: ((height - side) / 2).rounded(.down),
+            width: side,
+            height: side
+        )
+        return cropped(image, cg: cg, rect: rect) ?? image
+    }
+
+
     private static func cropFourByThreeLetterbox(_ image: PlatformImage) -> PlatformImage {
         guard let cg = cgImage(from: image) else { return image }
         let width = CGFloat(cg.width)

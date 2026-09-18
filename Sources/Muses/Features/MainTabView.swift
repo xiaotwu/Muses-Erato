@@ -38,10 +38,13 @@ struct MainTabView: View {
 
             VStack(spacing: AppleMusicTokens.miniPlayerDockMargin) {
                 if playback.state.track != nil {
-                    // Glass applied here at the same maxWidth as the tab+Search row.
+                    // Material (not glassEffect) so width tracks the tab+Search row exactly.
+                    let shape = RoundedRectangle(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, style: .continuous)
                     MiniPlayerBar(playback: playback, isNowPlayingExpanded: $showNowPlaying)
                         .frame(maxWidth: .infinity)
-                        .musesGlass(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, role: .floatingPlayer)
+                        .frame(height: AppleMusicTokens.miniPlayerHeight + 2.5)
+                        .background(.ultraThinMaterial, in: shape)
+                        .overlay { shape.stroke(BrandColors.hairline.opacity(0.9), lineWidth: 0.6) }
                         .laserStroke(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, lineWidth: 0.9, opacity: 0.62)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -53,6 +56,7 @@ struct MainTabView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
             .padding(.bottom, 6)
         }
