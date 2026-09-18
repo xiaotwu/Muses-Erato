@@ -21,7 +21,7 @@ final class MusesTests: XCTestCase {
     }
 
     func testAppleMusicTokens() {
-        XCTAssertEqual(AppleMusicTokens.keyColorHex, "FA586A")
+        XCTAssertEqual(AppleMusicTokens.keyColorHex, "F5F5F7")
         XCTAssertGreaterThan(AppleMusicTokens.miniPlayerHeight, 50)
         XCTAssertGreaterThan(AppleMusicTokens.tabBarHeight, 50)
     }

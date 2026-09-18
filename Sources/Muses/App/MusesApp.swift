@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AVFoundation
+import os
 
 @main
 struct MusesApp: App {
@@ -118,6 +119,9 @@ extension MusesApp {
               !url.isEmpty else { return }
         if defaults.bool(forKey: doneKey) {
             log.info("Seed already done; skip \(url, privacy: .public)")
+            if defaults.bool(forKey: autoPlayKey) {
+                await playFirstLibraryTrackIfPossible(playback: playback, container: container, log: log)
+            }
             return
         }
 
@@ -148,7 +152,35 @@ extension MusesApp {
             log.info("Auto-played seed track \(first.title, privacy: .public)")
         } catch {
             log.error("Seed import failed: \(error.localizedDescription, privacy: .public)")
+            // Fallback: play first already-imported library track when re-import fails.
+            if defaults.bool(forKey: autoPlayKey) {
+                await playFirstLibraryTrackIfPossible(playback: playback, container: container, log: log)
+            }
         }
+    }
+
+    @MainActor
+    static func playFirstLibraryTrackIfPossible(
+        playback: PlaybackService,
+        container: ModelContainer,
+        log: Logger
+    ) async {
+        let context = ModelContext(container)
+        var descriptor = FetchDescriptor<Track>(sortBy: [SortDescriptor(\Track.addedAt, order: .reverse)])
+        descriptor.fetchLimit = 40
+        guard let tracks = try? context.fetch(descriptor), !tracks.isEmpty else {
+            log.error("No library tracks available to auto-play")
+            return
+        }
+        let snaps = tracks
+            .filter { !$0.youTubeId.isEmpty }
+            .map(TrackSnapshot.init(from:))
+        guard let first = snaps.first else {
+            log.error("Library tracks lack YouTube ids")
+            return
+        }
+        playback.playTrack(first, context: snaps, from: .songs)
+        log.info("Auto-played library track \(first.title, privacy: .public) id=\(first.youTubeId, privacy: .public)")
     }
 }
 #endif

@@ -44,8 +44,9 @@ enum HomeMediaCardMetrics {
 
 /// Core visual design tokens for Muses (iOS Liquid Glass Edition).
 public enum AppleMusicTokens {
-    public static let keyColorHex = "FA586A"
-    public static let keyColor = Color(red: 250.0 / 255.0, green: 88.0 / 255.0, blue: 106.0 / 255.0)
+    /// Neutral brand key — logo is black/white/gray; interactive accent follows label color.
+    public static let keyColorHex = "F5F5F7"
+    public static var keyColor: Color { Color.primary }
 
     // Layout Dimensions for iOS
     public static let tabBarHeight: CGFloat = 58
@@ -86,14 +87,32 @@ public enum AppleMusicTokens {
     public static let nowPlayingControlHeight: CGFloat = 64
 }
 
-/// Dynamic semantic brand colors conforming to Apple Human Interface Guidelines.
+/// Dynamic semantic brand colors — monochrome logo + laser edge accents.
 public enum BrandColors {
-    /// Apple Music signature pink / coral key accent `#FA586A`.
-    public static let accent = AppleMusicTokens.keyColor
-    public static let magenta = accent
-    public static let pink = accent
+    /// Primary interactive accent (adaptive black/white), matching the Muse logo.
+    public static var accent: Color { AppleMusicTokens.keyColor }
+    /// Legacy aliases redirected to neutral accent (no coral/pink brand).
+    public static var magenta: Color { accent }
+    public static var pink: Color { accent }
     public static var scrim: Color { Color.black.opacity(0.4) }
     public static var hairline: Color { Color.white.opacity(0.12) }
+
+    /// Soft gray used for secondary chrome fills.
+    public static var neutralGray: Color {
+        Color(white: 0.55)
+    }
+
+    /// Iridescent spectrum for laser holographic strokes on glass chrome.
+    public static var laserSpectrum: [Color] {
+        [
+            Color(red: 0.35, green: 0.95, blue: 1.00),
+            Color(red: 0.55, green: 0.45, blue: 1.00),
+            Color(red: 1.00, green: 0.40, blue: 0.85),
+            Color(red: 1.00, green: 0.75, blue: 0.35),
+            Color(red: 0.40, green: 1.00, blue: 0.65),
+            Color(red: 0.35, green: 0.95, blue: 1.00),
+        ]
+    }
 
     /// Dynamic background adapting between Obsidian/Pure Black in Dark Mode and Crisp Off-White in Light Mode.
     public static var background: Color {

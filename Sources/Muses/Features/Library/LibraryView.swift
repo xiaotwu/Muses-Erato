@@ -35,17 +35,13 @@ struct LibraryView: View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionSpacing) {
-                    // Category Filter Pills
                     filterPills
 
-                    // Core Native Features Grid
-                    featureNavigationGrid
-
-                    // Listening Analytics Chart
-                    listeningStatsSection
-
-                    // Song List
-                    songListSection
+                    if selectedFilter == .playlists {
+                        playlistsDestination
+                    } else {
+                        songListSection
+                    }
 
                     Color.clear.frame(height: 120)
                 }
@@ -78,7 +74,8 @@ struct LibraryView: View {
                             .background {
                                 if selected {
                                     Color.clear
-                                        .musesGlassCapsule(tint: BrandColors.accent.opacity(0.25), role: .compactControl)
+                                        .musesGlassCapsule(tint: BrandColors.accent.opacity(0.18), role: .compactControl)
+                                        .laserStroke(Capsule(), lineWidth: 1.0, opacity: 0.7)
                                 } else {
                                     Capsule().fill(BrandColors.surface.opacity(0.28))
                                 }
@@ -92,182 +89,76 @@ struct LibraryView: View {
         }
     }
 
-    // MARK: - Core Native Features Grid
+    // MARK: - Playlists
 
-    private var featureNavigationGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), spacing: 12)], spacing: 12) {
+    private var playlistsDestination: some View {
+        VStack(alignment: .leading, spacing: 12) {
             NavigationLink {
                 PlaylistsView()
             } label: {
-                featureCard(
-                    title: tr("Playlists", "歌单"),
-                    subtitle: tr("\(playlists.count) collections", "\(playlists.count) 个歌单"),
-                    icon: "music.note.list",
-                    tint: BrandColors.magenta
-                )
-            }
-            .buttonStyle(.plain)
+                HStack(spacing: 12) {
+                    Image(systemName: "music.note.list")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(BrandColors.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .musesGlass(in: Circle(), role: .compactControl)
+                        .laserStroke(Circle(), lineWidth: 1.0, opacity: 0.65)
 
-            NavigationLink {
-                SongsListView()
-            } label: {
-                featureCard(
-                    title: tr("Songs", "已存歌曲"),
-                    subtitle: tr("\(tracks.count) tracks", "\(tracks.count) 首歌曲"),
-                    icon: "music.quarternote.3",
-                    tint: Color(red: 255/255, green: 149/255, blue: 0)
-                )
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("All Playlists", "全部歌单"))
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(BrandColors.textPrimary)
+                        Text(tr("\(playlists.count) collections", "\(playlists.count) 个歌单"))
+                            .font(.system(size: 13))
+                            .foregroundStyle(BrandColors.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(BrandColors.textTertiary)
+                }
+                .padding(14)
+                .musesGlass(cornerRadius: 16, role: .compactControl)
+                .laserStroke(RoundedRectangle(cornerRadius: 16, style: .continuous), lineWidth: 1.0, opacity: 0.55)
             }
             .buttonStyle(.plain)
-
-            NavigationLink {
-                HistoryView()
-            } label: {
-                featureCard(
-                    title: tr("History", "收听历史"),
-                    subtitle: tr("Heatmap & Stats", "热力图与数据"),
-                    icon: "flame.fill",
-                    tint: Color(red: 255/255, green: 45/255, blue: 85)
-                )
-            }
-            .buttonStyle(.plain)
-
-            NavigationLink {
-                InboxView()
-            } label: {
-                featureCard(
-                    title: tr("Inbox", "音乐收件箱"),
-                    subtitle: tr("Triage & Notes", "发现与整理"),
-                    icon: "tray.and.arrow.down.fill",
-                    tint: Color(red: 88/255, green: 86/255, blue: 214)
-                )
-            }
-            .buttonStyle(.plain)
-
-            NavigationLink {
-                FocusView()
-            } label: {
-                featureCard(
-                    title: tr("Focus Mode", "专注模式"),
-                    subtitle: tr("Pomodoro Timer", "番茄钟与流态"),
-                    icon: "brain.head.profile",
-                    tint: Color(red: 52/255, green: 199/255, blue: 89)
-                )
-            }
-            .buttonStyle(.plain)
+            .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
             NavigationLink {
                 YouTubeImportsView()
             } label: {
-                featureCard(
-                    title: tr("YouTube", "YouTube 导入"),
-                    subtitle: tr("Sync & Cloud", "歌单同步"),
-                    icon: "play.rectangle.on.rectangle.fill",
-                    tint: Color(red: 255/255, green: 59/255, blue: 48)
-                )
+                HStack(spacing: 12) {
+                    Image(systemName: "play.rectangle.on.rectangle")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(BrandColors.textPrimary)
+                        .frame(width: 40, height: 40)
+                        .musesGlass(in: Circle(), role: .compactControl)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("YouTube Imports", "YouTube 导入"))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(BrandColors.textPrimary)
+                        Text(tr("Sync playlists from YouTube", "从 YouTube 同步歌单"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(BrandColors.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(BrandColors.textTertiary)
+                }
+                .padding(14)
+                .musesGlass(cornerRadius: 16, role: .compactControl)
             }
             .buttonStyle(.plain)
-        }
-        .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-    }
-
-    private func featureCard(title: String, subtitle: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(tint.opacity(0.18))
-                    .frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(tint)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(BrandColors.textPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                Text(subtitle)
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(BrandColors.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-
-            Spacer(minLength: 0)
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(BrandColors.textTertiary.opacity(0.6))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
-        .musesGlass(cornerRadius: 14, role: .compactControl)
-    }
-
-    // MARK: - Listening Stats Chart
-
-    private var listeningStatsSection: some View {
-        VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            Text(tr("Listening Trends", "收听趋势"))
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(BrandColors.textPrimary)
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .bottom, spacing: 14) {
-                    // Mock weekly listening hours
-                    barView(day: tr("Mon", "周一"), height: 42, isToday: false)
-                    barView(day: tr("Tue", "周二"), height: 68, isToday: false)
-                    barView(day: tr("Wed", "周三"), height: 95, isToday: false)
-                    barView(day: tr("Thu", "周四"), height: 55, isToday: false)
-                    barView(day: tr("Fri", "周五"), height: 110, isToday: false)
-                    barView(day: tr("Sat", "周六"), height: 84, isToday: false)
-                    barView(day: tr("Sun", "周日"), height: 120, isToday: true)
-                }
-                .frame(height: 140)
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-
-                Divider().background(Color.white.opacity(0.1))
-
-                HStack {
-                    Label(tr("42 Songs Played this week", "本周收听 42 首歌曲"), systemImage: "flame.fill")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(BrandColors.accent)
-                    Spacer()
-                    Text(tr("Average 2.4 hrs/day", "平均 2.4 小时/天"))
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(BrandColors.textSecondary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
-            }
-            .musesGlass(cornerRadius: 16, role: .compactControl)
             .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
         }
-    }
-
-    private func barView(day: String, height: CGFloat, isToday: Bool) -> some View {
-        VStack(spacing: 6) {
-            Spacer()
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(isToday ? BrandColors.accent : BrandColors.accent.opacity(0.45))
-                .frame(height: height)
-
-            Text(day)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(isToday ? BrandColors.textPrimary : BrandColors.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Song List Section
 
     private var songListSection: some View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            Text(tr("Recently Added", "最近添加"))
+            Text(songListTitle)
                 .font(.system(size: 20, weight: .bold))
                 .foregroundStyle(BrandColors.textPrimary)
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
@@ -288,14 +179,13 @@ struct LibraryView: View {
                             playback.play(TrackSnapshot(from: track))
                         } label: {
                             HStack(spacing: 12) {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(BrandColors.surface)
-                                    .frame(width: 44, height: 44)
-                                    .overlay(
-                                        Image(systemName: "music.note")
-                                            .font(.system(size: 18))
-                                            .foregroundStyle(BrandColors.accent)
-                                    )
+                                ArtworkView(
+                                    source: ArtworkSource.resolve(for: track),
+                                    cornerRadius: 8,
+                                    glyphSize: 16,
+                                    targetSize: 44,
+                                    presentation: .fill
+                                )
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(track.title)
@@ -383,11 +273,18 @@ struct LibraryView: View {
         .buttonStyle(.plain)
     }
 
+    private var songListTitle: String {
+        switch selectedFilter {
+        case .liked: return tr("Liked", "特别喜欢")
+        case .songs: return tr("Songs", "已存歌曲")
+        default: return tr("Recently Added", "最近添加")
+        }
+    }
+
     private var filteredTracks: [Track] {
         switch selectedFilter {
-        case .all, .songs: return tracks
+        case .all, .songs, .playlists: return tracks
         case .liked: return tracks.filter { $0.liked }
-        case .playlists: return tracks
         }
     }
 

@@ -280,7 +280,7 @@ struct AlbumObjectView: View {
             glyphSize: size > 180 ? 40 : 28,
             targetSize: size,
             targetHeight: resolvedArtworkHeight,
-            presentation: style == .home ? .fitOnAmbient : .fill
+            presentation: .fill  // center-crop landscape / letterboxed covers into the frame
         )
             .scaleEffect(
                 style == .standard && showsHoverPlay && hovering && !reduceMotion ? 1.08 : 1.0
