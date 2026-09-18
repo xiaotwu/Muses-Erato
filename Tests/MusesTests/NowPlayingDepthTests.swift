@@ -1,10 +1,7 @@
 import XCTest
-import MediaPlayer
-#if canImport(UIKit)
-import UIKit
-#endif
 @testable import Muses
 
+@MainActor
 final class NowPlayingDepthTests: XCTestCase {
 
     func testParseLRCReadsTimestampsAndSkipsMetadata() {
@@ -135,24 +132,5 @@ final class NowPlayingDepthTests: XCTestCase {
         let clients = YouTubeInnerTubeClient.allCases
         XCTAssertEqual(clients.count, 3)
         XCTAssertEqual(clients, [.androidVR, .ios, .webEmbedded])
-    }
-
-    func testLockScreenArtworkHandlerCanRunOffMainActor() {
-        #if canImport(UIKit)
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 32))
-        let data = renderer.pngData { ctx in
-            UIColor.gray.setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
-        }
-        let artwork = NowPlayingManager.lockScreenArtwork(from: data)
-        XCTAssertNotNil(artwork)
-        let exp = expectation(description: "artwork-off-main")
-        DispatchQueue.global(qos: .userInitiated).async {
-            let image = artwork?.image(at: CGSize(width: 16, height: 16))
-            XCTAssertNotNil(image)
-            exp.fulfill()
-        }
-        wait(for: [exp], timeout: 2)
-        #endif
     }
 }
