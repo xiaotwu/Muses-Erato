@@ -35,10 +35,10 @@ public enum YouTubeThumbnail {
             || path.contains("/default.")
     }
 
-    /// Strip baked letterbox bars so square fill can width-cover and crop the sides.
+    /// Strip baked top/bottom bars so square `scaledToFill` can width-cover and crop the sides.
     public static func cropLetterboxIfNeeded(_ image: PlatformImage, url: URL? = nil) -> PlatformImage {
         var result = cropFourByThreeLetterbox(image)
-        result = cropDetectedLetterboxBars(result)
+        result = cropRelativeLetterboxBars(result)
         return result
     }
 
@@ -55,41 +55,55 @@ public enum YouTubeThumbnail {
         return cropped(image, cg: cg, rect: CGRect(x: 0, y: bar, width: width, height: cropHeight)) ?? image
     }
 
-    private static func cropDetectedLetterboxBars(_ image: PlatformImage) -> PlatformImage {
+    /// Crop top/bottom bands that are much darker than the vertical center (works for navy/gray bars).
+    private static func cropRelativeLetterboxBars(_ image: PlatformImage) -> PlatformImage {
         guard let rgba = rgbaBytes(from: image) else { return image }
         let width = rgba.width
         let height = rgba.height
         let ptr = rgba.bytes
-        guard width > 16, height > 16 else { return image }
+        guard width > 16, height > 24 else { return image }
 
-        func rowIsBar(_ y: Int) -> Bool {
-            var dark = 0
-            let samples = min(48, width)
+        func rowLuma(_ y: Int) -> Double {
+            var sum = 0.0
+            let samples = min(64, width)
             let step = max(1, width / samples)
             var x = 0
             var count = 0
             while x < width && count < samples {
                 let i = (y * width + x) * 4
-                let r = Int(ptr[i])
-                let g = Int(ptr[i + 1])
-                let b = Int(ptr[i + 2])
-                // Loose near-black (covers compressed navy/gray bars).
-                if r <= 28 && g <= 28 && b <= 28 { dark += 1 }
+                sum += Double(ptr[i]) + Double(ptr[i + 1]) + Double(ptr[i + 2])
                 x += step
                 count += 1
             }
-            return dark * 100 >= samples * 78
+            return sum / Double(max(1, count))
         }
 
-        var top = 0
-        while top < height / 3 && rowIsBar(top) { top += 1 }
-        var bottom = 0
-        while bottom < height / 3 && rowIsBar(height - 1 - bottom) { bottom += 1 }
+        // Center band reference (avoid being fooled by dark artwork edges).
+        let midStart = height * 2 / 5
+        let midEnd = height * 3 / 5
+        var midSum = 0.0
+        var midCount = 0
+        var y = midStart
+        while y < midEnd {
+            midSum += rowLuma(y)
+            midCount += 1
+            y += 2
+        }
+        let mid = midSum / Double(max(1, midCount))
+        // If the whole image is dark, don't guess.
+        guard mid > 60 else { return image }
 
-        let minBar = max(3, height / 50)
-        guard top >= minBar || bottom >= minBar else { return image }
-        if top < 2 { top = 0 }
-        if bottom < 2 { bottom = 0 }
+        let threshold = max(36.0, mid * 0.28)
+
+        var top = 0
+        while top < height / 3 && rowLuma(top) < threshold { top += 1 }
+        var bottom = 0
+        while bottom < height / 3 && rowLuma(height - 1 - bottom) < threshold { bottom += 1 }
+
+        let minBar = max(4, height / 45)
+        // Prefer symmetric letterbox; allow slightly uneven bars.
+        guard top >= minBar && bottom >= minBar else { return image }
+
         let cropHeight = height - top - bottom
         guard cropHeight > height / 3, let cg = cgImage(from: image) else { return image }
         return cropped(

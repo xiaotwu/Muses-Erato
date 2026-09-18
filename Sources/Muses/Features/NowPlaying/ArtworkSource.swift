@@ -101,7 +101,14 @@ struct ArtworkView: View {
     private var resolvedHeight: CGFloat { targetHeight ?? targetSize }
 
     var body: some View {
-        Group {
+        let shape: AnyShape = clipCircle
+            ? AnyShape(Circle())
+            : AnyShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+
+        ZStack {
+            // Opaque base so any layout miss never shows page-black "letterbox".
+            shape.fill(BrandColors.surface)
+
             switch source {
             case .remote(let url):
                 CachedAsyncImage(
@@ -114,26 +121,22 @@ struct ArtworkView: View {
                             height: resolvedHeight
                         )
                     },
-                    placeholder: { placeholder }
+                    placeholder: { Color.clear }
                 )
             case .placeholder:
-                placeholder
+                placeholderGlyph
             }
         }
         .frame(width: targetSize, height: resolvedHeight)
-        .clipped()
-        .clipShape(clipCircle ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)))
+        .clipShape(shape)
     }
 
-    private var placeholder: some View {
-        RoundedRectangle(cornerRadius: clipCircle ? min(targetSize, resolvedHeight) / 2 : cornerRadius, style: .continuous)
-            .fill(BrandColors.surface)
-            .overlay(
-                Image(systemName: "music.note")
-                    .font(.system(size: glyphSize))
-                    .foregroundStyle(BrandColors.textSecondary.opacity(0.5))
-            )
+    private var placeholderGlyph: some View {
+        Image(systemName: "music.note")
+            .font(.system(size: glyphSize))
+            .foregroundStyle(BrandColors.textSecondary.opacity(0.5))
     }
+
 }
 
 private struct ResolvedArtworkImage: View {
@@ -146,11 +149,14 @@ private struct ResolvedArtworkImage: View {
     var body: some View {
         switch presentation {
         case .fill:
-            // Width-cover + center; crop overflow on the long sides (landscape → left/right).
-            image
-                .resizable()
-                .scaledToFill()
-                .frame(width: width, height: height, alignment: .center)
+            // Reliable cover: fixed slot + overlay fill (crops left/right for landscape).
+            Color.clear
+                .frame(width: width, height: height)
+                .overlay {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                }
                 .clipped()
         case .fitOnAmbient:
             ZStack {
