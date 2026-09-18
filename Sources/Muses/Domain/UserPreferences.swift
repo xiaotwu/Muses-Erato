@@ -93,6 +93,7 @@ enum PrefKey {
     static let lyricsIntelligence = "muses.lyrics.intelligence"
     static let audioQuality = "muses.audio.quality"
     static let checkForUpdates = "muses.updates.checkAutomatically"
+    static let liveActivitiesEnabled = "muses.liveActivities.enabled"
     static let lastUpdateCheckAt = "muses.updates.lastCheckAt"
     static let latestKnownVersion = "muses.updates.latestVersion"
     static let ytCookieSource = "muses.yt.cookieSource"

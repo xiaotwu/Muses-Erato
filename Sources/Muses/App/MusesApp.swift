@@ -22,6 +22,9 @@ struct MusesApp: App {
     private let youTubeSearchService: YouTubeSearchService
     private let youTubePlaylistSyncService: YouTubePlaylistSyncService
     private let nowPlayingManager: NowPlayingManager
+    private let nowPlayingSessionCoordinator: NowPlayingSessionCoordinator
+    private let watchSession: PhoneWatchSession
+    private let updateService: UpdateService
 
     init() {
         let storeResult = makeModelContainerWithFallback()
@@ -45,8 +48,15 @@ struct MusesApp: App {
         self.youTubeSearchService = composition.youTubeSearch
         self.youTubePlaylistSyncService = composition.youTubePlaylistSync
         self.nowPlayingManager = composition.nowPlayingManager
+        self.nowPlayingSessionCoordinator = NowPlayingSessionCoordinator(playback: composition.playback)
+        self.watchSession = PhoneWatchSession(playback: composition.playback)
+        self.updateService = UpdateService()
 
-        // Intentionally no sample-track seed. Empty `playback.state.track` is valid.
+        MusesRuntime.bind(
+            playback: composition.playback,
+            library: composition.library,
+            playlists: composition.playlist
+        )
     }
 
     var body: some Scene {
@@ -69,7 +79,12 @@ struct MusesApp: App {
                 .environment(youTubeImportService)
                 .environment(youTubeSearchService)
                 .environment(youTubePlaylistSyncService)
+                .environment(updateService)
                 .preferredColorScheme(.dark)
+                .task {
+                    await updateService.checkIfDue()
+                    watchSession.publishIfNeeded()
+                }
         }
     }
 }

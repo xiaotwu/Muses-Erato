@@ -238,6 +238,24 @@ final class PlaylistService {
     }
 
     /// Fetches pinned playlists (sorted by name).
+
+    /// Ordered track snapshots for a playlist (skips empty YouTube IDs).
+    func snapshots(for playlistID: UUID, limit: Int = 50) -> [TrackSnapshot] {
+        let ctx = ModelContext(modelContainer)
+        let id = playlistID
+        guard let playlist = try? ctx.fetch(FetchDescriptor<Playlist>(
+            predicate: #Predicate { $0.id == id }
+        )).first else { return [] }
+        let ordered = (playlist.items ?? []).sorted { $0.order < $1.order }
+        var result: [TrackSnapshot] = []
+        for item in ordered {
+            guard let track = item.track, !track.youTubeId.isEmpty else { continue }
+            result.append(TrackSnapshot(from: track))
+            if result.count >= limit { break }
+        }
+        return result
+    }
+
     func pinnedPlaylists() -> [Playlist] {
         let ctx = ModelContext(modelContainer)
         let desc = FetchDescriptor<Playlist>(
