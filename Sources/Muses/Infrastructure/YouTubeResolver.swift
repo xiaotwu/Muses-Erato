@@ -122,6 +122,8 @@ public final class YouTubeResolver: YTDlpBridgeProtocol {
     private let session: URLSession
     private let playbackResolver: YouTubePlaybackResolver
     private let innertube: InnertubeClient
+    /// Shared Innertube transport for discovery/search callers that need the same auth.
+    var sharedInnertube: InnertubeClient { innertube }
     private let log = AppLog.for("YouTubeResolver")
 
     public init(session: URLSession = .shared) {
@@ -134,6 +136,10 @@ public final class YouTubeResolver: YTDlpBridgeProtocol {
             innertube: client,
             configuration: configuration
         )
+    }
+
+    func applyAuthentication(_ authentication: InnertubeAuthentication) {
+        innertube.updateAuthentication(authentication)
     }
 
     public func version() async -> String? {

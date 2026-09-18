@@ -89,6 +89,8 @@ enum PrefKey {
     static let theme = "muses.theme"
     static let eqActivePresetId = "muses.eq.activePresetId"
     static let lyricsSource = "muses.lyrics.source"
+    /// Prefer on-device Apple Intelligence to pick among LRCLIB candidates when heuristic match is unsure.
+    static let lyricsIntelligence = "muses.lyrics.intelligence"
     static let audioQuality = "muses.audio.quality"
     static let checkForUpdates = "muses.updates.checkAutomatically"
     static let lastUpdateCheckAt = "muses.updates.lastCheckAt"

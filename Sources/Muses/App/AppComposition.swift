@@ -35,7 +35,8 @@ struct AppComposition {
         UserDefaults.standard.register(defaults: FeatureFlagDefaults.enabledByDefault as [String: Any])
         UserDefaults.standard.register(defaults: WebHomePreferenceDefaults.values)
         UserDefaults.standard.register(defaults: [
-            PrefKey.homeRecommendationMode: HomeRecommendationMode.muses.rawValue
+            PrefKey.homeRecommendationMode: HomeRecommendationMode.muses.rawValue,
+            PrefKey.lyricsIntelligence: true
         ])
     }
 
@@ -85,8 +86,9 @@ struct AppComposition {
         // No macOS WebHome helper / cookie extraction on the default path.
         let oauthSession = GoogleOAuthSession(keychain: KeychainStore())
         let account = YouTubeAccountService(session: oauthSession)
-        let innertube = InnertubeClient()
+        let innertube = bridge.sharedInnertube
         let youTubeMusicSession = YouTubeMusicAccountSession(oauth: oauthSession, innertube: innertube)
+        Task { await youTubeMusicSession.syncAuthentication() }
 
         let youTubeImport = YouTubeImportService(bridge: bridge, modelContainer: modelContainer)
         let youTubeSearch = YouTubeSearchService(bridge: bridge, modelContainer: modelContainer)

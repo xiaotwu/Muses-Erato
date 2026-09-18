@@ -1,3 +1,4 @@
+import MusesCore
 import Foundation
 
 /// YouTube Music world-catalog URLs and Innertube browse ids for discovery.
@@ -8,10 +9,10 @@ enum YouTubeMusicCatalog {
 
     /// Innertube `browseId` values (WEB_REMIX) — preferred over scraping Music URLs.
     enum BrowseID {
-        static let home = "FEmusic_home"
-        static let charts = "FEcharts"
-        static let newReleases = "FEmusic_new_releases"
-        static let moodsAndGenres = "FEmusic_moods_and_genres"
+        static let home = YouTubeMusicBrowseIDs.home
+        static let charts = YouTubeMusicBrowseIDs.charts
+        static let newReleases = YouTubeMusicBrowseIDs.newReleases
+        static let moodsAndGenres = YouTubeMusicBrowseIDs.moodsAndGenres
     }
 
     static func mix(videoId: String) -> String {
