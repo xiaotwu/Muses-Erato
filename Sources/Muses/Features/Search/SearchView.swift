@@ -1,21 +1,39 @@
 import SwiftUI
 
-/// Real-time YouTube & Library search view for iOS.
+/// Real-time YouTube & Library search. Suggestions come from recent queries and
+/// local top artists — never hard-coded demo fixtures.
 struct SearchView: View {
     @Bindable var playback: PlaybackService
+    @Environment(LibraryService.self) private var library
 
     @State private var query: String = ""
     @State private var isSearching: Bool = false
     @State private var results: [YTDlpPlaylistEntry] = []
     @State private var searchTask: Task<Void, Never>?
+    @State private var recentSearches: [String] = SearchView.loadRecentSearches()
 
-    private let suggestions = [
-        "Triumph on the Ice", "Monster Siren Records", "酸橙色信笺",
-        "芽吹の唄", "Radwimps", "Lo-Fi Chill", "Genshin Impact OST"
-    ]
+    private static let recentSearchesKey = "muses.search.recentQueries"
+    private static let recentLimit = 8
 
     init(playback: PlaybackService) {
         self.playback = playback
+    }
+
+    private var localArtistSuggestions: [String] {
+        // Prefer a single top artist, then distinct artists from recent plays.
+        var names: [String] = []
+        if let top = library.topArtistName() {
+            names.append(top)
+        }
+        for track in library.recentlyPlayedTracks(limit: 20) {
+            let artist = track.artist.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !artist.isEmpty, !names.contains(where: { $0.caseInsensitiveCompare(artist) == .orderedSame }) else {
+                continue
+            }
+            names.append(artist)
+            if names.count >= 6 { break }
+        }
+        return names
     }
 
     var body: some View {
@@ -23,10 +41,8 @@ struct SearchView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
                     if query.isEmpty {
-                        // Search Suggestions Tags
                         suggestionChipsSection
                     } else if isSearching {
-                        // Searching progress indicator
                         HStack {
                             Spacer()
                             ProgressView()
@@ -35,7 +51,6 @@ struct SearchView: View {
                             Spacer()
                         }
                     } else if results.isEmpty {
-                        // Empty State
                         VStack(spacing: 12) {
                             Image(systemName: "magnifyingglass")
                                 .font(.system(size: 40))
@@ -47,7 +62,6 @@ struct SearchView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 60)
                     } else {
-                        // Results List
                         resultsListSection
                     }
 
@@ -67,15 +81,45 @@ struct SearchView: View {
     // MARK: - Suggestion Chips
 
     private var suggestionChipsSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if !recentSearches.isEmpty {
+                chipSection(
+                    title: tr("Recent Searches", "最近搜索"),
+                    tags: recentSearches
+                )
+            }
+
+            if !localArtistSuggestions.isEmpty {
+                chipSection(
+                    title: tr("From Your Library", "来自资料库"),
+                    tags: localArtistSuggestions
+                )
+            }
+
+            if recentSearches.isEmpty && localArtistSuggestions.isEmpty {
+                EmptyStateView(
+                    icon: "magnifyingglass",
+                    title: tr("Search your music", "搜索你的音乐"),
+                    subtitle: tr(
+                        "Recent searches and top artists from your library will show up here.",
+                        "最近搜索和资料库中的常用艺人会出现在这里。"
+                    )
+                )
+                .padding(.top, 24)
+            }
+        }
+    }
+
+    private func chipSection(title: String, tags: [String]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(tr("Trending Searches", "热门搜索"))
+            Text(title)
                 .font(.system(size: 19, weight: .bold))
                 .foregroundStyle(BrandColors.textPrimary)
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    ForEach(suggestions, id: \.self) { tag in
+                    ForEach(tags, id: \.self) { tag in
                         Button {
                             triggerHapticFeedback()
                             query = tag
@@ -176,9 +220,24 @@ struct SearchView: View {
             if let res = try? await YouTubeResolver.shared.searchYouTube(query: trimmed, limit: 15) {
                 guard !Task.isCancelled else { return }
                 self.results = res
+                self.rememberSearch(trimmed)
             }
             self.isSearching = false
         }
+    }
+
+    private func rememberSearch(_ term: String) {
+        var updated = recentSearches.filter { $0.caseInsensitiveCompare(term) != .orderedSame }
+        updated.insert(term, at: 0)
+        if updated.count > Self.recentLimit {
+            updated = Array(updated.prefix(Self.recentLimit))
+        }
+        recentSearches = updated
+        UserDefaults.standard.set(updated, forKey: Self.recentSearchesKey)
+    }
+
+    private static func loadRecentSearches() -> [String] {
+        UserDefaults.standard.stringArray(forKey: recentSearchesKey) ?? []
     }
 
     private func playEntry(_ entry: YTDlpPlaylistEntry) {
@@ -193,10 +252,9 @@ struct SearchView: View {
             sampleRate: 44100,
             bitDepth: 16,
             codec: "AAC",
-            isLossless: false,
-            lyrics: "[00:00.00]\(entry.title)\n[00:08.00]Artist: \(entry.uploader ?? "YouTube")\n[00:20.00]Playing via YouTube Resolver"
+            isLossless: false
         )
-        playback.play(track)
+        playback.play(track, from: .search)
     }
 
     private func addToQueue(_ entry: YTDlpPlaylistEntry) {

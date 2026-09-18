@@ -36,6 +36,7 @@
 		2D5C80B7ECD3C09C0825F191 /* YouTubeAccountService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11ABEAB419A41799630A176 /* YouTubeAccountService.swift */; };
 		2D7E502B9DCE420A2B903CC4 /* SongsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E201FFD995B54580FA9E559 /* SongsListView.swift */; };
 		2E483D1BB7FB9CC47E298D23 /* LoadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FF36CE180BFE02A6DED39E /* LoadState.swift */; };
+		2EBA39C1B18429916133D356 /* AppCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC6FCEAF57699F5AD590D1F1 /* AppCompositionTests.swift */; };
 		346E243A2CFCE8EF747E05A5 /* AutomationRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CA3CEB4E8F45B758EC077E /* AutomationRule.swift */; };
 		3564F3DD28C3E76BA632C0A6 /* PlayerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B461EBEE4E176E1DEF26E786 /* PlayerEngine.swift */; };
 		35C4C4A2CA9E74FBCA96D145 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433D6BB57A38CEA9231E42C5 /* WaveformView.swift */; };
@@ -53,6 +54,7 @@
 		502BE4AC243700B13871E28E /* YouTubeSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 283DFA57EA2CA7B95DADF8E0 /* YouTubeSearchView.swift */; };
 		5514420DEA56B2247F018DD5 /* YouTubeResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6437CC9F8A38DD7F3BAFD70D /* YouTubeResolver.swift */; };
 		558A5BADC3153838B85D86C1 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9F80C94442DA3DEDDE01218 /* PlaylistItem.swift */; };
+		57445BC90FB533011A167AE9 /* AppComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923106F96428A785F2D48EDC /* AppComposition.swift */; };
 		58A122A6B3F2C1996977A143 /* YouTubeMusicCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98E548CA824AB1460A80BE0D /* YouTubeMusicCatalog.swift */; };
 		5909F402C7DA19DDB70FA6AD /* PlayerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0B4D3431CDB0C710E970221 /* PlayerState.swift */; };
 		5A9B561DF8723E80C4764A51 /* SpectrumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 660B18E5BB63007DE732DB8B /* SpectrumView.swift */; };
@@ -246,6 +248,7 @@
 		9150476E10F106C51894A5FC /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
 		92065EB04A8ED428BD8689D8 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		9209CA4F9D8DAD0220DF9E7A /* YouTubeMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeMark.swift; sourceTree = "<group>"; };
+		923106F96428A785F2D48EDC /* AppComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppComposition.swift; sourceTree = "<group>"; };
 		930EC52A70127278646A94EC /* InboxService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxService.swift; sourceTree = "<group>"; };
 		937C02D78A5E457883293249 /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		93D50A89F37C2175C660361A /* EQEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQEditorView.swift; sourceTree = "<group>"; };
@@ -304,6 +307,7 @@
 		E4D0CEE90ABDCECE9C6AC13B /* YouTubeImportItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeImportItem.swift; sourceTree = "<group>"; };
 		E50271E301D6A6F51AB57EA9 /* Enums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Enums.swift; sourceTree = "<group>"; };
 		EA23C9A115DE708A77E4C5CE /* CoverArtModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverArtModeView.swift; sourceTree = "<group>"; };
+		EC6FCEAF57699F5AD590D1F1 /* AppCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCompositionTests.swift; sourceTree = "<group>"; };
 		ECE3094352A0A34BA695B6BA /* PlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsView.swift; sourceTree = "<group>"; };
 		ED30A875580184CE18E44578 /* YouTubeImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeImportService.swift; sourceTree = "<group>"; };
 		EEA361229A9D669DE86331FC /* SpectrumFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumFrame.swift; sourceTree = "<group>"; };
@@ -708,6 +712,7 @@
 		B457E8459AD93ED6DBECDDE9 /* MusesTests */ = {
 			isa = PBXGroup;
 			children = (
+				EC6FCEAF57699F5AD590D1F1 /* AppCompositionTests.swift */,
 				C2D95FCF2E6A14A2A36A3D78 /* MusesTests.swift */,
 				4B032DBBFBCDCDF8143C6902 /* NowPlayingDepthTests.swift */,
 			);
@@ -825,6 +830,7 @@
 		FABD37818DF96857702B6F15 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				923106F96428A785F2D48EDC /* AppComposition.swift */,
 				D6E5B32F285CEB8AAC151A4D /* AppleMusicTokens.swift */,
 				CB5F62CC56DBC3FBF2EFCC61 /* GlassSurface.swift */,
 				937C02D78A5E457883293249 /* L10n.swift */,
@@ -910,6 +916,7 @@
 				C9D78FE5C94E3A415D008858 /* AlbumArtworkExtractor.swift in Sources */,
 				63FA794775F7644B00483C6C /* AlbumObject.swift in Sources */,
 				7279046F5690C63985009146 /* AmbientMeshBackground.swift in Sources */,
+				57445BC90FB533011A167AE9 /* AppComposition.swift in Sources */,
 				0D7765F5D6D7EF2EF0442D56 /* AppLogger.swift in Sources */,
 				E9A21E23CA48B34EBC7A99B6 /* AppleMusicTokens.swift in Sources */,
 				BDA0A5E7AB7305C2F60FE126 /* ArtistOnlineDiscography.swift in Sources */,
@@ -1060,6 +1067,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2EBA39C1B18429916133D356 /* AppCompositionTests.swift in Sources */,
 				DE27A5B7958B22ACE69531EF /* MusesTests.swift in Sources */,
 				2C8636B9EA79A22BDD42C33F /* NowPlayingDepthTests.swift in Sources */,
 			);

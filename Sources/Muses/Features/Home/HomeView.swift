@@ -1,73 +1,74 @@
 import SwiftUI
 
-/// A curated card item displayed on the iOS Home discovery tab.
-struct HomeCardItem: Identifiable, Sendable {
-    enum CardKind {
-        case album, song, playlist
-    }
-    let id: String
-    let title: String
-    let subtitle: String
-    var artworkUrl: String? = nil
-    let kind: CardKind
-}
-
-/// iOS Home Discovery View with Top Picks carousel, Made For You shelves, and recent listens.
+/// Home tab: local library shelves + discovery + situational recommendations.
+/// Honest empty states when the library and feeds have nothing to show — no demo cards.
 struct HomeView: View {
     @Bindable var playback: PlaybackService
     @Binding var showSettings: Bool
 
-    // Curated discovery items
-    private let heroItems: [HomeCardItem] = [
-        HomeCardItem(
-            id: "hero-1",
-            title: "Triumph on the Ice",
-            subtitle: "Streetwise Rhapsody • Rock Remix",
-            artworkUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80",
-            kind: .album
-        ),
-        HomeCardItem(
-            id: "hero-2",
-            title: "酸橙色信笺 (Letter in Orange)",
-            subtitle: "Monster Siren Records • Featured Single",
-            artworkUrl: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80",
-            kind: .song
-        ),
-        HomeCardItem(
-            id: "hero-3",
-            title: "芽吹の唄 (Spring Awakening)",
-            subtitle: "Official Muses Project • Acoustic",
-            artworkUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80",
-            kind: .playlist
-        )
-    ]
+    @Environment(HomeDiscoveryService.self) private var homeDiscovery
+    @Environment(LibraryService.self) private var library
+    @Environment(SituationalRecommendationService.self) private var situational
 
-    private let madeForYouItems: [HomeCardItem] = [
-        HomeCardItem(id: "mfy-1", title: "Chill Beats & Lo-Fi", subtitle: "Relax & Study", kind: .playlist),
-        HomeCardItem(id: "mfy-2", title: "Neo Classical Muse", subtitle: "Acoustic Piano & Strings", kind: .playlist),
-        HomeCardItem(id: "mfy-3", title: "Synthwave Night Drive", subtitle: "Electronic Energy", kind: .playlist),
-        HomeCardItem(id: "mfy-4", title: "Anime OST Essentials", subtitle: "Soundtrack Masterpieces", kind: .playlist)
-    ]
+    @State private var situationalSections: [SituationalSection] = []
+    @State private var isLoadingSituational = false
 
     init(playback: PlaybackService, showSettings: Binding<Bool>) {
         self.playback = playback
         self._showSettings = showSettings
     }
 
+    private var recentTracks: [TrackSnapshot] {
+        library.recentlyPlayedTracks(limit: 12)
+    }
+
+    private var libraryIsEmpty: Bool {
+        library.allTracks().isEmpty
+    }
+
+    private var hasAnyContent: Bool {
+        !recentTracks.isEmpty
+            || !homeDiscovery.sections.contains(where: { !$0.items.isEmpty })
+            || !situationalSections.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionSpacing) {
-                    // Top Hero Carousel
-                    heroCarousel
+                    if libraryIsEmpty && !hasAnyContent && !homeDiscovery.isRefreshing {
+                        EmptyStateView(
+                            icon: "music.note.house",
+                            title: tr("Your library is empty", "资料库为空"),
+                            subtitle: tr(
+                                "Import music or search YouTube to start listening. Home will show Listen Again and recommendations here.",
+                                "导入音乐或搜索 YouTube 后，首页会显示「再听一次」和推荐内容。"
+                            )
+                        )
+                        .padding(.top, 40)
+                    } else {
+                        if !recentTracks.isEmpty {
+                            listenAgainSection
+                        }
 
-                    // Made For You Shelf
-                    madeForYouSection
+                        if situational.isEnabled && !situationalSections.isEmpty {
+                            ForEach(situationalSections) { section in
+                                situationalShelf(section)
+                            }
+                        }
 
-                    // Recently Played Shelf
-                    recentListensSection
+                        ForEach(homeDiscovery.sections.filter { !$0.items.isEmpty || $0.status == .loading }) { section in
+                            discoveryShelf(section)
+                        }
 
-                    // Bottom padding for floating player and tab bar
+                        if homeDiscovery.isRefreshing && homeDiscovery.sections.isEmpty {
+                            ProgressView()
+                                .tint(BrandColors.accent)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 24)
+                        }
+                    }
+
                     Color.clear.frame(height: 120)
                 }
                 .padding(.top, AppleMusicSpacing.pageTop)
@@ -77,7 +78,7 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        triggerHapticFeedback()
+                        triggerHaptic()
                         showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
@@ -86,124 +87,51 @@ struct HomeView: View {
                     }
                 }
             }
+            .task {
+                homeDiscovery.load()
+                await refreshSituational()
+            }
+            .refreshable {
+                homeDiscovery.reload()
+                await refreshSituational()
+            }
         }
     }
 
-    // MARK: - Hero Carousel
+    // MARK: - Listen Again
 
-    private var heroCarousel: some View {
+    private var listenAgainSection: some View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            Text(tr("Top Picks", "精选推荐"))
+            Text(tr("Listen Again", "再听一次"))
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(BrandColors.textPrimary)
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: AppleMusicSpacing.shelfItemSpacing) {
-                    ForEach(heroItems) { item in
-                        heroCard(for: item)
-                    }
-                }
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-            }
-        }
-    }
-
-    private func heroCard(for item: HomeCardItem) -> some View {
-        Button {
-            triggerHapticFeedback()
-            playDiscoveryItem(item)
-        } label: {
-            ZStack(alignment: .bottomLeading) {
-                // Artwork Image / Gradient
-                RoundedRectangle(cornerRadius: AppleMusicTokens.cardCornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(red: 0.98, green: 0.35, blue: 0.42), Color(red: 0.35, green: 0.15, blue: 0.65)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                // Dark gradient overlay for text readability
-                LinearGradient(
-                    colors: [Color.clear, Color.black.opacity(0.85)],
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
-                .clipShape(RoundedRectangle(cornerRadius: AppleMusicTokens.cardCornerRadius, style: .continuous))
-
-                // Text details and Play button
-                HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.title)
-                            .font(.system(size: 19, weight: .bold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-
-                        Text(item.subtitle ?? "")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.75))
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 42))
-                        .foregroundStyle(BrandColors.accent)
-                        .background(Circle().fill(Color.white).padding(4))
-                        .shadow(color: Color.black.opacity(0.3), radius: 6, x: 0, y: 3)
-                }
-                .padding(16)
-            }
-            .frame(width: 300, height: 180)
-            .shadow(color: Color.black.opacity(0.12), radius: 10, x: 0, y: 5)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Made For You Section
-
-    private var madeForYouSection: some View {
-        VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            Text(tr("Made For You", "为你精选"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(BrandColors.textPrimary)
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppleMusicSpacing.shelfItemSpacing) {
-                    ForEach(madeForYouItems) { item in
+                    ForEach(recentTracks) { track in
                         Button {
-                            triggerHapticFeedback()
-                            playDiscoveryItem(item)
+                            triggerHaptic()
+                            playback.play(track, context: recentTracks, from: .recently)
                         } label: {
                             VStack(alignment: .leading, spacing: 8) {
-                                RoundedRectangle(cornerRadius: AppleMusicTokens.cardCornerRadius, style: .continuous)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color.blue.opacity(0.7), Color.purple.opacity(0.8)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .frame(width: 140, height: 175)
-                                    .overlay(
-                                        Image(systemName: "music.quarternote.3")
-                                            .font(.system(size: 36))
-                                            .foregroundStyle(.white.opacity(0.75))
-                                    )
-                                    .shadow(color: Color.black.opacity(0.1), radius: 6, x: 0, y: 3)
+                                ArtworkView(
+                                    source: .resolve(for: track),
+                                    cornerRadius: AppleMusicTokens.cardCornerRadius,
+                                    glyphSize: 36,
+                                    targetSize: 140
+                                )
+                                .frame(width: 140, height: 140)
+                                .shadow(color: .black.opacity(0.1), radius: 6, y: 3)
 
-                                Text(item.title)
+                                Text(track.title)
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(BrandColors.textPrimary)
                                     .lineLimit(1)
                                     .frame(width: 140, alignment: .leading)
 
-                                Text(item.subtitle ?? "")
-                                    .font(.system(size: 12, weight: .regular))
+                                Text(track.artist)
+                                    .font(.system(size: 12))
                                     .foregroundStyle(BrandColors.textSecondary)
                                     .lineLimit(1)
                                     .frame(width: 140, alignment: .leading)
@@ -217,80 +145,186 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Recently Played Section
+    // MARK: - Situational
 
-    private var recentListensSection: some View {
+    private func situationalShelf(_ section: SituationalSection) -> some View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            Text(tr("Recently Played", "最近播放"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(BrandColors.textPrimary)
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(section.title)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(BrandColors.textPrimary)
+                if let subtitle = section.subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 13))
+                        .foregroundStyle(BrandColors.textSecondary)
+                }
+            }
+            .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
-            VStack(spacing: 8) {
-                ForEach(heroItems) { item in
-                    HStack(spacing: 14) {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(BrandColors.accent.opacity(0.8))
-                            .frame(width: 48, height: 48)
-                            .overlay(
-                                Image(systemName: "music.note")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(.white)
-                            )
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.title)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(BrandColors.textPrimary)
-                                .lineLimit(1)
-
-                            Text(item.subtitle ?? "")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundStyle(BrandColors.textSecondary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AppleMusicSpacing.shelfItemSpacing) {
+                    ForEach(section.items) { track in
                         Button {
-                            triggerHapticFeedback()
-                            playDiscoveryItem(item)
+                            triggerHaptic()
+                            playback.play(track, context: section.items, from: .songs)
                         } label: {
-                            Image(systemName: "play.circle")
-                                .font(.system(size: 24))
-                                .foregroundStyle(BrandColors.accent)
+                            VStack(alignment: .leading, spacing: 8) {
+                                ArtworkView(
+                                    source: .resolve(for: track),
+                                    cornerRadius: AppleMusicTokens.cardCornerRadius,
+                                    glyphSize: 36,
+                                    targetSize: 140
+                                )
+                                .frame(width: 140, height: 140)
+
+                                Text(track.title)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(BrandColors.textPrimary)
+                                    .lineLimit(1)
+                                    .frame(width: 140, alignment: .leading)
+
+                                Text(track.artist)
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(BrandColors.textSecondary)
+                                    .lineLimit(1)
+                                    .frame(width: 140, alignment: .leading)
+                            }
                         }
                         .buttonStyle(.plain)
                     }
+                }
+                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+            }
+        }
+    }
+
+    // MARK: - Discovery
+
+    private func discoveryShelf(_ section: HomeSection) -> some View {
+        VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
+            HStack {
+                Text(section.title)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(BrandColors.textPrimary)
+                if case .loading = section.status {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
+
+            if case .failed(let message) = section.status, section.items.isEmpty {
+                Text(message ?? tr("Couldn’t load this shelf", "无法加载此分区"))
+                    .font(.system(size: 13))
+                    .foregroundStyle(BrandColors.textSecondary)
                     .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-                    .padding(.vertical, 6)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppleMusicSpacing.shelfItemSpacing) {
+                        ForEach(section.items) { item in
+                            discoveryCard(item)
+                        }
+                    }
+                    .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
                 }
             }
         }
     }
 
-    private func playDiscoveryItem(_ item: HomeCardItem) {
-        let track = TrackSnapshot(
-            id: UUID(),
-            title: item.title,
-            artist: item.subtitle,
-            albumTitle: item.title,
-            durationSeconds: 214,
-            youTubeId: item.id,
-            artworkUrl: item.artworkUrl,
-            sampleRate: 44100,
-            bitDepth: 16,
-            codec: "AAC",
-            isLossless: false,
-            lyrics: "[00:00.00]Muses - \(item.title)\n[00:05.00]Music awakens the soul\n[00:12.50]Erato weaves the lyrics of romance\n[00:22.00]Flowing under Apple Liquid Glass design\n[00:34.00]Clear sound, pure melody\n[00:48.00]Harmonies resonate through the night"
-        )
-        playback.play(track)
+    @ViewBuilder
+    private func discoveryCard(_ item: DiscoveryItem) -> some View {
+        switch item {
+        case .youTube(let card):
+            Button {
+                triggerHaptic()
+                playYouTubeCard(card)
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    ArtworkView(
+                        source: .resolve(remoteURL: card.thumbnailURL, youTubeId: card.playableVideoID),
+                        cornerRadius: AppleMusicTokens.cardCornerRadius,
+                        glyphSize: 36,
+                        targetSize: 140
+                    )
+                    .frame(width: 140, height: 140)
+
+                    Text(card.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BrandColors.textPrimary)
+                        .lineLimit(2)
+                        .frame(width: 140, alignment: .leading)
+
+                    Text(card.uploader ?? "")
+                        .font(.system(size: 12))
+                        .foregroundStyle(BrandColors.textSecondary)
+                        .lineLimit(1)
+                        .frame(width: 140, alignment: .leading)
+                }
+            }
+            .buttonStyle(.plain)
+
+        case .track(let track):
+            Button {
+                triggerHaptic()
+                playback.play(track, from: .songs)
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    ArtworkView(
+                        source: .resolve(for: track),
+                        cornerRadius: AppleMusicTokens.cardCornerRadius,
+                        glyphSize: 36,
+                        targetSize: 140
+                    )
+                    .frame(width: 140, height: 140)
+
+                    Text(track.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BrandColors.textPrimary)
+                        .lineLimit(2)
+                        .frame(width: 140, alignment: .leading)
+
+                    Text(track.artist)
+                        .font(.system(size: 12))
+                        .foregroundStyle(BrandColors.textSecondary)
+                        .lineLimit(1)
+                        .frame(width: 140, alignment: .leading)
+                }
+            }
+            .buttonStyle(.plain)
+        }
     }
 
-    private func triggerHapticFeedback() {
+    private func playYouTubeCard(_ card: YouTubeDiscoveryCard) {
+        guard let videoId = card.playableVideoID, !videoId.isEmpty else { return }
+        let track = TrackSnapshot(
+            id: UUID(),
+            title: card.title,
+            artist: card.uploader ?? "",
+            albumTitle: nil,
+            durationSeconds: card.duration ?? 0,
+            youTubeId: videoId,
+            artworkUrl: card.thumbnailURL,
+            sampleRate: nil,
+            bitDepth: nil,
+            codec: nil,
+            isLossless: false
+        )
+        playback.play(track, from: .search)
+    }
+
+    private func refreshSituational() async {
+        guard situational.isEnabled else {
+            situationalSections = []
+            return
+        }
+        isLoadingSituational = true
+        situationalSections = await situational.compute()
+        isLoadingSituational = false
+    }
+
+    private func triggerHaptic() {
         #if os(iOS)
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
     }
 }
