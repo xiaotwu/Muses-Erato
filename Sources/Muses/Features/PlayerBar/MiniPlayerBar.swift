@@ -85,12 +85,7 @@ struct MiniPlayerBar: View {
                 }
                 .frame(height: 2.5)
             }
-            .background {
-                Color.clear
-                    .frame(maxWidth: .infinity)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: AppleMusicTokens.miniPlayerHeight + 2.5, alignment: .leading)
             .musesGlass(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, role: .floatingPlayer)
             .laserStroke(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, lineWidth: 0.9, opacity: 0.62)
             .offset(y: dragOffset)
