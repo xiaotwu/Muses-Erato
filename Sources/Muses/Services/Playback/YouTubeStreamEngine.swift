@@ -72,10 +72,12 @@ final class YouTubeStreamEngine: PlayerEngine {
     /// Prefetch task (background download + decode for the next queued track).
     private var preloadTask: Task<Void, Never>?
     private var prefetchGeneration: UInt64 = 0
+    private var requestedEQ: [EQBand] = EQPresets.flat
 
     /// Test-visible fallback query: true only when download/decode failed irrecoverably and AVPlayer is permanent.
     /// The hybrid streaming stage (intentional AVPlayer start) does not count as fallback.
     var isInFallbackMode: Bool { useAVPlayerFallback }
+    var isEQAvailable: Bool { !useAVPlayerFallback && !isStreamingMode }
 
     // MARK: - Test-visible internal state (for dual-node hand-off assertions)
 
@@ -370,17 +372,26 @@ final class YouTubeStreamEngine: PlayerEngine {
     }
 
     func setEQ(_ bands: [EQBand]) {
+        requestedEQ = bands
         // EQ is unavailable on the AVPlayer path
         if useAVPlayerFallback || isStreamingMode { return }
-        for i in 0..<min(bands.count, eq.bands.count) {
-            let b = eq.bands[i]
-            b.filterType = .parametric
-            b.frequency = Float(bands[i].frequency)
-            b.gain = Float(bands[i].gain)
-            b.bandwidth = Float(bands[i].q)
-            b.bypass = false
+        applyRequestedEQ()
+    }
+
+    private func applyRequestedEQ() {
+        let mapped = EQBandMapping.assignments(from: requestedEQ, slotCount: eq.bands.count)
+        for (index, assignment) in mapped.enumerated() {
+            let slot = eq.bands[index]
+            if assignment.bypass {
+                slot.bypass = true
+                continue
+            }
+            slot.filterType = .parametric
+            slot.frequency = Float(assignment.frequency)
+            slot.gain = assignment.gain
+            slot.bandwidth = assignment.q
+            slot.bypass = false
         }
-        for i in bands.count..<eq.bands.count { eq.bands[i].bypass = true }
     }
 
     func installSpectrumTap(_ handler: @escaping (SpectrumFrame) -> Void) {
@@ -481,6 +492,7 @@ final class YouTubeStreamEngine: PlayerEngine {
         tearDownAVPlayer()
         isStreamingMode = false
         useAVPlayerFallback = false
+        applyRequestedEQ()
         activePlayer.stop()
         activePlayer = next
         currentFile = file
