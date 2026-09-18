@@ -21,3 +21,4 @@ client_secret*.json
 
 # Local UI QA screenshots
 .ui-shots/
+.patches/
