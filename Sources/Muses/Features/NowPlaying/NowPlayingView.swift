@@ -30,9 +30,6 @@ struct NowPlayingView: View {
         lyricsResult?.syncedLyrics ?? lyricsResult?.plainLyrics
     }
 
-    private var lyricsOffsetSeconds: Double {
-        Double((lyricsResult?.offsetMs ?? 0) + lyricsService.manualOffsetMs) / 1000.0
-    }
 
     var body: some View {
         ZStack {
@@ -134,7 +131,6 @@ struct NowPlayingView: View {
                 LyricsKaraokeView(
                     lyrics: displayedLyrics,
                     currentPosition: playback.state.position,
-                    offsetSeconds: lyricsOffsetSeconds,
                     onSeek: { playback.seek(to: $0) }
                 )
             }

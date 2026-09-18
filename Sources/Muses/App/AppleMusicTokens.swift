@@ -50,6 +50,7 @@ public enum AppleMusicTokens {
     public static let tabBarFloatingInset: CGFloat = 16
     public static let miniPlayerHeight: CGFloat = 54
     public static let miniPlayerCornerRadius: CGFloat = 16
+    public static let selectedGlowRadius: CGFloat = 8
     public static let miniPlayerDockMargin: CGFloat = 8
 
     public static let cardCornerRadius: CGFloat = 14
