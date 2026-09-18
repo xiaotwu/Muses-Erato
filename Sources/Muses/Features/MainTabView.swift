@@ -43,15 +43,15 @@ struct MainTabView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                floatingTabBar
-                    .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
+                // Tab capsule + independent Search FAB on the trailing edge of the same row.
+                HStack(alignment: .center, spacing: 10) {
+                    floatingTabBar
+                        .frame(maxWidth: .infinity)
+                    searchFAB
+                }
+                .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
             }
             .padding(.bottom, 6)
-
-            // Independent circular Search control — bottom trailing, above dock (+ MiniPlayer).
-            searchFAB
-                .padding(.trailing, AppleMusicTokens.tabBarFloatingInset + 4)
-                .padding(.bottom, searchFABBottomInset)
         }
         .fullScreenCover(isPresented: $showNowPlaying) {
             NowPlayingView(playback: playback, isPresented: $showNowPlaying)
@@ -82,13 +82,6 @@ struct MainTabView: View {
         }
     }
 
-    private var searchFABBottomInset: CGFloat {
-        let dock = AppleMusicTokens.tabBarHeight + 22
-        if playback.state.track != nil {
-            return dock + AppleMusicTokens.miniPlayerHeight + AppleMusicTokens.miniPlayerDockMargin + 10
-        }
-        return dock
-    }
 
     private var searchFAB: some View {
 

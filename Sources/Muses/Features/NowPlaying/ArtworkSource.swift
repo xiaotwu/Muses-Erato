@@ -30,12 +30,27 @@ enum ArtworkSource: Equatable, Sendable {
 
     static func resolve(remoteURL: String?, youTubeId: String? = nil) -> ArtworkSource {
         if let urlStr = remoteURL, let url = URL(string: urlStr) {
+            // Prefer non-letterboxed YT thumbs when we can rewrite the path.
+            if let upgraded = Self.preferredYouTubeThumbnail(from: url) {
+                return .remote(upgraded)
+            }
             return .remote(url)
         }
         if let vid = youTubeId, let url = YouTubeThumbnail.url(videoId: vid) {
             return .remote(url)
         }
         return .placeholder
+    }
+
+    /// Rewrite classic letterboxed YT paths (`hqdefault` / `sddefault` / `default`) to `hq720`.
+    private static func preferredYouTubeThumbnail(from url: URL) -> URL? {
+        guard YouTubeThumbnail.isLetterboxed(url) else { return nil }
+        let parts = url.path.split(separator: "/").map(String.init)
+        // .../vi/<id>/hqdefault.jpg
+        guard let vi = parts.firstIndex(of: "vi"), vi + 1 < parts.count else { return nil }
+        let videoId = parts[vi + 1]
+        guard !videoId.isEmpty else { return nil }
+        return YouTubeThumbnail.url(videoId: videoId)
     }
 
     /// Blocking decode for detached palette only. Never call from `body`.
@@ -129,9 +144,14 @@ private struct ResolvedArtworkImage: View {
     var body: some View {
         switch presentation {
         case .fill:
-            image
-                .resizable()
-                .scaledToFill()
+            // Width/height both cover the slot; overflow is center-cropped by the parent clip.
+            Color.clear
+                .overlay {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                }
+                .clipped()
         case .fitOnAmbient:
             ZStack {
                 image

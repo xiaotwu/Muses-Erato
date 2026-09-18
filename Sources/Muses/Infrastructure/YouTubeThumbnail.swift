@@ -9,9 +9,9 @@ public typealias PlatformImage = NSImage
 
 /// YouTube thumbnail URLs and letterbox stripping.
 public enum YouTubeThumbnail {
-    /// Canonical stored URL (hqdefault). Display crops letterbox.
+    /// Prefer hq720 (true 16:9) over hqdefault (4:3 with baked bars).
     public static func urlString(videoId: String) -> String {
-        "https://i.ytimg.com/vi/\(videoId)/hqdefault.jpg"
+        "https://i.ytimg.com/vi/\(videoId)/hq720.jpg"
     }
 
     public static func url(videoId: String) -> URL? {
@@ -25,13 +25,23 @@ public enum YouTubeThumbnail {
         let path = url.path.lowercased()
         return path.contains("hqdefault")
             || path.contains("sddefault")
+            || path.contains("mqdefault")
+            || path.contains("0.jpg")
             || path.hasSuffix("/default.jpg")
             || path.hasSuffix("/default.webp")
+            || path.contains("/default.")
     }
 
-    /// Crop 4:3 YouTube letterbox (45/360 = 12.5% each edge). 16:9 images pass through.
+    /// Crop 4:3 YouTube letterbox (45/360 ≈ 12.5% each edge). True 16:9 images pass through.
     public static func cropLetterboxIfNeeded(_ image: PlatformImage, url: URL? = nil) -> PlatformImage {
-        if let url, !isLetterboxed(url) { return image }
+        if let url, !isLetterboxed(url) {
+            // Still strip obvious 4:3 letterbox even for unrecognized hosts/paths.
+            return cropFourByThreeLetterbox(image)
+        }
+        return cropFourByThreeLetterbox(image)
+    }
+
+    private static func cropFourByThreeLetterbox(_ image: PlatformImage) -> PlatformImage {
         #if canImport(UIKit)
         guard let cg = image.cgImage else { return image }
         #else
@@ -41,6 +51,7 @@ public enum YouTubeThumbnail {
         let height = CGFloat(cg.height)
         guard height > 0 else { return image }
         let aspect = width / height
+        // hqdefault family is ~4:3 (1.33). Skip true 16:9 (~1.78) and squares.
         guard aspect >= 1.22 && aspect <= 1.48 else { return image }
         let bar = (height * 45.0 / 360.0).rounded(.down)
         let cropHeight = height - bar * 2
@@ -48,7 +59,7 @@ public enum YouTubeThumbnail {
         let rect = CGRect(x: 0, y: bar, width: width, height: cropHeight)
         guard let cropped = cg.cropping(to: rect) else { return image }
         #if canImport(UIKit)
-        return UIImage(cgImage: cropped)
+        return UIImage(cgImage: cropped, scale: image.scale, orientation: image.imageOrientation)
         #else
         return NSImage(cgImage: cropped, size: NSSize(width: rect.width, height: rect.height))
         #endif
