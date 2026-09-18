@@ -757,14 +757,17 @@ struct CollectionDeckCardSurface: View {
 }
 
 @MainActor
-private final class CollectionArtworkGlowCache {
+/// Shared cover-derived glow / ambient palette cache (collection cards + now-playing mesh).
+final class CollectionArtworkGlowCache {
     static let shared = CollectionArtworkGlowCache()
 
     private let colors = NSCache<NSString, PlatformColor>()
+    private let palettes = NSCache<NSString, NSArray>()
     private var inFlight: [String: Task<PlatformColor?, Never>] = [:]
 
     private init() {
         colors.countLimit = 192
+        palettes.countLimit = 96
     }
 
     func color(for source: ArtworkSource) async -> PlatformColor? {
@@ -818,6 +821,29 @@ private final class CollectionArtworkGlowCache {
             colors.setObject(color, forKey: key as NSString)
         }
         return color
+    }
+
+    /// Dominant cover colors for ambient meshes (shared image load path with glow).
+    func palette(for source: ArtworkSource, count: Int = 3) async -> [PlatformColor] {
+        let key = "palette:\(count):\(source.identity)" as NSString
+        if let cached = palettes.object(forKey: key) {
+            return cached.compactMap { $0 as? PlatformColor }
+        }
+        let image: PlatformImage?
+        switch source {
+        case .remote(let url):
+            image = await ImageLoader.shared.load(url).value
+        case .placeholder:
+            image = nil
+        }
+        guard let image else { return [] }
+        let extracted = await Task.detached(priority: .utility) {
+            AlbumArtworkExtractor.dominantColors(image, count: count)
+        }.value
+        if !extracted.isEmpty {
+            palettes.setObject(extracted as NSArray, forKey: key)
+        }
+        return extracted
     }
 }
 

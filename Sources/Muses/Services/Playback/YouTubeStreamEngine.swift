@@ -53,8 +53,10 @@ final class YouTubeStreamEngine: PlayerEngine {
     private var avPlayer: AVPlayer?
     private var timeObserver: Any?
     private var endTimeObserver: NSObjectProtocol?
+    private var failureObserver: NSObjectProtocol?
     /// Set when download/decode failed irrecoverably and playback stays on AVPlayer. `isInFallbackMode` reports this only.
     private var useAVPlayerFallback = false
+    private var staleStreamRetryUsed = false
     /// Hybrid streaming stage: AVPlayer started instantly, awaiting the background download before switching to AVAudioFile.
     private var isStreamingMode = false
     /// Hybrid hand-off task (background download + decode + fade switch), cancellable.
@@ -218,6 +220,7 @@ final class YouTubeStreamEngine: PlayerEngine {
 
     func load(_ track: TrackSnapshot) async throws {
         loadGeneration &+= 1
+        staleStreamRetryUsed = false
         let generation = loadGeneration
         currentLoadTrackId = track.id
 
@@ -263,14 +266,16 @@ final class YouTubeStreamEngine: PlayerEngine {
         // 7a. Resolved to a file URL: copy it into the YouTube stream cache and take the AVAudioFile primary path.
         if resolvedURL.isFileURL {
             let tempURL = cacheFileURL(videoId: videoId, from: resolvedURL)
-            let downloadOK = await downloadTo(url: resolvedURL, tempURL: tempURL)
+            let fileResult = await downloadWithStaleCacheRetry(
+                videoId: videoId, url: resolvedURL, tempURL: tempURL)
             guard loadIsCurrent(generation: generation, trackId: track.id),
                   !Task.isCancelled else { return }
-            if downloadOK, decodeAndScheduleOnInactive(tempURL: tempURL, track: track, fromFrame: 0) {
+            let finalTemp = cacheFileURL(videoId: videoId, from: fileResult.url)
+            if fileResult.ok, decodeAndScheduleOnInactive(tempURL: finalTemp, track: track, fromFrame: 0) {
                 return
             }
-            // Fall back to AVPlayer when caching/decoding the file URL fails.
-            startAVPlayer(url: resolvedURL, fallback: true,
+            // Fall back to AVPlayer when caching/decoding fails (fresh URL if stale-cache retry ran).
+            startAVPlayer(url: fileResult.url, fallback: true,
                           loadGeneration: generation, trackId: track.id)
             return
         }
@@ -287,17 +292,21 @@ final class YouTubeStreamEngine: PlayerEngine {
         let tempURL = cacheFileURL(videoId: videoId, from: resolvedURL)
         let downloadTaskRef = Task { @MainActor [weak self] in
             guard let self else { return }
-            let ok = await self.downloadTo(url: resolvedURL, tempURL: tempURL)
+            let result = await self.downloadWithStaleCacheRetry(
+                videoId: videoId, url: resolvedURL, tempURL: tempURL)
             guard !Task.isCancelled,
                   self.loadIsCurrent(generation: generation, trackId: track.id) else { return }
-            if ok {
-                self.beginStreamingSwap(to: tempURL, track: track,
+            if result.ok {
+                let finalTemp = self.cacheFileURL(videoId: videoId, from: result.url)
+                self.beginStreamingSwap(to: finalTemp, track: track,
                                         loadGeneration: generation)
             } else {
-                // Download failed: degrade permanently to AVPlayer
+                // After invalidate+re-resolve retry still failed: try AVPlayer on the fresh URL once.
                 self.isStreamingMode = false
                 self.useAVPlayerFallback = true
-                self.log.error("Stream download failed; degrading permanently to AVPlayer")
+                self.startAVPlayer(url: result.url, fallback: true,
+                                   loadGeneration: generation, trackId: track.id)
+                self.log.error("Stream download failed after stale-cache retry; degrading to AVPlayer")
             }
         }
         downloadTask = downloadTaskRef
@@ -648,16 +657,18 @@ final class YouTubeStreamEngine: PlayerEngine {
             guard !Task.isCancelled,
                   prefetchIsCurrent(generation: generation, trackId: track.id) else { return }
             let tempURL = cacheFileURL(videoId: videoId, from: resolvedURL)
-            let ok = await downloadTo(url: resolvedURL, tempURL: tempURL)
-            guard ok,
+            let result = await downloadWithStaleCacheRetry(
+                videoId: videoId, url: resolvedURL, tempURL: tempURL)
+            guard result.ok,
                   !Task.isCancelled,
                   prefetchIsCurrent(generation: generation, trackId: track.id) else { return }
-            if let file = try? AVAudioFile(forReading: tempURL),
+            let finalTemp = cacheFileURL(videoId: videoId, from: result.url)
+            if let file = try? AVAudioFile(forReading: finalTemp),
                prefetchIsCurrent(generation: generation, trackId: track.id) {
                 prefetchedFile = file
                 prefetchedTrack = track
                 prefetchedFrames = file.length
-                preparedTempURL = tempURL
+                preparedTempURL = finalTemp
                 preparedVideoId = videoId
             }
         } catch {
@@ -670,6 +681,7 @@ final class YouTubeStreamEngine: PlayerEngine {
     /// Starts AVPlayer on `url`. `fallback == true` marks the permanent fallback (download/decode failure).
     private func startAVPlayer(url: URL, fallback: Bool,
                                loadGeneration: UInt64, trackId: UUID) {
+        tearDownAVPlayer()
         useAVPlayerFallback = fallback
         let item = AVPlayerItem(url: url)
         avPlayer = AVPlayer(playerItem: item)
@@ -700,12 +712,45 @@ final class YouTubeStreamEngine: PlayerEngine {
                 self.handleCompletion()
             }
         }
+        failureObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime,
+            object: item, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.handleStreamURLPlaybackFailure(
+                    loadGeneration: loadGeneration, trackId: trackId)
+            }
+        }
+    }
+
+    /// Invalidates a stale stream-URL cache entry and re-resolves once when AVPlayer fails (e.g. 403).
+    private func handleStreamURLPlaybackFailure(loadGeneration: UInt64, trackId: UUID) async {
+        guard loadIsCurrent(generation: loadGeneration, trackId: trackId),
+              !staleStreamRetryUsed,
+              let videoId = currentTrack?.youTubeId, !videoId.isEmpty else { return }
+        staleStreamRetryUsed = true
+        log.error("AVPlayer failed on stream URL; invalidating cache and re-resolving once")
+        do {
+            let fresh = try await resolveStreamURL(for: videoId, bypassCache: true)
+            guard loadIsCurrent(generation: loadGeneration, trackId: trackId) else { return }
+            startAVPlayer(url: fresh, fallback: useAVPlayerFallback,
+                          loadGeneration: loadGeneration, trackId: trackId)
+            if playbackRequested {
+                avPlayer?.play()
+                state.isPlaying = true
+            }
+        } catch {
+            log.error("Stale-cache re-resolve after AVPlayer failure failed: \(error.localizedDescription)")
+            state.error = .sourceUnavailable
+        }
     }
 
     private func tearDownAVPlayer() {
         if let t = timeObserver { avPlayer?.removeTimeObserver(t); timeObserver = nil }
         if let o = endTimeObserver {
             NotificationCenter.default.removeObserver(o); endTimeObserver = nil
+        }
+        if let o = failureObserver {
+            NotificationCenter.default.removeObserver(o); failureObserver = nil
         }
         avPlayer?.pause()
         avPlayer = nil
@@ -764,11 +809,16 @@ final class YouTubeStreamEngine: PlayerEngine {
     private var preparedVideoId: String?
     private var preparedTempURL: URL?
 
-    /// Resolves the stream URL: cache first; on first failure, invalidate the cache and retry once (15s timeout).
-    private func resolveStreamURL(for videoId: String) async throws -> URL {
+    /// Resolves the stream URL. Cache hits return immediately; pass `bypassCache` after a
+    /// 403/playback failure so callers are not stuck on an expired entry. On resolver failure,
+    /// invalidates once and retries a single fresh resolve (15s timeout).
+    private func resolveStreamURL(for videoId: String, bypassCache: Bool = false) async throws -> URL {
         let quality = currentQuality()
-        if let cached = cache.get(videoId: videoId, quality: quality) {
+        if !bypassCache, let cached = cache.get(videoId: videoId, quality: quality) {
             return cached
+        }
+        if bypassCache {
+            cache.invalidate(videoId: videoId, quality: quality)
         }
         do {
             let url = try await bridge.resolveStreamURL(
@@ -789,6 +839,29 @@ final class YouTubeStreamEngine: PlayerEngine {
             }
         }
     }
+
+    /// Downloads `url`; on failure invalidates the stream-URL cache and re-resolves + retries once.
+    @discardableResult
+    private func downloadWithStaleCacheRetry(
+        videoId: String,
+        url: URL,
+        tempURL: URL
+    ) async -> (url: URL, ok: Bool) {
+        if await downloadTo(url: url, tempURL: tempURL) {
+            return (url, true)
+        }
+        log.error("Download failed for cached/resolved URL; invalidating stream cache and re-resolving once")
+        do {
+            let fresh = try await resolveStreamURL(for: videoId, bypassCache: true)
+            let freshTemp = cacheFileURL(videoId: videoId, from: fresh)
+            let ok = await downloadTo(url: fresh, tempURL: freshTemp)
+            return (fresh, ok)
+        } catch {
+            log.error("Re-resolve after download failure failed: \(error.localizedDescription)")
+            return (url, false)
+        }
+    }
+
 
     // MARK: - Position ticking / completion
 
