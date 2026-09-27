@@ -35,3 +35,13 @@ supplied API key returned HTTP 200 and one item from a `videos.list` test for th
 IFrame demonstration video; this consumes one metadata request. Keys, tokens and raw
 private responses are not recorded in this repository. Cloud quota/restriction settings
 and consent verification still need review before public release.
+
+## Restriction acceptance, 2026-09-27
+
+Three owner-key `videos.list(part=id)` requests were made for the same official sample:
+correct `X-Ios-Bundle-Identifier`, wrong bundle identity and no identity. All returned
+HTTP 200 with one item. This does **not** prove iOS restriction enforcement and fails
+the intended negative acceptance cases. The owner was asked to configure application
+restrictions for `com.xiaotwu.muses.erato` and an API restriction to YouTube Data API v3.
+Retest after Cloud propagation: correct identity must work and wrong/missing identity
+must fail. No key value or request URL is recorded. Three metadata requests were used.
