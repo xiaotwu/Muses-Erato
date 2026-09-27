@@ -155,4 +155,35 @@ import MusesDomain
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(stored?.fields)) as? [String: Any])
         XCTAssertEqual(object["track"] as? String, trackID.uuidString)
     }
+    func testNotebookEditsKeepMigrationReceiptAndSourceArchive() throws {
+        let trackID = UUID(), noteID = UUID(), bookmarkID = UUID()
+        var source = try bundle(trackID)
+        let note = LegacyNote(id: noteID, trackId: trackID, content: "Original note", createdAt: .distantPast, updatedAt: .distantPast)
+        let bookmark = LegacyBookmark(id: bookmarkID, trackId: trackID, timestampMs: 1234.5, title: "Original", note: "Keep detail")
+        source.userTruth.notes = [note]
+        source.userTruth.bookmarks = [bookmark]
+        source.otherModels[.trackNote] = [LegacyModelArchive(id: noteID, fields: try JSONEncoder().encode(note), fieldNames: LegacyModelKind.trackNote.requiredFields)]
+        var bookmarkFields = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(bookmark)) as? [String: Any])
+        bookmarkFields["createdAt"] = 321
+        source.otherModels[.trackBookmark] = [LegacyModelArchive(id: bookmarkID, fields: try JSONSerialization.data(withJSONObject: bookmarkFields), fieldNames: LegacyModelKind.trackBookmark.requiredFields)]
+        let container = try SwiftDataSnapshotRepository.container(inMemory: true)
+        let repo = SwiftDataSnapshotRepository(context: container.mainContext)
+        try repo.importLegacyComplete(source)
+        try repo.importLegacyComplete(source)
+        let receipt = try repo.get(LegacyMigrationReceipt.self, kind: .migration, id: "legacy-complete-v1")
+        let noteArchive = try repo.get(LegacyModelArchive.self, kind: .legacyModel, id: "trackNote:\(noteID.uuidString)")
+        let bookmarkArchive = try repo.get(LegacyModelArchive.self, kind: .legacyModel, id: "trackBookmark:\(bookmarkID.uuidString)")
+        let id = try TrackID(trackID.uuidString)
+        let projected = try XCTUnwrap(repo.videoNotes(trackID: id).first)
+        try repo.saveVideoNote(projected.edited(content: "Edited locally"))
+        let projectedBookmark = try XCTUnwrap(repo.videoBookmarks(trackID: id).first)
+        try repo.saveVideoBookmark(.init(id: bookmarkID, trackID: id, timestampMilliseconds: 9999, title: "Edited", note: projectedBookmark.note))
+        XCTAssertEqual(try repo.get(LegacyMigrationReceipt.self, kind: .migration, id: "legacy-complete-v1"), receipt)
+        XCTAssertEqual(try repo.get(LegacyModelArchive.self, kind: .legacyModel, id: "trackNote:\(noteID.uuidString)")?.fields, noteArchive?.fields)
+        XCTAssertEqual(try repo.get(LegacyModelArchive.self, kind: .legacyModel, id: "trackBookmark:\(bookmarkID.uuidString)")?.fields, bookmarkArchive?.fields)
+        try repo.deleteVideoNote(id: noteID, trackID: id)
+        try repo.deleteVideoBookmark(id: bookmarkID, trackID: id)
+        XCTAssertNotNil(try repo.get(LegacyModelArchive.self, kind: .legacyModel, id: "trackBookmark:\(bookmarkID.uuidString)"))
+    }
+
 }

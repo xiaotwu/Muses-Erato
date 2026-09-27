@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		02245EBDD35D14A0D86817C7 /* PublicNotebookModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B718C354ECFF33EF9D4AD63A /* PublicNotebookModel.swift */; };
 		09EF9F7672736CFDB429908A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0E499433DA82459A29E31C98 /* Assets.xcassets */; };
 		109B68E82A26267834BF227E /* KeyboardDismissalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */; };
 		1691B322D0E2E4A124CA3976 /* MusesNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = B6C839E616E7ADEBC1EA86EE /* MusesNetworking */; };
@@ -19,10 +20,13 @@
 		48E5884910C6DC3E956F633D /* PublicPrivacyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */; };
 		54F7E4C136C06E1CC21E8C4E /* PublicCatalogViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */; };
 		6E308E0EE68117B2D348D7BF /* PublicYouTubeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38F7FFDCC49F387A86934E8 /* PublicYouTubeApp.swift */; };
+		6EA15B99732E710FF6701337 /* PublicNotebookViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3C6FAADDB87FAA89AE2285 /* PublicNotebookViews.swift */; };
 		7273935935728720CB6E452E /* PublicKeyboardDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */; };
 		7F08B637B7E304022B8FF1B1 /* PublicYouTubeFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DFB0F5C9F1F00760EEE27DB /* PublicYouTubeFlowTests.swift */; };
 		83B838F9077E758A8FD941DD /* MusesPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = 59C04AE7291360CB2F8D1980 /* MusesPersistence */; };
 		8525D550E4F0761D9A32B796 /* PublicCatalogUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38C4DF4F5CE19FD4531B992 /* PublicCatalogUITests.swift */; };
+		8AF6B5523E2CB9B7F1A26604 /* PublicNotebookUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFEABBB343EF659168B63ED0 /* PublicNotebookUITests.swift */; };
+		905E0CE95AC17D221CFF5F64 /* PublicNotebookTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82777FC97A993D3021AAF724 /* PublicNotebookTests.swift */; };
 		93776AD20FB9DC7C96936378 /* PublicServiceLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B726EBFDB43E586F77DAD14 /* PublicServiceLinks.swift */; };
 		9FA5A58E5A957104F5A695B9 /* MusesQueue in Frameworks */ = {isa = PBXBuildFile; productRef = E849032D7BF5D062EC253E75 /* MusesQueue */; };
 		A24753171D104598A148F91E /* YouTubeIFrameAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 450AF4AE3A6C4930373DD319 /* YouTubeIFrameAdapter.swift */; };
@@ -66,8 +70,10 @@
 		77EBF9643B9DA73DE6077ACB /* PublicCatalogFixtureTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicCatalogFixtureTransport.swift; sourceTree = "<group>"; };
 		7916F022FB9E64BE8A7281B5 /* PublicPrivacyPolicy.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PublicPrivacyPolicy.md; sourceTree = "<group>"; };
 		80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicCatalogViews.swift; sourceTree = "<group>"; };
+		82777FC97A993D3021AAF724 /* PublicNotebookTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicNotebookTests.swift; sourceTree = "<group>"; };
 		876106BAA6581C1CB6DDDB90 /* MusesTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		89C5A75EEAC78DF115AC3B08 /* MusesQueue */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesQueue; path = Packages/MusesQueue; sourceTree = SOURCE_ROOT; };
+		8A3C6FAADDB87FAA89AE2285 /* PublicNotebookViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicNotebookViews.swift; sourceTree = "<group>"; };
 		8DFB0F5C9F1F00760EEE27DB /* PublicYouTubeFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicYouTubeFlowTests.swift; sourceTree = "<group>"; };
 		91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDismissalTests.swift; sourceTree = "<group>"; };
 		9822313D18A980A1C93BA3D9 /* MusesNetworking */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesNetworking; path = Packages/MusesNetworking; sourceTree = SOURCE_ROOT; };
@@ -75,11 +81,13 @@
 		B38C4DF4F5CE19FD4531B992 /* PublicCatalogUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicCatalogUITests.swift; sourceTree = "<group>"; };
 		B38F7FFDCC49F387A86934E8 /* PublicYouTubeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicYouTubeApp.swift; sourceTree = "<group>"; };
 		B4D8A3E3A2F0AB70964281DF /* PublicStoreLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicStoreLocation.swift; sourceTree = "<group>"; };
+		B718C354ECFF33EF9D4AD63A /* PublicNotebookModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicNotebookModel.swift; sourceTree = "<group>"; };
 		B88CC19B6BBEFF7A59783565 /* PublicSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicSmokeTests.swift; sourceTree = "<group>"; };
 		C02C9611A99A8C63F4394507 /* MusesPersistence */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesPersistence; path = Packages/MusesPersistence; sourceTree = SOURCE_ROOT; };
 		DB123987A950FCEDAD853C84 /* Muses.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Muses.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicPrivacyUITests.swift; sourceTree = "<group>"; };
 		F8B462D88E6E22787C5B9E38 /* MusesDomain */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesDomain; path = Packages/MusesDomain; sourceTree = SOURCE_ROOT; };
+		FFEABBB343EF659168B63ED0 /* PublicNotebookUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicNotebookUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -138,6 +146,8 @@
 			children = (
 				80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */,
 				619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */,
+				B718C354ECFF33EF9D4AD63A /* PublicNotebookModel.swift */,
+				8A3C6FAADDB87FAA89AE2285 /* PublicNotebookViews.swift */,
 				01E3BAAD3984658150A9E6D2 /* PublicPrivacyView.swift */,
 				027F187DCE7E94BA6D2C5B03 /* PublicRootView.swift */,
 				6B726EBFDB43E586F77DAD14 /* PublicServiceLinks.swift */,
@@ -151,6 +161,7 @@
 			children = (
 				91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */,
 				B38C4DF4F5CE19FD4531B992 /* PublicCatalogUITests.swift */,
+				FFEABBB343EF659168B63ED0 /* PublicNotebookUITests.swift */,
 				E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */,
 				B88CC19B6BBEFF7A59783565 /* PublicSmokeTests.swift */,
 			);
@@ -180,6 +191,7 @@
 		B457E8459AD93ED6DBECDDE9 /* MusesTests */ = {
 			isa = PBXGroup;
 			children = (
+				82777FC97A993D3021AAF724 /* PublicNotebookTests.swift */,
 				8DFB0F5C9F1F00760EEE27DB /* PublicYouTubeFlowTests.swift */,
 			);
 			name = MusesTests;
@@ -340,6 +352,8 @@
 				1C27C5D773A2CDC521C36A06 /* PublicCatalogFixtureTransport.swift in Sources */,
 				54F7E4C136C06E1CC21E8C4E /* PublicCatalogViews.swift in Sources */,
 				7273935935728720CB6E452E /* PublicKeyboardDismissal.swift in Sources */,
+				02245EBDD35D14A0D86817C7 /* PublicNotebookModel.swift in Sources */,
+				6EA15B99732E710FF6701337 /* PublicNotebookViews.swift in Sources */,
 				C91FF4AF24CEC67B2B4B31C6 /* PublicPrivacyView.swift in Sources */,
 				27019D7DA05EF8F43D7C1096 /* PublicRootView.swift in Sources */,
 				93776AD20FB9DC7C96936378 /* PublicServiceLinks.swift in Sources */,
@@ -355,6 +369,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				905E0CE95AC17D221CFF5F64 /* PublicNotebookTests.swift in Sources */,
 				7F08B637B7E304022B8FF1B1 /* PublicYouTubeFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -365,6 +380,7 @@
 			files = (
 				109B68E82A26267834BF227E /* KeyboardDismissalTests.swift in Sources */,
 				8525D550E4F0761D9A32B796 /* PublicCatalogUITests.swift in Sources */,
+				8AF6B5523E2CB9B7F1A26604 /* PublicNotebookUITests.swift in Sources */,
 				48E5884910C6DC3E956F633D /* PublicPrivacyUITests.swift in Sources */,
 				3CA9C72BA6514C9F43931BD0 /* PublicSmokeTests.swift in Sources */,
 			);

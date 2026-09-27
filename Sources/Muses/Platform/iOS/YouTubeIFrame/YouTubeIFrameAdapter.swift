@@ -82,6 +82,13 @@ final class YouTubeIFrameAdapter: NSObject {
               "generation": String(gate.generation)])
     }
 
+    /// Ready-only bookmark positioning must not turn a cued video into autoplay.
+    func prepareBookmark(at seconds: Double) throws {
+        guard seconds.isFinite, seconds >= 0 else { throw CommandError.invalidPosition }
+        guard gate.isAlive, gate.videoID != nil, playerReady else { throw CommandError.notReady }
+        send(["action": "bookmark", "position": seconds, "generation": String(gate.generation)])
+    }
+
     /// Called before removing the visible surface. The instance cannot be loaded again.
     func teardown() {
         guard gate.isAlive else { return }
@@ -187,6 +194,12 @@ final class YouTubeIFrameAdapter: NSObject {
       if (!active || command.generation !== active.generation || !player) return;
       if (command.action === 'play') player.playVideo();
       if (command.action === 'pause') player.pauseVideo();
+      if (command.action === 'bookmark' && Number.isFinite(command.position) && command.position >= 0) {
+        // seekTo starts playback from a cued/unstarted state. Cue at startSeconds
+        // instead; only use seekTo when the player is already paused.
+        if (player.getPlayerState() === 2) player.seekTo(command.position, true);
+        else player.cueVideoById({videoId:active.videoID, startSeconds:command.position});
+      }
       if (command.action === 'seek' && Number.isFinite(command.position))
         player.seekTo(command.position, true);
     };

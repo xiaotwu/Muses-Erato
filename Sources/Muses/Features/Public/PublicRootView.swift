@@ -872,6 +872,7 @@ private struct PublicPlayerView: View {
             }
             if let track = session.currentTrack {
                 PublicAddToPlaylistMenu(session: session, track: track)
+                PublicCurrentBookmarkButton(session: session, trackID: track.id)
             }
             Text("YouTube playback pauses when this screen closes or Muses enters the background.")
                 .font(.footnote)
@@ -1079,6 +1080,7 @@ private struct PublicVideoDetail: View {
                     Button("Add to queue", systemImage: "text.badge.plus") { session.enqueueTrack(track) }
                     NavigationLink { PublicQueueView(session: session) } label: { Text("View queue") }
                 }
+                PublicNotebookSections(session: session, trackID: trackID)
             }
             if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
         }

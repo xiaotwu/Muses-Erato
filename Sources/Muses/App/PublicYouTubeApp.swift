@@ -82,6 +82,10 @@ final class PublicYouTubeSession {
     private var authorizationSession: IOSAuthorizationSession?
     private var accountEpoch: UInt64 = 0
     private var recordedEntryID: UUID?
+    @ObservationIgnored lazy var notebook = PublicNotebookModel(repository: { [weak self] in self?.repository })
+    @ObservationIgnored let bookmarkSeeking = PublicBookmarkSeekController()
+    private(set) var hasCurrentPlaybackTime = false
+    private(set) var bookmarkCueMilliseconds: Double?
 
     init(storeURL: URL? = nil, catalogOverride: YouTubeDataCatalog? = nil) {
         do {
@@ -348,8 +352,11 @@ final class PublicYouTubeSession {
         return try? VideoID(raw)
     }
 
-    func open(_ id: VideoID, title: String, metadataFetchedAt: Date? = nil) {
-        guard repository != nil else { return }
+    @discardableResult
+    func open(_ id: VideoID, title: String, metadataFetchedAt: Date? = nil) -> Bool {
+        guard repository != nil else { return false }
+        bookmarkSeeking.cancel()
+        bookmarkCueMilliseconds = nil
         do {
             let track: MusesDomain.Track
             if let existing = tracks.first(where: { $0.source == .youtubeVideo(id) }) { track = existing }
@@ -361,12 +368,27 @@ final class PublicYouTubeSession {
                 try repository?.saveTrack(track)
                 tracks.append(track)
             }
-            guard editQueue({ try $0.playNow(QueueEntry(trackID: track.id, source: track.source), context: "public"); $0.setIntent(.pause) }) else { return }
+            guard editQueue({ try $0.playNow(QueueEntry(trackID: track.id, source: track.source), context: "public"); $0.setIntent(.pause) }) else { return false }
             state = PlaybackSnapshot(state: .loading, source: track.source,
                 generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
             failureMessage = nil
             showPlayer = true
             if adapter != nil { loadCurrent() }
+            return true
+        } catch { failureMessage = error.localizedDescription; return false }
+    }
+
+    func openBookmark(_ bookmark: VideoTimeBookmark) {
+        guard let track = tracks.first(where: { $0.id == bookmark.trackID }),
+              case .youtubeVideo(let videoID) = track.source else {
+            failureMessage = VideoNotebookError.missingTrack.localizedDescription
+            return
+        }
+        guard open(videoID, title: track.title), let entry = queue.snapshot.current else { return }
+        do {
+            try bookmarkSeeking.prepare(entryID: entry.id, videoID: videoID, milliseconds: bookmark.timestampMilliseconds)
+            bookmarkCueMilliseconds = bookmark.timestampMilliseconds
+            if adapter != nil { bookmarkSeeking.bind(entryID: entry.id, generation: adapterGeneration) }
         } catch { failureMessage = error.localizedDescription }
     }
 
@@ -477,7 +499,10 @@ final class PublicYouTubeSession {
     func attach(_ player: YouTubeIFrameAdapter) {
         adapter?.teardown()
         adapter = player
-        player.onEvent = { [weak self] event in self?.receive(event) }
+        player.onEvent = { [weak self, weak player] event in
+            guard let self, let player, self.adapter === player else { return }
+            self.receive(event)
+        }
         loadCurrent()
     }
 
@@ -485,6 +510,9 @@ final class PublicYouTubeSession {
         adapter?.teardown()
         adapter = nil
         adapterGeneration = 0
+        bookmarkSeeking.cancel()
+        bookmarkCueMilliseconds = nil
+        hasCurrentPlaybackTime = false
         if state.state == .playing || state.state == .buffering { state.state = .paused }
         queue.setIntent(.pause)
         try? persistQueue()
@@ -493,7 +521,10 @@ final class PublicYouTubeSession {
     private func loadCurrent() {
         guard let adapter, case .youtubeVideo(let id) = queue.snapshot.current?.source,
               let iframeID = IFrameVideoID(id.rawValue) else { return }
+        hasCurrentPlaybackTime = false
+        state.positionMilliseconds = 0
         adapterGeneration = adapter.load(iframeID)
+        if let entry = queue.snapshot.current { bookmarkSeeking.bind(entryID: entry.id, generation: adapterGeneration) }
         state.state = .loading
         state.generation = queue.snapshot.generation
         state.source = .youtubeVideo(id)
@@ -515,7 +546,20 @@ final class PublicYouTubeSession {
               id.rawValue == event.videoID.rawValue else { return }
         switch event.kind {
         case .loading: state.state = .loading
-        case .ready, .cued: state.state = .ready
+        case .ready:
+            state.state = .ready
+            if let entry = queue.snapshot.current, let adapter {
+                do {
+                    if let milliseconds = try bookmarkSeeking.ready(entryID: entry.id, videoID: id, generation: event.generation,
+                                                                     position: { try adapter.prepareBookmark(at: $0) }) {
+                        state.positionMilliseconds = Int(milliseconds)
+                        queue.checkpoint(positionMilliseconds: Int(milliseconds))
+                        queue.setIntent(.pause)
+                        try persistQueue()
+                    }
+                } catch { failureMessage = "Bookmark position could not be prepared: \(error.localizedDescription)" }
+            }
+        case .cued: state.state = .ready
         case .playing:
             state.state = .playing
             queue.setIntent(.play)
@@ -535,10 +579,15 @@ final class PublicYouTubeSession {
         case .buffering: state.state = .buffering
         case .ended: state.state = .ended; next()
         case .time(let position, let duration):
+            guard position.isFinite, duration.isFinite, position >= 0, duration >= 0,
+                  position * 1000 < Double(Int.max), duration * 1000 < Double(Int.max) else { return }
+            hasCurrentPlaybackTime = true
             state.positionMilliseconds = max(0, Int(position * 1000))
             state.durationMilliseconds = max(0, Int(duration * 1000))
             queue.checkpoint(positionMilliseconds: state.positionMilliseconds)
         case .failed(let reason):
+            bookmarkSeeking.cancel()
+            hasCurrentPlaybackTime = false
             state.state = .failed
             state.failure = reason == .embeddingDisabled ? .notEmbeddable : .unavailable
             failureMessage = reason == .embeddingDisabled ? "This video does not allow embedding. Open it in YouTube." : "YouTube playback failed: \(reason)"
@@ -554,6 +603,8 @@ final class PublicYouTubeSession {
         guard hasNext else { pause(); return }
         guard editQueue({ _ = try $0.next(); $0.setIntent(.pause) }) else { return }
         recordedEntryID = nil
+        bookmarkSeeking.cancel()
+        bookmarkCueMilliseconds = nil
         state = PlaybackSnapshot(state: .loading, source: queue.snapshot.current?.source,
             generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
         loadCurrent()
@@ -569,6 +620,7 @@ final class PublicYouTubeSession {
             try await oauth?.deleteLocalAccount()
             await catalog?.clearPrivateCache()
             try repository?.deleteAll()
+            notebook.reset()
             playlists = []
             recordedEntryID = nil
             showPlayer = false
