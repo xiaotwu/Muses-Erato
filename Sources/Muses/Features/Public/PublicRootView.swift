@@ -551,6 +551,9 @@ struct PublicRootView: View {
 
     private var settings: some View {
         List {
+            Section("Support & privacy") {
+                PublicServiceLinks()
+            }
             Section("Playback") {
                 Text("YouTube videos play in the visible official player. Playback pauses when you close it.")
                 Text("Background audio, EQ, spectrum, lock screen controls and CarPlay are unavailable.")
