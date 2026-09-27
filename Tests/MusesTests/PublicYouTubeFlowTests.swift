@@ -1,5 +1,7 @@
 import XCTest
 import MusesDomain
+import MusesPersistence
+import SwiftData
 @testable import Muses
 
 final class PublicYouTubeFlowTests: XCTestCase {
@@ -35,5 +37,113 @@ final class PublicYouTubeFlowTests: XCTestCase {
             adapter: [.videoVisible, .seek, .queueByID, .audioProcessing, .backgroundAudio, .systemRemote],
             runtime: [.videoVisible, .seek, .queueByID, .audioProcessing, .backgroundAudio, .systemRemote])
         XCTAssertEqual(effective, [.videoVisible, .seek, .queueByID])
+    }
+}
+
+@MainActor final class PublicLocalLibraryFlowTests: XCTestCase {
+    private func store() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        return directory.appending(path: "muses-public-v1.sqlite")
+    }
+
+    func testPlaylistFavoriteQueueAndRelaunch() throws {
+        let url = try store()
+        let session = PublicYouTubeSession(storeURL: url)
+        XCTAssertNil(session.recoveryMessage)
+        XCTAssertTrue(session.tracks.isEmpty)
+        session.open(try VideoID("dQw4w9WgXcQ"), title: "First")
+        let first = try XCTUnwrap(session.currentTrack)
+        session.toggleFavorite()
+        session.open(try VideoID("M7lc1UVf-VE"), title: "Second")
+        let second = try XCTUnwrap(session.currentTrack)
+        XCTAssertTrue(session.history.isEmpty, "Opening a page is not a playback event")
+        XCTAssertFalse(session.createPlaylist("   "))
+        XCTAssertTrue(session.createPlaylist("  Evening  "))
+        let id = try XCTUnwrap(session.playlists.first?.id)
+        XCTAssertTrue(session.editPlaylist(id) { $0.add(first.id); $0.add(second.id); $0.add(first.id) })
+        XCTAssertTrue(session.editPlaylist(id) { try $0.rename("Night"); try $0.reorder([second.id, first.id]) })
+        session.enqueuePlaylist(id)
+        session.enqueueTrack(first, next: true)
+        let entries = session.queue.snapshot.upcoming
+        XCTAssertEqual(entries.map(\.trackID), [first.id, second.id, first.id])
+        XCTAssertTrue(session.editQueue { try $0.remove(id: entries[1].id); try $0.reorder(id: entries[2].id, to: 0) })
+        let reopened = PublicYouTubeSession(storeURL: url)
+        XCTAssertNil(reopened.recoveryMessage)
+        XCTAssertEqual(reopened.playlists.first?.name, "Night")
+        XCTAssertEqual(reopened.playlists.first?.trackIDs, [second.id, first.id])
+        XCTAssertEqual(reopened.favorites.map(\.id), [first.id])
+        XCTAssertEqual(reopened.queue.snapshot.upcoming.map(\.id), [entries[2].id, entries[0].id])
+        XCTAssertEqual(reopened.state.state, .paused)
+        XCTAssertFalse(reopened.showPlayer)
+        XCTAssertTrue(reopened.editPlaylist(id) { $0.remove(second.id) })
+        XCTAssertTrue(reopened.deletePlaylist(id))
+        XCTAssertEqual(reopened.tracks.count, 2)
+        reopened.clearUpcoming()
+        XCTAssertFalse(reopened.hasNext)
+    }
+
+    func testHistoryOnlyRecordsConfirmedCurrentPlaybackAndCanBeCleared() throws {
+        let session = PublicYouTubeSession(storeURL: try store())
+        let video = try VideoID("dQw4w9WgXcQ")
+        session.open(video, title: "First")
+        let adapter = YouTubeIFrameAdapter()
+        session.attach(adapter)
+        defer { session.detach() }
+        let id = try XCTUnwrap(IFrameVideoID(video.rawValue))
+        adapter.onEvent?(.init(videoID: id, generation: 99, kind: .playing))
+        XCTAssertTrue(session.history.isEmpty)
+        adapter.onEvent?(.init(videoID: id, generation: 1, kind: .playing))
+        adapter.onEvent?(.init(videoID: id, generation: 1, kind: .playing))
+        XCTAssertEqual(session.playedIDs.count, 1)
+        session.clearHistory()
+        XCTAssertTrue(session.history.isEmpty)
+        XCTAssertEqual(session.tracks.count, 1)
+        XCTAssertTrue(try session.repository!.list(PlaybackHistoryEntry.self, kind: .history).isEmpty)
+    }
+
+    func testLegacyAndCorruptUpgradeNeverCreateReplacement() throws {
+        let url = try store()
+        let legacy = url.deletingLastPathComponent().appending(path: "muses-youtube-native.sqlite-wal")
+        let bytes = Data("keep legacy data".utf8)
+        try bytes.write(to: legacy)
+        let blocked = PublicYouTubeSession(storeURL: url)
+        XCTAssertNotNil(blocked.recoveryMessage)
+        XCTAssertNil(blocked.repository)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertEqual(try Data(contentsOf: legacy), bytes)
+        try FileManager.default.removeItem(at: legacy)
+        let publicSidecar = URL(fileURLWithPath: url.path + "-wal")
+        try bytes.write(to: publicSidecar)
+        XCTAssertNotNil(PublicYouTubeSession(storeURL: url).recoveryMessage)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertEqual(try Data(contentsOf: publicSidecar), bytes)
+        try FileManager.default.removeItem(at: publicSidecar)
+        try bytes.write(to: url)
+        let corrupt = PublicYouTubeSession(storeURL: url)
+        XCTAssertNotNil(corrupt.recoveryMessage)
+        XCTAssertNil(corrupt.repository)
+        XCTAssertEqual(try Data(contentsOf: url), bytes)
+    }
+
+    func testFailedMutationDoesNotPublishOrOverwriteFutureData() throws {
+        let session = PublicYouTubeSession(storeURL: try store())
+        session.open(try VideoID("dQw4w9WgXcQ"), title: "Keep")
+        let track = try XCTUnwrap(session.currentTrack)
+        let repo = try XCTUnwrap(session.repository)
+        let rows = try repo.context.fetch(FetchDescriptor<MusesSchemaV1.Record>())
+        let row = try XCTUnwrap(rows.first { $0.kindRaw == "track" })
+        let original = row.payload
+        row.payloadVersion = 99
+        try repo.context.save()
+        session.toggleFavorite()
+        XCTAssertFalse(try XCTUnwrap(session.currentTrack).liked)
+        XCTAssertEqual(row.payload, original)
+        XCTAssertNotNil(session.failureMessage)
+        let before = session.queue.snapshot
+        XCTAssertFalse(session.editQueue { try $0.remove(id: UUID()) })
+        XCTAssertEqual(session.queue.snapshot, before)
+        XCTAssertEqual(session.tracks.first?.id, track.id)
     }
 }

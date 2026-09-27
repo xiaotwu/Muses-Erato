@@ -53,6 +53,7 @@ final class PublicYouTubeSession {
     private(set) var recoveryMessage: String?
     private(set) var searchItems: [MusesCatalog.CatalogItem] = []
     private(set) var playedIDs: [TrackID] = []
+    private(set) var playlists: [LocalPlaylist] = []
     private(set) var searchError: String?
     private(set) var searching = false
     private(set) var signedIn = false
@@ -69,23 +70,34 @@ final class PublicYouTubeSession {
     private var accountEpoch: UInt64 = 0
     private var recordedEntryID: UUID?
 
-    init() {
+    init(storeURL: URL? = nil) {
         do {
             // The inherited autoschema remains untouched until full parity migration is verified.
-            let old = musesDefaultStoreURL()
+            let old = storeURL?.deletingLastPathComponent().appending(path: "muses-youtube-native.sqlite") ?? musesDefaultStoreURL()
             if legacyStoreArtifactsPresent(at: old) {
                 recoveryMessage = "An earlier Muses library was found. This version leaves it intact. Library migration needs verification before opening the new library."
                 return
             }
-            let destination = old.deletingLastPathComponent().appending(path: "muses-public-v1.sqlite")
+            let destination = storeURL ?? old.deletingLastPathComponent().appending(path: "muses-public-v1.sqlite")
+            if !FileManager.default.fileExists(atPath: destination.path), legacyStoreArtifactsPresent(at: destination) {
+                recoveryMessage = "An incomplete local library was found. Its remaining files are preserved for recovery."
+                return
+            }
             try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             let container = try SwiftDataSnapshotRepository.container(url: destination)
             v1Container = container
             let repo = SwiftDataSnapshotRepository(context: container.mainContext)
             repository = repo
             tracks = try repo.list(MusesDomain.Track.self, kind: .track)
-            playedIDs = try repo.list(PlayedVideo.self, kind: .history).sorted { $0.date > $1.date }.map(\.trackID)
+            playedIDs = try repo.list(PlaybackHistoryEntry.self, kind: .history).sorted { $0.date > $1.date }.map(\.trackID)
+            playlists = try repo.localPlaylists()
             queue = try PlaybackQueue(snapshot: repo.queue() ?? .init())
+            let savedIDs = Set(tracks.map(\.id))
+            guard playlists.allSatisfy({ Set($0.trackIDs).isSubset(of: savedIDs) }),
+                  tracks.allSatisfy({ if case .youtubeVideo = $0.source { return true }; return false }),
+                  ([queue.snapshot.current].compactMap { $0 } + queue.snapshot.upcoming + queue.snapshot.history)
+                    .allSatisfy({ entry in tracks.contains { $0.id == entry.trackID && $0.source == entry.source } }),
+                  Set(playedIDs).isSubset(of: savedIDs) else { throw LocalLibraryError.missingTrack }
             if let current = queue.snapshot.current {
                 state = PlaybackSnapshot(state: .paused, source: current.source,
                                          generation: queue.snapshot.generation, intent: .pause)
@@ -119,7 +131,8 @@ final class PublicYouTubeSession {
                     budget: RequestBudget(searchCallsPerDay: 10, otherUnitsPerDay: 100))
             }
         } catch {
-            recoveryMessage = "Library could not be opened. Your files were not changed. Error: \(error.localizedDescription)"
+            repository = nil
+            recoveryMessage = "Library could not be opened. No replacement library was created. Error: \(error.localizedDescription)"
         }
     }
 
@@ -128,7 +141,8 @@ final class PublicYouTubeSession {
         return tracks.first { $0.id == entry.trackID }
     }
     var history: [MusesDomain.Track] {
-        playedIDs.compactMap { id in tracks.first { $0.id == id } }
+        var seen = Set<TrackID>()
+        return playedIDs.filter { seen.insert($0).inserted }.compactMap { id in tracks.first { $0.id == id } }
     }
     var favorites: [MusesDomain.Track] { tracks.filter(\.liked) }
     var apiConfigured: Bool { catalog != nil && (hasPublicAPIKey || signedIn) }
@@ -234,13 +248,10 @@ final class PublicYouTubeSession {
                 track = try MusesDomain.Track(id: TrackID(UUID().uuidString), title: title,
                     artist: "YouTube", source: .youtubeVideo(id),
                     provenance: Provenance(provider: ProviderID("youtube"), originalID: id.rawValue))
-                tracks.append(track)
                 try repository?.saveTrack(track)
+                tracks.append(track)
             }
-            try queue.playNow(QueueEntry(trackID: track.id, source: track.source), context: "public")
-            // The official player cues first; only its playing event confirms playback.
-            queue.setIntent(.pause)
-            try persistQueue()
+            guard editQueue({ try $0.playNow(QueueEntry(trackID: track.id, source: track.source), context: "public") }) else { return }
             state = PlaybackSnapshot(state: .loading, source: track.source,
                 generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
             failureMessage = nil
@@ -258,19 +269,98 @@ final class PublicYouTubeSession {
                 track = try MusesDomain.Track(id: TrackID(UUID().uuidString), title: title,
                     artist: "YouTube", source: .youtubeVideo(id),
                     provenance: Provenance(provider: ProviderID("youtube"), originalID: id.rawValue))
-                tracks.append(track)
                 try repository?.saveTrack(track)
+                tracks.append(track)
             }
-            try queue.append(QueueEntry(trackID: track.id, source: track.source))
-            try persistQueue()
+            editQueue { try $0.append(QueueEntry(trackID: track.id, source: track.source)) }
         } catch { failureMessage = error.localizedDescription }
     }
 
-    func toggleFavorite() {
-        guard let current = currentTrack, let index = tracks.firstIndex(where: { $0.id == current.id }) else { return }
-        tracks[index].liked.toggle()
-        do { try repository?.saveTrack(tracks[index]) }
+    func toggleFavorite(_ id: TrackID? = nil) {
+        guard let id = id ?? currentTrack?.id, let index = tracks.firstIndex(where: { $0.id == id }) else { return }
+        var updated = tracks[index]
+        updated.liked.toggle()
+        do { try repository?.saveTrack(updated); tracks[index] = updated; failureMessage = nil }
         catch { failureMessage = error.localizedDescription }
+    }
+
+    @discardableResult
+    func createPlaylist(_ name: String, trackIDs: [TrackID] = []) -> Bool {
+        do {
+            guard let repository else { return false }
+            let playlist = try LocalPlaylist(name: name, trackIDs: trackIDs)
+            try repository.savePlaylist(playlist)
+            playlists.append(playlist)
+            failureMessage = nil
+            return true
+        } catch { failureMessage = "Could not create playlist: \(error.localizedDescription)"; return false }
+    }
+
+    @discardableResult
+    func editPlaylist(_ id: UUID, change: (inout LocalPlaylist) throws -> Void) -> Bool {
+        guard let index = playlists.firstIndex(where: { $0.id == id }), let repository else { return false }
+        do {
+            var value = playlists[index]
+            try change(&value)
+            try repository.savePlaylist(value)
+            playlists[index] = value
+            failureMessage = nil
+            return true
+        } catch { failureMessage = "Could not save playlist: \(error.localizedDescription)"; return false }
+    }
+
+    @discardableResult
+    func deletePlaylist(_ id: UUID) -> Bool {
+        do {
+            guard let repository else { return false }
+            try repository.delete(kind: .localPlaylist, id: id.uuidString)
+            playlists.removeAll { $0.id == id }
+            failureMessage = nil
+            return true
+        } catch { failureMessage = error.localizedDescription; return false }
+    }
+
+    func clearHistory() {
+        do { try repository?.deleteAll(kind: .history); playedIDs = []; failureMessage = nil }
+        catch { failureMessage = error.localizedDescription }
+    }
+
+    /// Publish only after the proposed snapshot has been saved successfully.
+    @discardableResult
+    func editQueue(_ change: (inout PlaybackQueue) throws -> Void) -> Bool {
+        guard let repository else { return false }
+        do {
+            var proposed = queue
+            try change(&proposed)
+            proposed.setIntent(.pause)
+            try repository.saveQueue(proposed.snapshot)
+            queue = proposed
+            failureMessage = nil
+            return true
+        } catch { failureMessage = "Could not save queue: \(error.localizedDescription)"; return false }
+    }
+
+    func enqueueTrack(_ track: MusesDomain.Track, next: Bool = false) {
+        editQueue {
+            let entry = QueueEntry(trackID: track.id, source: track.source)
+            if next { try $0.playNext(entry) } else { try $0.append(entry) }
+        }
+    }
+
+    func enqueuePlaylist(_ id: UUID) {
+        guard let playlist = playlists.first(where: { $0.id == id }) else { return }
+        editQueue { proposed in
+            for id in playlist.trackIDs {
+                guard let track = tracks.first(where: { $0.id == id }) else { throw LocalLibraryError.missingTrack }
+                try proposed.append(QueueEntry(trackID: track.id, source: track.source))
+            }
+        }
+    }
+
+    func clearUpcoming() {
+        editQueue { proposed in
+            for entry in proposed.snapshot.upcoming { try proposed.remove(id: entry.id) }
+        }
     }
 
     func attach(_ player: YouTubeIFrameAdapter) {
@@ -319,12 +409,12 @@ final class PublicYouTubeSession {
             state.state = .playing
             queue.setIntent(.play)
             if let entryID = queue.snapshot.current?.id, recordedEntryID != entryID {
-                recordedEntryID = entryID
                 if let track = currentTrack {
-                    let entry = PlayedVideo(id: UUID(), trackID: track.id, date: Date())
+                    let entry = PlaybackHistoryEntry(id: UUID(), trackID: track.id, date: Date())
                     do {
                         try repository?.put(entry, kind: .history, id: entry.id.uuidString)
                         playedIDs.insert(track.id, at: 0)
+                        recordedEntryID = entryID
                     } catch {
                         failureMessage = "Playback started, but history could not be saved: \(error.localizedDescription)"
                     }
@@ -350,14 +440,12 @@ final class PublicYouTubeSession {
     }
     func pause() { adapter?.pause(); queue.setIntent(.pause); try? persistQueue() }
     func next() {
-        do {
-            _ = try queue.next()
-            try persistQueue()
-            if queue.snapshot.current == nil { detach(); return }
-            state = PlaybackSnapshot(state: .loading, source: queue.snapshot.current?.source,
-                generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
-            loadCurrent()
-        } catch { failureMessage = error.localizedDescription }
+        guard hasNext else { pause(); return }
+        guard editQueue({ _ = try $0.next() }) else { return }
+        recordedEntryID = nil
+        state = PlaybackSnapshot(state: .loading, source: queue.snapshot.current?.source,
+            generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
+        loadCurrent()
     }
     private func persistQueue() throws { try repository?.saveQueue(queue.snapshot) }
 
@@ -367,9 +455,10 @@ final class PublicYouTubeSession {
         do {
             try await oauth?.deleteLocalAccount()
             await catalog?.clearPrivateCache()
-            let rows = try repository?.context.fetch(FetchDescriptor<MusesSchemaV1.Record>()) ?? []
-            for row in rows { repository?.context.delete(row) }
-            try repository?.context.save()
+            try repository?.deleteAll()
+            playlists = []
+            recordedEntryID = nil
+            showPlayer = false
             tracks = []
             queue = try PlaybackQueue()
             state = PlaybackSnapshot()
@@ -380,12 +469,6 @@ final class PublicYouTubeSession {
             failureMessage = nil
         } catch { failureMessage = "Local data could not be deleted: \(error.localizedDescription)" }
     }
-}
-
-private struct PlayedVideo: Codable {
-    let id: UUID
-    let trackID: TrackID
-    let date: Date
 }
 
 private actor PublicPrivateData: PrivateAccountData {

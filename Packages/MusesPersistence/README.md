@@ -25,3 +25,11 @@
 - The repository throws on malformed or unknown payloads and leaves source data untouched. It has no automatic corrupt-store repair or user-facing recovery screen. Do not silently clear data.
 
 Run `swift test --package-path Packages/MusesDomain`, `Packages/MusesQueue`, and `Packages/MusesPersistence`. This tests the package contracts on macOS; it does not establish iOS simulator or device behavior.
+
+## Public local library contracts (2026-09-27)
+
+The public composition now uses this package. `LocalPlaylist` lives in Domain and stores a stable UUID, trimmed nonempty name, creation time and an ordered unique list of `TrackID`s. Duplicate add is a no-op; reorder must be an exact permutation. `savePlaylist` rejects missing tracks. Device-local playlists use the additive `localPlaylist` record kind, deliberately separate from `playlist` / `playlistItem` legacy projections. The SwiftData V1 schema and existing public store filename are unchanged.
+
+`PlaybackHistoryEntry` retains the initial public app's `PlayedVideo` JSON fields. Existing public tracks, favorites, history and queues remain readable without a destructive migration. `localPlaylists()` validates decoded payloads. Unknown payload versions are rejected on reads and writes; failed saves/deletes roll back the context. `deleteAll(kind:)` clears a category in one save; `deleteAll()` removes all local records in one save. Repository contexts disable autosave so a failed mutation cannot later leak to disk.
+
+New tests reopen an initial-public-format on-disk fixture and exercise ordered playlists, selective history deletion and paused queue restoration. The legacy native app migration gate above remains in force; local playlists do not reinterpret old archived playlist payloads.

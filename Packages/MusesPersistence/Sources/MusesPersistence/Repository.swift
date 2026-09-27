@@ -3,7 +3,7 @@ import SwiftData
 import MusesDomain
 import MusesQueue
 
-public enum StoreKind: String, Codable, Sendable { case track, favorite, note, bookmark, playlist, playlistItem, history, queue, importRelation, importItem, setting, migration, legacyTrack, legacyQueue, legacyModel }
+public enum StoreKind: String, Codable, Sendable { case localPlaylist, track, favorite, note, bookmark, playlist, playlistItem, history, queue, importRelation, importItem, setting, migration, legacyTrack, legacyQueue, legacyModel }
 public struct StoredValue: Codable, Equatable, Sendable {
     public let kind: StoreKind
     public let id: String
@@ -44,7 +44,7 @@ public enum MusesMigrationPlan: SchemaMigrationPlan {
 
 @MainActor public final class SwiftDataSnapshotRepository: SnapshotRepository {
     public let context: ModelContext
-    public init(context: ModelContext) { self.context = context }
+    public init(context: ModelContext) { self.context = context; context.autosaveEnabled = false }
     public static func container(inMemory: Bool = false, url: URL? = nil) throws -> ModelContainer {
         let configuration = url.map { ModelConfiguration(url: $0) } ?? ModelConfiguration(isStoredInMemoryOnly: inMemory)
         return try ModelContainer(for: MusesSchemaV1.Record.self, migrationPlan: MusesMigrationPlan.self, configurations: configuration)
@@ -55,9 +55,16 @@ public enum MusesMigrationPlan: SchemaMigrationPlan {
     }
     public func put<Value: Encodable>(_ value: Value, kind: StoreKind, id: String) throws {
         let data = try JSONEncoder().encode(value)
-        if let row = try record(kind: kind, id: id) { row.payload = data; row.updatedAt = .init() }
-        else { context.insert(MusesSchemaV1.Record(kind: kind, recordID: id, payload: data)) }
-        try context.save()
+        do {
+            if let row = try record(kind: kind, id: id) {
+                guard row.payloadVersion == 1 else { throw PersistenceError.corruptRecord(row.key) }
+                row.payload = data
+                row.updatedAt = .init()
+            } else {
+                context.insert(MusesSchemaV1.Record(kind: kind, recordID: id, payload: data))
+            }
+            try context.save()
+        } catch { context.rollback(); throw error }
     }
     public func get<Value: Decodable>(_ type: Value.Type, kind: StoreKind, id: String) throws -> Value? {
         guard let row = try record(kind: kind, id: id) else { return nil }
@@ -74,10 +81,34 @@ public enum MusesMigrationPlan: SchemaMigrationPlan {
         }
     }
     public func delete(kind: StoreKind, id: String) throws {
-        if let row = try record(kind: kind, id: id) { context.delete(row); try context.save() }
+        do {
+            if let row = try record(kind: kind, id: id) { context.delete(row); try context.save() }
+        } catch { context.rollback(); throw error }
     }
     public func saveTrack(_ track: Track) throws { try put(track, kind: .track, id: track.id.rawValue) }
     public func track(id: TrackID) throws -> Track? { try get(Track.self, kind: .track, id: id.rawValue) }
     public func saveQueue(_ snapshot: QueueSnapshot) throws { try put(snapshot, kind: .queue, id: "main") }
     public func queue() throws -> QueueSnapshot? { try get(QueueSnapshot.self, kind: .queue, id: "main")?.restored() }
+}
+
+public extension SwiftDataSnapshotRepository {
+    func localPlaylists() throws -> [LocalPlaylist] {
+        let values = try list(LocalPlaylist.self, kind: .localPlaylist)
+        for value in values { try value.validated() }
+        return values.sorted { $0.createdAt == $1.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt }
+    }
+    func savePlaylist(_ playlist: LocalPlaylist) throws {
+        try playlist.validated()
+        let ids = Set(try list(Track.self, kind: .track).map(\.id))
+        guard Set(playlist.trackIDs).isSubset(of: ids) else { throw LocalLibraryError.missingTrack }
+        try put(playlist, kind: .localPlaylist, id: playlist.id.uuidString)
+    }
+    /// One save, so clearing history or all local data cannot leave a partial deletion.
+    func deleteAll(kind: StoreKind? = nil) throws {
+        do {
+            let rows = try context.fetch(FetchDescriptor<MusesSchemaV1.Record>())
+            for row in rows where kind == nil || row.kindRaw == kind?.rawValue { context.delete(row) }
+            try context.save()
+        } catch { context.rollback(); throw error }
+    }
 }

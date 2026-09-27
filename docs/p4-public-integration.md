@@ -1,5 +1,7 @@
 # P4 public YouTube integration
 
+Update: the public local library now includes playlist CRUD, ordered video membership, video details, queue editing and history clearing. See [public-local-library.md](public-local-library.md) for contracts, upgrade behavior and verification. The sections below retain the original P4 integration record.
+
 Base: `codex/erato-integration-base` at `670d893`. The app launcher now enters `PublicYouTubeApp` for normal runs. This composition creates only the official YouTube Data API catalog, optional iOS OAuth client, P2 queue/repository and the visible P1 IFrame adapter. The inherited `AppComposition`, stream engine, Innertube services and desktop-like UI still compile for migration and existing tests, but the public launch path does not construct them.
 
 ## Configuration

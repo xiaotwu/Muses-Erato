@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import MusesDomain
 import MusesCatalog
+import MusesQueue
 
 private enum PublicStyle {
     static let gold = Color(red: 0.82, green: 0.68, blue: 0.44)
@@ -47,6 +48,7 @@ struct PublicRootView: View {
     @FocusState private var searchFocused: Bool
     @State private var query = ""
     @State private var confirmDelete = false
+    @State private var confirmClearHistory = false
 
     var body: some View {
         Group {
@@ -413,8 +415,14 @@ struct PublicRootView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(session.selectedCategory == category ? .isSelected : [])
+                        .accessibilityIdentifier("library.category.\(category.rawValue)")
                     }
                 }
+                NavigationLink { PublicQueueView(session: session) } label: {
+                    Label("Queue (\(session.queue.snapshot.upcoming.count) upcoming)", systemImage: "list.bullet")
+                }
+                .accessibilityIdentifier("public.queue")
+                if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
                 sectionHeading(session.selectedCategory.rawValue, detail: categoryDetail)
                 categoryContent
             }
@@ -433,6 +441,7 @@ struct PublicRootView: View {
         switch session.selectedCategory {
         case .videos, .songs: "\(session.tracks.count) saved"
         case .favorites: "\(session.favorites.count) saved"
+        case .playlists: "\(session.playlists.count) on this device"
         case .history: "\(session.history.count) played"
         case .subscriptions: session.signedIn ? "\(session.subscriptions.count) loaded" : "Sign in required"
         default: "Unavailable in this version"
@@ -454,7 +463,15 @@ struct PublicRootView: View {
             } else {
                 videoShelf(session.favorites)
             }
+        case .playlists:
+            PublicPlaylistCollection(session: session)
         case .history:
+            if !session.history.isEmpty {
+                Button("Clear history", role: .destructive) { confirmClearHistory = true }
+                    .confirmationDialog("Clear playback history?", isPresented: $confirmClearHistory, titleVisibility: .visible) {
+                        Button("Clear history", role: .destructive) { session.clearHistory() }
+                    } message: { Text("Saved videos, favorites and playlists will remain.") }
+            }
             if session.history.isEmpty {
                 PublicEmptyState(symbol: "clock", title: "No listening history", detail: "Videos appear after the official player confirms playback.")
             } else {
@@ -490,10 +507,8 @@ struct PublicRootView: View {
     private func videoShelf<S: Sequence>(_ tracks: S) -> some View where S.Element == MusesDomain.Track {
         LazyVStack(spacing: 10) {
             ForEach(Array(tracks), id: \.id) { track in
-                Button {
-                    if case .youtubeVideo(let id) = track.source {
-                        session.open(id, title: track.title)
-                    }
+                NavigationLink {
+                    PublicVideoDetail(session: session, trackID: track.id)
                 } label: {
                     PublicVideoRow(track: track, symbol: track.liked ? "heart.fill" : "play.rectangle")
                 }
@@ -548,7 +563,7 @@ struct PublicRootView: View {
                 }
             }
             Section("Local data") {
-                Button("Delete saved videos, queue and history", role: .destructive) { confirmDelete = true }
+                Button("Delete videos, playlists, queue and history", role: .destructive) { confirmDelete = true }
                 Text("This removes data stored by Muses on this device. It does not delete YouTube data.")
                     .font(.footnote)
                     .foregroundStyle(PublicStyle.muted)
@@ -838,6 +853,9 @@ private struct PublicPlayerView: View {
                 }
                 .buttonStyle(.bordered)
             }
+            if let track = session.currentTrack {
+                PublicAddToPlaylistMenu(session: session, track: track)
+            }
             Text("Playback pauses when this screen closes.")
                 .font(.footnote)
                 .foregroundStyle(PublicStyle.muted)
@@ -863,13 +881,237 @@ private struct PublicPlayerView: View {
                     .foregroundStyle(PublicStyle.muted)
             } else {
                 ForEach(session.queue.snapshot.upcoming) { entry in
-                    Text(session.tracks.first(where: { $0.id == entry.trackID })?.title ?? "YouTube video")
-                        .font(.subheadline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(PublicStyle.background, in: RoundedRectangle(cornerRadius: 12))
+                    HStack {
+                        Text(session.tracks.first(where: { $0.id == entry.trackID })?.title ?? "YouTube video")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Menu("Queue actions", systemImage: "ellipsis.circle") {
+                            Button("Move to next") { session.editQueue { try $0.reorder(id: entry.id, to: 0) } }
+                            Button("Remove from queue", role: .destructive) { session.editQueue { try $0.remove(id: entry.id) } }
+                        }
+                    }
+                    .padding(12)
+                    .background(PublicStyle.background, in: RoundedRectangle(cornerRadius: 12))
                 }
             }
+        }
+    }
+}
+
+private struct PublicPlaylistCollection: View {
+    let session: PublicYouTubeSession
+    @State private var creating = false
+    @State private var name = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Button("Create local playlist", systemImage: "plus") { name = ""; creating = true }
+                .accessibilityIdentifier("public.createPlaylist")
+            Text("Stored on this device. These playlists do not change your YouTube account.")
+                .font(.footnote).foregroundStyle(.secondary)
+            if session.playlists.isEmpty {
+                PublicEmptyState(symbol: "music.note.list", title: "No local playlists", detail: "Create a playlist, then add videos from your saved collection.")
+            }
+            ForEach(session.playlists) { playlist in
+                NavigationLink {
+                    PublicPlaylistDetail(session: session, playlistID: playlist.id)
+                } label: {
+                    HStack {
+                        Label(playlist.name, systemImage: "music.note.list")
+                        Spacer()
+                        Text("\(playlist.trackIDs.count) videos").foregroundStyle(.secondary)
+                    }.padding(.vertical, 10)
+                }
+            }
+        }
+        .alert("Create local playlist", isPresented: $creating) {
+            TextField("Playlist name", text: $name)
+            Button("Create") { session.createPlaylist(name) }
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+}
+
+private struct PublicPlaylistDetail: View {
+    let session: PublicYouTubeSession
+    let playlistID: UUID
+    @Environment(\.dismiss) private var dismiss
+    @State private var renaming = false
+    @State private var deleting = false
+    @State private var adding = false
+    @State private var name = ""
+    private var playlist: LocalPlaylist? { session.playlists.first { $0.id == playlistID } }
+
+    var body: some View {
+        List {
+            if let playlist {
+                Section {
+                    Text("\(playlist.trackIDs.count) videos · On this device")
+                    Button("Add videos", systemImage: "plus") { adding = true }
+                    Button("Add playlist to queue", systemImage: "text.badge.plus") { session.enqueuePlaylist(playlistID) }
+                        .disabled(playlist.trackIDs.isEmpty)
+                }
+                Section("Videos") {
+                    if playlist.trackIDs.isEmpty {
+                        Text("This playlist is empty. Add videos from your saved collection.").foregroundStyle(.secondary)
+                    }
+                    ForEach(playlist.trackIDs, id: \.self) { id in
+                        if let track = session.tracks.first(where: { $0.id == id }) {
+                            NavigationLink { PublicVideoDetail(session: session, trackID: id) } label: {
+                                PublicVideoRow(track: track, symbol: "play.rectangle")
+                            }
+                        }
+                    }
+                    .onDelete { indices in
+                        let removed = indices.map { playlist.trackIDs[$0] }
+                        session.editPlaylist(playlistID) { value in removed.forEach { value.remove($0) } }
+                    }
+                    .onMove { indices, destination in
+                        var ids = playlist.trackIDs
+                        ids.move(fromOffsets: indices, toOffset: destination)
+                        session.editPlaylist(playlistID) { try $0.reorder(ids) }
+                    }
+                }
+                Section {
+                    Button("Rename playlist") { name = playlist.name; renaming = true }
+                    Button("Delete playlist", role: .destructive) { deleting = true }
+                }
+            }
+            if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
+        }
+        .navigationTitle(playlist?.name ?? "Playlist")
+        .toolbar { EditButton() }
+        .alert("Rename playlist", isPresented: $renaming) {
+            TextField("Playlist name", text: $name)
+            Button("Save") { session.editPlaylist(playlistID) { try $0.rename(name) } }
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Delete this local playlist?", isPresented: $deleting, titleVisibility: .visible) {
+            Button("Delete playlist", role: .destructive) { if session.deletePlaylist(playlistID) { dismiss() } }
+        } message: { Text("Saved videos and favorites will remain.") }
+        .sheet(isPresented: $adding) {
+            NavigationStack {
+                List {
+                    if session.tracks.isEmpty { Text("No saved videos. Open a YouTube link on Home first.") }
+                    ForEach(session.tracks) { track in
+                        Button {
+                            session.editPlaylist(playlistID) { $0.add(track.id) }
+                        } label: {
+                            Label(track.title, systemImage: playlist?.trackIDs.contains(track.id) == true ? "checkmark.circle.fill" : "plus.circle")
+                        }
+                        .disabled(playlist?.trackIDs.contains(track.id) == true)
+                    }
+                    if let message = session.failureMessage { Text(message) }
+                }
+                .navigationTitle("Add saved videos")
+                .toolbar { Button("Done") { adding = false } }
+            }
+        }
+    }
+}
+
+private struct PublicAddToPlaylistMenu: View {
+    let session: PublicYouTubeSession
+    let track: MusesDomain.Track
+    @State private var creating = false
+    @State private var name = ""
+    var body: some View {
+        Menu("Add to playlist", systemImage: "text.badge.plus") {
+            ForEach(session.playlists) { playlist in
+                Button(playlist.trackIDs.contains(track.id) ? "✓ \(playlist.name)" : playlist.name) {
+                    session.editPlaylist(playlist.id) { $0.add(track.id) }
+                }.disabled(playlist.trackIDs.contains(track.id))
+            }
+            Button("Create local playlist") { name = ""; creating = true }
+        }
+        .alert("Create local playlist", isPresented: $creating) {
+            TextField("Playlist name", text: $name)
+            Button("Create") {
+                session.createPlaylist(name, trackIDs: [track.id])
+            }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+}
+
+private struct PublicVideoDetail: View {
+    let session: PublicYouTubeSession
+    let trackID: TrackID
+    private var track: MusesDomain.Track? { session.tracks.first { $0.id == trackID } }
+    var body: some View {
+        List {
+            if let track {
+                Section {
+                    Text(track.title).font(.title2)
+                    Text(track.artist).foregroundStyle(.secondary)
+                    if case .youtubeVideo(let id) = track.source {
+                        Text(id.rawValue).font(.caption).textSelection(.enabled)
+                        Button("Open visible player", systemImage: "play.rectangle") { session.open(id, title: track.title) }
+                        Link("View on YouTube", destination: URL(string: "https://www.youtube.com/watch?v=\(id.rawValue)")!)
+                    }
+                }
+                Section("Local library") {
+                    Button(track.liked ? "Remove favorite" : "Favorite", systemImage: track.liked ? "heart.fill" : "heart") {
+                        session.toggleFavorite(trackID)
+                    }
+                    PublicAddToPlaylistMenu(session: session, track: track)
+                    Button("Play next", systemImage: "text.line.first.and.arrowtriangle.forward") { session.enqueueTrack(track, next: true) }
+                    Button("Add to queue", systemImage: "text.badge.plus") { session.enqueueTrack(track) }
+                    NavigationLink { PublicQueueView(session: session) } label: { Text("View queue") }
+                }
+            }
+            if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
+        }
+        .navigationTitle("Video details")
+    }
+}
+
+private struct PublicQueueView: View {
+    let session: PublicYouTubeSession
+    @State private var clearing = false
+    var body: some View {
+        List {
+            if let current = session.currentTrack {
+                Section("Current video") {
+                    Text(current.title)
+                    Button("Open visible player") { session.showPlayer = true }
+                }
+            }
+            Section("Up next") {
+                if session.queue.snapshot.upcoming.isEmpty {
+                    Text("The queue is empty. Add videos from video details or a local playlist.").foregroundStyle(.secondary)
+                }
+                ForEach(session.queue.snapshot.upcoming) { entry in
+                    Text(session.tracks.first(where: { $0.id == entry.trackID })?.title ?? "Unavailable video")
+                        .accessibilityIdentifier("queue.entry.\(entry.id)")
+                }
+                .onDelete { indices in
+                    let ids = indices.map { session.queue.snapshot.upcoming[$0].id }
+                    session.editQueue { queue in for id in ids { try queue.remove(id: id) } }
+                }
+                .onMove { indices, destination in
+                    var entries = session.queue.snapshot.upcoming
+                    entries.move(fromOffsets: indices, toOffset: destination)
+                    session.editQueue { queue in
+                        for (index, entry) in entries.enumerated() { try queue.reorder(id: entry.id, to: index) }
+                    }
+                }
+            }
+            if !session.queue.snapshot.upcoming.isEmpty {
+                Button("Open next video") {
+                    session.next()
+                    if session.failureMessage == nil { session.showPlayer = true }
+                }
+                Button("Clear upcoming queue", role: .destructive) { clearing = true }
+            }
+            if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
+        }
+        .navigationTitle("Queue")
+        .toolbar { EditButton() }
+        .confirmationDialog("Clear upcoming queue?", isPresented: $clearing, titleVisibility: .visible) {
+            Button("Clear upcoming queue", role: .destructive) { session.clearUpcoming() }
         }
     }
 }
