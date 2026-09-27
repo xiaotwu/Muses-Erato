@@ -84,17 +84,19 @@ public actor YouTubeDataCatalog {
 
     private func fetch(_ endpoint: CatalogEndpoint, parameters: [String:String], pageToken: String?, authorized: Bool) async throws -> CatalogPage {
         guard pageToken == nil || (!pageToken!.isEmpty && pageToken!.count < 512) else { throw APIError.invalidResponse }
+        // Google accepts OAuth credentials for the same read endpoints. This lets
+        // a signed-in user browse when the public API key is not configured.
+        let token = try await (authorized || apiKey == nil) ? credential?.accessToken() : nil
+        if authorized && token == nil { throw APIError.unauthorized }
+        if !authorized && apiKey == nil && token == nil { throw APIError.unauthorized }
         var query = parameters
         if let pageToken { query["pageToken"] = pageToken }
-        if !authorized, let apiKey { query["key"] = apiKey }
+        if token == nil, let apiKey { query["key"] = apiKey }
         var parts = URLComponents(string: "https://www.googleapis.com/youtube/v3/\(endpoint.path)")!
         parts.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
         guard let url = parts.url else { throw APIError.invalidResponse }
-        let token = try await authorized ? credential?.accessToken() : nil
-        if authorized && token == nil { throw APIError.unauthorized }
-        if !authorized && apiKey == nil { throw APIError.unauthorized }
         let accountMarker = token.map { Data(SHA256.hash(data: Data($0.utf8))).base64EncodedString() } ?? ""
-        let identity = (authorized ? "private:\(accountMarker):" : "public:") + endpoint.rawValue + ":" + (parts.percentEncodedQuery ?? "")
+        let identity = (token != nil ? "private:\(accountMarker):" : "public:") + endpoint.rawValue + ":" + (parts.percentEncodedQuery ?? "")
         if let cached = cache[identity], cached.1 > Date() { return cached.0 }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15

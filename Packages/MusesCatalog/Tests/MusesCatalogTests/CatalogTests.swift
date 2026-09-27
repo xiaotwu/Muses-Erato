@@ -26,7 +26,24 @@ private struct SavedIndex: LocalCatalogIndex {
 private struct FakeCredential: CatalogCredential {
     func accessToken() async throws -> String { "fake-token" }
 }
+private struct OAuthOnlyHTTP: HTTPTransport {
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fake-token")
+        XCTAssertFalse(request.url!.absoluteString.contains("key="))
+        return HTTPResponse(status: 200, body: Data(#"{"items":[]}"#.utf8))
+    }
+}
 final class CatalogTests: XCTestCase {
+    func testSignedInSearchWorksWithoutPublicAPIKey() async throws {
+        let catalog = YouTubeDataCatalog(credential: FakeCredential(), transport: OAuthOnlyHTTP())
+        _ = try await catalog.search("music")
+        let before = await catalog.requestCounts()
+        XCTAssertEqual(before.calls["search"], 1)
+        await catalog.clearPrivateCache()
+        _ = try await catalog.search("music")
+        let after = await catalog.requestCounts()
+        XCTAssertEqual(after.calls["search"], 2)
+    }
     func testSearchPage() async throws {
         let data = Data(#"{"nextPageToken":"next","items":[{"id":{"kind":"youtube#video","videoId":"abcdefghijk"},"snippet":{"title":"Title","channelId":"UC123"}}]}"#.utf8)
         let catalog = YouTubeDataCatalog(apiKey: "fake", transport: FakeHTTP(body: data))
