@@ -3,7 +3,7 @@ import SwiftData
 import MusesDomain
 import MusesQueue
 
-public enum StoreKind: String, Codable, Sendable { case track, favorite, note, bookmark, playlist, playlistItem, history, queue, importRelation, importItem, setting, migration }
+public enum StoreKind: String, Codable, Sendable { case track, favorite, note, bookmark, playlist, playlistItem, history, queue, importRelation, importItem, setting, migration, legacyTrack, legacyQueue, legacyModel }
 public struct StoredValue: Codable, Equatable, Sendable {
     public let kind: StoreKind
     public let id: String

@@ -1,0 +1,44 @@
+import Foundation
+import SQLite3
+import XCTest
+@testable import MusesPersistence
+
+final class LegacySnapshotTests: XCTestCase {
+    func testSnapshotIncludesCommittedWALAndLeavesSourceFiles() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("old.sqlite")
+        let copy = directory.appendingPathComponent("copy.sqlite")
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(source.path, &db), SQLITE_OK)
+        defer { sqlite3_close(db) }
+        XCTAssertEqual(sqlite3_exec(db, "PRAGMA journal_mode=WAL", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(db, "CREATE TABLE user_truth (value TEXT)", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(db, "INSERT INTO user_truth VALUES ('from wal')", nil, nil, nil), SQLITE_OK)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path + "-wal"))
+        XCTAssertEqual(try LegacyStoreSnapshotter.snapshot(sourceURL: source, destinationURL: copy), copy)
+        var copied: OpaquePointer?
+        XCTAssertEqual(sqlite3_open_v2(copy.path, &copied, SQLITE_OPEN_READONLY, nil), SQLITE_OK)
+        defer { sqlite3_close(copied) }
+        var statement: OpaquePointer?
+        XCTAssertEqual(sqlite3_prepare_v2(copied, "SELECT value FROM user_truth", -1, &statement, nil), SQLITE_OK)
+        defer { sqlite3_finalize(statement) }
+        XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW)
+        XCTAssertEqual(String(cString: sqlite3_column_text(statement, 0)), "from wal")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path + "-wal"))
+    }
+
+    func testCorruptSourceDoesNotProduceReplacementStore() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("broken.sqlite")
+        let copy = directory.appendingPathComponent("copy.sqlite")
+        try Data("not a database".utf8).write(to: source)
+        XCTAssertThrowsError(try LegacyStoreSnapshotter.snapshot(sourceURL: source, destinationURL: copy))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copy.path))
+        XCTAssertEqual(try Data(contentsOf: source), Data("not a database".utf8))
+    }
+}

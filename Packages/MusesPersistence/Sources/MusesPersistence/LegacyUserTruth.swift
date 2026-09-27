@@ -2,6 +2,12 @@ import Foundation
 import SwiftData
 import MusesDomain
 import MusesQueue
+import CryptoKit
+
+public struct LegacyMigrationReceipt: Codable, Equatable, Sendable {
+    public let recordCount: Int
+    public let payloadSHA256: String
+}
 
 public struct LegacyNote: Codable, Sendable {
     public let id: UUID; public let trackId: UUID; public let content: String; public let createdAt: Date; public let updatedAt: Date
@@ -52,10 +58,131 @@ public struct LegacyUserTruthBundle: Sendable {
 }
 
 extension SwiftDataSnapshotRepository {
-    /// Validates every typed identity and encodes all snapshots before writing; a bad legacy
-    /// video ID cannot leave a half-imported target. Uses an idempotent upsert transaction.
+    /// Early P2 bridge. This omits fields and must not be used for a production upgrade.
+    @available(*, deprecated, message: "Use importLegacyComplete after reading the full old schema")
     public func importLegacy(_ bundle: LegacyUserTruthBundle) throws {
         if try record(kind: .migration, id: "legacy-v1") != nil { return }
+        try writeLegacy(try preparedLegacyValues(bundle), marker: "legacy-v1")
+    }
+
+    /// Import a complete archive in one SwiftData transaction. The caller must read an isolated
+    /// copy of the old store and retain the original store files for rollback.
+    public func importLegacyComplete(_ bundle: LegacyCompleteBundle) throws {
+        let expected: Set<String> = ["Track", "QueueState", "EQPreset", "YouTubeImport",
+            "YouTubeImportItem", "Playlist", "PlaylistItem", "ListeningEvent",
+            "ListeningSession", "InboxItem", "TrackNote", "TrackBookmark",
+            "AutomationRule", "FocusSession", "YouTubePlaylistRevision",
+            "YouTubeSyncOperation", "YouTubeSyncBatch", "CatalogRelease", "CatalogArtist"]
+        guard bundle.inspectedModels == expected else {
+            throw PersistenceError.unsupportedLegacyRecord("source model inventory")
+        }
+        guard LegacyCompleteBundle.knownSettingKeys.isSubset(of: bundle.inspectedSettingKeys),
+              Set(bundle.userTruth.settings.map(\.key)).isSubset(of: bundle.inspectedSettingKeys) else {
+            throw PersistenceError.unsupportedLegacyRecord("settings inventory")
+        }
+        guard bundle.userTruth.tracks.count == bundle.tracks.count,
+              Set(bundle.userTruth.tracks.map(\.id)) == Set(bundle.tracks.map(\.id)) else {
+            throw PersistenceError.unsupportedLegacyRecord("source projection mismatch")
+        }
+        for source in bundle.tracks {
+            guard let projection = bundle.userTruth.tracks.first(where: { $0.id == source.id }),
+                  try projection.mapped() == source.publicTrack() else {
+                throw PersistenceError.unsupportedLegacyRecord("track projection mismatch: \(source.id)")
+            }
+        }
+        var truth = bundle.userTruth
+        truth.queue = nil
+        var values = try preparedLegacyValues(truth)
+        let encoder = JSONEncoder()
+        for track in bundle.tracks {
+            _ = try track.publicTrack()
+            values.append(StoredValue(kind: .legacyTrack, id: track.id.uuidString,
+                                      data: try encoder.encode(track)))
+        }
+        if let queue = bundle.queue {
+            let snapshot = try queue.publicSnapshot()
+            values.append(StoredValue(kind: .queue, id: "main", data: try encoder.encode(snapshot)))
+            values.append(StoredValue(kind: .legacyQueue, id: queue.id.uuidString,
+                                      data: try encoder.encode(queue)))
+        }
+        let projectedIDs: [LegacyModelKind: Set<UUID>] = [
+            .youTubeImport: Set(bundle.userTruth.imports.map(\.id)),
+            .youTubeImportItem: Set(bundle.userTruth.importItems.map(\.id)),
+            .playlist: Set(bundle.userTruth.playlists.map(\.id)),
+            .playlistItem: Set(bundle.userTruth.playlistItems.map(\.id)),
+            .listeningEvent: Set(bundle.userTruth.history.map(\.id)),
+            .trackNote: Set(bundle.userTruth.notes.map(\.id)),
+            .trackBookmark: Set(bundle.userTruth.bookmarks.map(\.id))
+        ]
+        for kind in LegacyModelKind.allCases {
+            guard let rows = bundle.otherModels[kind],
+                  projectedIDs[kind].map({ $0 == Set(rows.map(\.id)) && $0.count == rows.count }) ?? true else {
+                throw PersistenceError.unsupportedLegacyRecord("\(kind.rawValue) inventory")
+            }
+            for row in rows {
+                guard row.fieldNames == kind.requiredFields,
+                      let object = try? JSONSerialization.jsonObject(with: row.fields) as? [String: Any],
+                      Set(object.keys) == row.fieldNames,
+                      object["id"] as? String == row.id.uuidString,
+                      kind.relationshipFields.allSatisfy({ key in
+                          guard let value = object[key] else { return false }
+                          if value is NSNull { return true }
+                          if key == "items" {
+                              guard let ids = value as? [String] else { return false }
+                              return ids.allSatisfy { UUID(uuidString: $0) != nil }
+                          }
+                          guard let id = value as? String else { return false }
+                          return UUID(uuidString: id) != nil
+                      }) else {
+                    throw PersistenceError.unsupportedLegacyRecord("\(kind.rawValue).\(row.id)")
+                }
+                values.append(StoredValue(kind: .legacyModel, id: "\(kind.rawValue):\(row.id.uuidString)",
+                                          data: try encoder.encode(row)))
+            }
+        }
+        let receipt = LegacyMigrationReceipt(recordCount: values.count, payloadSHA256: digest(values))
+        if let prior = try record(kind: .migration, id: "legacy-complete-v1") {
+            guard prior.payloadVersion == 1,
+                  let stored = try? JSONDecoder().decode(LegacyMigrationReceipt.self, from: prior.payload),
+                  stored == receipt else { throw PersistenceError.corruptRecord(prior.key) }
+            let all = try context.fetch(FetchDescriptor<MusesSchemaV1.Record>())
+            guard all.count == receipt.recordCount + 1 else { throw PersistenceError.corruptRecord(prior.key) }
+            for value in values {
+                guard let row = try record(kind: value.kind, id: value.id), row.payloadVersion == 1,
+                      canonicalData(row.payload) == canonicalData(value.data) else {
+                    throw PersistenceError.corruptRecord("\(value.kind.rawValue):\(value.id)")
+                }
+            }
+            return
+        }
+        guard try context.fetch(FetchDescriptor<MusesSchemaV1.Record>()).isEmpty else {
+            throw PersistenceError.unsupportedLegacyRecord("target is not empty")
+        }
+        try writeLegacy(values, marker: "legacy-complete-v1", markerPayload: try encoder.encode(receipt))
+    }
+
+    private func digest(_ values: [StoredValue]) -> String {
+        var data = Data()
+        for value in values.sorted(by: { ($0.kind.rawValue, $0.id) < ($1.kind.rawValue, $1.id) }) {
+            data.append(contentsOf: value.kind.rawValue.utf8)
+            data.append(0)
+            data.append(contentsOf: value.id.utf8)
+            data.append(0)
+            data.append(canonicalData(value.data))
+            data.append(0)
+        }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func canonicalData(_ payload: Data) -> Data {
+        guard let object = try? JSONSerialization.jsonObject(with: payload, options: .fragmentsAllowed),
+              let sorted = try? JSONSerialization.data(withJSONObject: object, options: [.fragmentsAllowed, .sortedKeys]) else {
+            return payload
+        }
+        return sorted
+    }
+
+    private func preparedLegacyValues(_ bundle: LegacyUserTruthBundle) throws -> [StoredValue] {
         var values: [StoredValue] = []
         let encoder = JSONEncoder()
         func add<T: Encodable>(_ value: T, kind: StoreKind, id: String) throws {
@@ -78,6 +205,10 @@ extension SwiftDataSnapshotRepository {
             try add(value, kind: .importItem, id: value.id.uuidString)
         }
         for value in bundle.settings { try add(value, kind: .setting, id: value.key) }
+        return values
+    }
+
+    private func writeLegacy(_ values: [StoredValue], marker: String, markerPayload: Data? = nil) throws {
         let keys = values.map { $0.kind.rawValue + ":" + $0.id }
         guard Set(keys).count == keys.count else { throw PersistenceError.unsupportedLegacyRecord("duplicate record") }
         try context.transaction {
@@ -85,7 +216,8 @@ extension SwiftDataSnapshotRepository {
                 if let row = try record(kind: value.kind, id: value.id) { row.payload = value.data; row.updatedAt = .init() }
                 else { context.insert(MusesSchemaV1.Record(kind: value.kind, recordID: value.id, payload: value.data)) }
             }
-            context.insert(MusesSchemaV1.Record(kind: .migration, recordID: "legacy-v1", payload: try encoder.encode(Date())))
+            context.insert(MusesSchemaV1.Record(kind: .migration, recordID: marker,
+                                                payload: try markerPayload ?? JSONEncoder().encode(Date())))
             try context.save()
         }
     }
