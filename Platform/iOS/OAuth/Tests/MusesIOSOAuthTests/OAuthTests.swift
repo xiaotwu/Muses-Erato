@@ -13,6 +13,12 @@ private actor PrivateData: PrivateAccountData {
     var deleted = false
     func deletePrivateData() async throws { deleted = true }
 }
+private final class FailingStore: OAuthTokenStore, @unchecked Sendable {
+    var deleteAttempted = false
+    func load() throws -> OAuthTokens? { throw OAuthFailure.storage }
+    func save(_ tokens: OAuthTokens) throws { throw OAuthFailure.storage }
+    func delete() throws { deleteAttempted = true; throw OAuthFailure.storage }
+}
 private struct TokenHTTP: HTTPTransport {
     func send(_ request: URLRequest) async throws -> HTTPResponse {
         if request.url?.path == "/revoke" { return HTTPResponse(status: 200, body: Data()) }
@@ -27,6 +33,22 @@ private struct RevokeFailureHTTP: HTTPTransport {
 }
 
 final class OAuthTests: XCTestCase {
+    func testTokenStoreFailuresStillAttemptPrivateCacheDeletion() async throws {
+        let config = try OAuthConfiguration(clientID: "123.apps.googleusercontent.com", redirectURI: URL(string: "com.googleusercontent.apps.123:/oauth2redirect")!)
+        for revoke in [true, false] {
+            let store = FailingStore()
+            let privateData = PrivateData()
+            let client = OAuthClient(configuration: config, transport: TokenHTTP(), store: store, privateData: privateData)
+            do {
+                if revoke { try await client.revokeAndDelete() }
+                else { try await client.deleteLocalAccount() }
+                XCTFail("expected storage error")
+            } catch { XCTAssertEqual(error as? OAuthFailure, .storage) }
+            XCTAssertTrue(store.deleteAttempted)
+            let deleted = await privateData.deleted
+            XCTAssertTrue(deleted)
+        }
+    }
     func testAttemptPKCEAndCallback() throws {
         let config = try OAuthConfiguration(clientID: "123.apps.googleusercontent.com", redirectURI: URL(string: "com.googleusercontent.apps.123:/oauth2redirect")!)
         let attempt = try OAuthAttempt(configuration: config)

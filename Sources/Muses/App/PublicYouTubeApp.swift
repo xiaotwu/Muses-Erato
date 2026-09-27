@@ -205,6 +205,9 @@ final class PublicYouTubeSession {
         guard let oauth else { return }
         accountEpoch &+= 1
         do { try await oauth.revokeAndDelete() }
+        catch OAuthFailure.storage {
+            failureMessage = "Account cleanup could not finish on this device. Retry when the device is unlocked and review Google account access."
+        }
         catch {
             failureMessage = "Local account data was removed. Google revocation may have failed; review access in your Google account settings."
         }

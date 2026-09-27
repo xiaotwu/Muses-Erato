@@ -154,7 +154,10 @@ public actor OAuthClient: CatalogCredential {
         return access
     }
     public func revokeAndDelete() async throws {
-        let tokens = try store.load()
+        let tokens: OAuthTokens?
+        var storageFailed = false
+        do { tokens = try store.load() }
+        catch { tokens = nil; storageFailed = true }
         var revokeError: Error?
         if let token = tokens?.refreshToken ?? tokens?.accessToken {
             var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/revoke")!)
@@ -166,13 +169,16 @@ public actor OAuthClient: CatalogCredential {
                 if response.status != 200 { revokeError = APIError.classify(response) ?? .invalidResponse }
             } catch { revokeError = error }
         }
-        try store.delete()
-        try await privateData.deletePrivateData()
+        do { try store.delete() } catch { storageFailed = true }
+        do { try await privateData.deletePrivateData() } catch { storageFailed = true }
+        if storageFailed { throw OAuthFailure.storage }
         if let revokeError { throw revokeError }
     }
     public func deleteLocalAccount() async throws {
-        try store.delete()
-        try await privateData.deletePrivateData()
+        var storageFailed = false
+        do { try store.delete() } catch { storageFailed = true }
+        do { try await privateData.deletePrivateData() } catch { storageFailed = true }
+        if storageFailed { throw OAuthFailure.storage }
     }
     private func tokenRequest(_ values: [String: String]) async throws -> TokenResponse {
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
