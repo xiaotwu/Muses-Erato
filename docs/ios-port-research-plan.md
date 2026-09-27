@@ -11,6 +11,7 @@
 3. **公开版播放**：在当前可查的公开政策与授权下，YouTube 使用**可见的官方 IFrame Player**；账户、歌单、订阅等按需使用官方 YouTube Data API。不能把当前 Innertube 解析流、第三方镜像、yt-dlp 或 Media Gateway 作为公开版绕配额／播放路径。
 4. **原生音频能力**：AVPlayer/AVAudioEngine、后台音频、EQ、频谱、Gapless、Crossfade、流文件缓存等架构可以为**用户有权播放的本地文件**及未来取得明确授权的来源设计；这些能力不因此自动适用于 YouTube。若坚持“公开版只有 YouTube 内容”，本地文件能力应先作为隔离模块与测试夹具，不擅自把它变成第二内容来源。
 5. **阶段门槛**：任何 YouTube 原生流播放、音频分离、下载、后台播放、代理转发、Media Gateway 或 YouTube Music 非公开接口进入公开版前，都要有对应的明确许可与平台审核结论。没有证据则保持关闭，并且不以代码可运行或 IPA 可安装替代授权判断。
+   - **2026-09-27 真机验收补充**：用户确认队列与清空交互正常，并提出歌曲后台连续播放需求。该需求保留为获权播放能力的目标；当前官方 YouTube 嵌入路径仍在后台停止。歌曲分类、Data API key 和 OAuth 不授予后台播放许可。若授权边界改变，先更新本计划和能力矩阵，再交付后台实现；不得擅自加入其他内容来源。外部打开 YouTube 不承诺继承本 App 队列或后台连续播放。
 6. **真实状态**：当前 iOS 源码已有 SwiftData、队列、Now Playing、音频图、Innertube/镜像解析、WKWebView 视频 sheet 等入口，但“有代码”不等于真机验收或可上架。现有主播放是 `YouTubeStreamEngine`，现有 WKWebView 仅为二级视频 sheet。原本的 `ios` yt-dlp player-client 名称并不代表 yt-dlp 有原生 iOS 支持。
 
 ### 0.1 能力矩阵：先决定发布，再选择实现

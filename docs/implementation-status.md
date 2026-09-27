@@ -21,12 +21,20 @@ This file records verified evidence, not completion claims. The original checkou
 - The app can now use OAuth for public read endpoints when no API key is configured. Package tests cover authorization headers, cache clearing and absence of a key in the request URL. The user confirmed live signed-in search returned correct results on the physical iPhone.
 - The first device playback attempt stayed loading. The embedded HTML now uses the app's Bundle ID as its HTTPS client origin, validates bridge messages against that origin, and permits its own local HTML navigation. After reinstall, the user confirmed video playback works. The WebView retains visible YouTube controls and the app does not resolve media streams.
 - The user reported that tapping outside a text field did not dismiss the keyboard. A window tap recognizer now dismisses input without cancelling controls or taps inside text fields. Home and Search UI regression tests pass, and the user confirmed the fix on device.
-- No key or token is committed to the repository. The local OAuth `.xcconfig` is outside the checkout under `/tmp`.
+- The user supplied a separate project API key file. A live `videos.list` request returned HTTP 200 and the expected video; the signed device build includes the key. No key or token is committed to the repository. The owner-private Google build configuration is at `~/.config/muses-erato/Local.xcconfig`.
+- After the latest signed device install, the user confirmed queue Next, clearing upcoming items while the current video continues, stopping playback on player dismissal/background, and finding the Library top-level Clear Up Next entry all work.
+
+## Background music request
+
+The user now wants songs to continue playing in the background. This is a pending product requirement, not a verified or delivered capability. The previously accepted App Store priority and YouTube-only source remain in force. YouTube Developer Policies III.I.7 and III.I.9 prohibit audio isolation and background players for the current embedded route, including music videos. A Data API key, OAuth login, music category or a different distribution package does not provide the missing permission. Background music in Muses requires an explicitly authorized playback source or separate permission from Google; do not silently enable hidden IFrame playback or add an unapproved source. The existing external View on YouTube action does not transfer Muses' queue or promise background playback.
+
+Reference: https://developers.google.com/youtube/terms/developer-policies#i-additional-prohibitions
 
 ## Active work
 
-- Public local library, playlist and queue flows are being implemented in a separate worktree.
-- A physical fixture of the inherited 19-model SwiftData store and a production-safe migration reader are being developed in a separate worktree. Until verified, the public app stops at a recovery screen when it detects legacy store files.
+- Local playlists, favorites, queue editing and top-level Clear Up Next are integrated. Notes and time bookmarks are being implemented in a separate worktree.
+- Official playlist/channel browsing, account paging and API metadata retention are being implemented in a separate worktree.
+- A physical fixture of the inherited 19-model SwiftData store and read-only migration preparation are integrated. Activation, rollback and deletion recovery are being developed in a separate worktree. Until verified, the public app stops at a recovery screen when it detects legacy store files.
 
 ## Release decision
 

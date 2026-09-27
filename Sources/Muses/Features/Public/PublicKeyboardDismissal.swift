@@ -34,9 +34,16 @@ final class KeyboardDismissalView: UIView, UIGestureRecognizerDelegate {
     @objc private func dismissInput() { observedWindow?.endEditing(true) }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        // Ending editing can move an alert before its button receives touch-up.
+        // Let system alerts and controls own their complete interaction.
+        var responder: UIResponder? = touch.view
+        while let current = responder {
+            if current is UIAlertController { return false }
+            responder = current.next
+        }
         var touchedView = touch.view
         while let view = touchedView {
-            if view is UITextField || view is UITextView { return false }
+            if view is UIControl || view is UITextView { return false }
             touchedView = view.superview
         }
         return true
