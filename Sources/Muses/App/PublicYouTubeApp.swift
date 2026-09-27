@@ -251,7 +251,7 @@ final class PublicYouTubeSession {
                 try repository?.saveTrack(track)
                 tracks.append(track)
             }
-            guard editQueue({ try $0.playNow(QueueEntry(trackID: track.id, source: track.source), context: "public") }) else { return }
+            guard editQueue({ try $0.playNow(QueueEntry(trackID: track.id, source: track.source), context: "public"); $0.setIntent(.pause) }) else { return }
             state = PlaybackSnapshot(state: .loading, source: track.source,
                 generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
             failureMessage = nil
@@ -332,7 +332,6 @@ final class PublicYouTubeSession {
         do {
             var proposed = queue
             try change(&proposed)
-            proposed.setIntent(.pause)
             try repository.saveQueue(proposed.snapshot)
             queue = proposed
             failureMessage = nil
@@ -358,6 +357,7 @@ final class PublicYouTubeSession {
     }
 
     func clearUpcoming() {
+        guard hasNext else { return }
         editQueue { proposed in
             for entry in proposed.snapshot.upcoming { try proposed.remove(id: entry.id) }
         }
@@ -441,7 +441,7 @@ final class PublicYouTubeSession {
     func pause() { adapter?.pause(); queue.setIntent(.pause); try? persistQueue() }
     func next() {
         guard hasNext else { pause(); return }
-        guard editQueue({ _ = try $0.next() }) else { return }
+        guard editQueue({ _ = try $0.next(); $0.setIntent(.pause) }) else { return }
         recordedEntryID = nil
         state = PlaybackSnapshot(state: .loading, source: queue.snapshot.current?.source,
             generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)

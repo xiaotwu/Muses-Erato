@@ -382,6 +382,19 @@ struct PublicRootView: View {
                     identifier: "public.libraryHeader"
                 )
 
+                VStack(alignment: .leading, spacing: 12) {
+                    NavigationLink { PublicQueueView(session: session) } label: {
+                        Label("Queue (\(session.queue.snapshot.upcoming.count) upcoming)", systemImage: "list.bullet")
+                    }
+                    .accessibilityIdentifier("public.queue")
+                    PublicClearUpNextButton(session: session)
+                    Text("Clears only upcoming videos. Your current video stays in the player.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 16))
+
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), spacing: 10)], spacing: 10) {
                     ForEach(LibraryCategory.allCases) { category in
                         Button {
@@ -418,10 +431,6 @@ struct PublicRootView: View {
                         .accessibilityIdentifier("library.category.\(category.rawValue)")
                     }
                 }
-                NavigationLink { PublicQueueView(session: session) } label: {
-                    Label("Queue (\(session.queue.snapshot.upcoming.count) upcoming)", systemImage: "list.bullet")
-                }
-                .accessibilityIdentifier("public.queue")
                 if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
                 sectionHeading(session.selectedCategory.rawValue, detail: categoryDetail)
                 categoryContent
@@ -875,6 +884,7 @@ private struct PublicPlayerView: View {
             Text("Up next")
                 .font(.system(.title3, design: .serif, weight: .semibold))
                 .foregroundStyle(PublicStyle.ink)
+            PublicClearUpNextButton(session: session)
             if session.queue.snapshot.upcoming.isEmpty {
                 Text("The queue is empty. Add a video from Search.")
                     .font(.subheadline)
@@ -1070,7 +1080,6 @@ private struct PublicVideoDetail: View {
 
 private struct PublicQueueView: View {
     let session: PublicYouTubeSession
-    @State private var clearing = false
     var body: some View {
         List {
             if let current = session.currentTrack {
@@ -1104,14 +1113,29 @@ private struct PublicQueueView: View {
                     session.next()
                     if session.failureMessage == nil { session.showPlayer = true }
                 }
-                Button("Clear upcoming queue", role: .destructive) { clearing = true }
             }
+            PublicClearUpNextButton(session: session)
             if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
         }
         .navigationTitle("Queue")
         .toolbar { EditButton() }
-        .confirmationDialog("Clear upcoming queue?", isPresented: $clearing, titleVisibility: .visible) {
-            Button("Clear upcoming queue", role: .destructive) { session.clearUpcoming() }
-        }
+    }
+}
+
+/// Shared action keeps the same scope and confirmation at all queue entry points.
+private struct PublicClearUpNextButton: View {
+    let session: PublicYouTubeSession
+    @State private var confirming = false
+
+    var body: some View {
+        Button("Clear Up Next", systemImage: "trash", role: .destructive) { confirming = true }
+            .disabled(!session.hasNext)
+            .accessibilityIdentifier("public.clearUpNext")
+            .alert("Clear all upcoming videos?", isPresented: $confirming) {
+                Button("Clear Up Next", role: .destructive) { session.clearUpcoming() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your current video and playback are kept. Only upcoming videos are removed.")
+            }
     }
 }

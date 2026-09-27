@@ -48,3 +48,14 @@ python3 scripts/audit-public-artifact.py \
 ## Remaining release limits
 
 No new account playlist write API, media download, unofficial catalog/resolver, background audio or source-allowlist expansion is introduced. Playlists are local to the device and do not sync to YouTube. This work does not establish real-device IFrame playback, OAuth, App Store approval, minimum-iOS accessibility or very large library performance. Queue position remains checkpointed by the existing adapter integration; restoring the native snapshot does not yet seek the IFrame to that position.
+
+## Follow-up: top-level Clear Up Next
+
+The Library now places the Queue entry and **Clear Up Next** directly below its heading, before category tiles. The same clear action remains in the visible player's Up next section and Queue details. The button stays visible but disabled for an empty upcoming list. Confirmation explicitly says that only upcoming videos are removed and that the current video and playback are kept.
+
+Clearing retains the current queue entry, history, position and playback intent; it never reloads or pauses the visible IFrame. The proposed empty upcoming list is saved before publication, and clearing an already empty list is a no-op. General upcoming-list edits now also preserve current playback intent; only explicit open/next transitions set cue/pause intent.
+
+Coverage adds a playing-event unit test that verifies retained current video/position/intent and an empty queue after reopening the store, plus a UI flow for top-level visibility, disabled empty states, player clearing, cancellation, clearing from Library and relaunch persistence. Parent integration fixes for OAuth search, IFrame origin/navigation and keyboard dismissal are outside this follow-up.
+
+Follow-up validation (iPhone 17e / iOS 26.5): all 8 app unit tests passed, including the new playing-current preservation contract. The existing empty-library and visible-player smoke UI tests passed. The new top-level/player clear UI test passed after using an explicit Cancel alert and waiting for dismissal before inspecting disabled state. Release simulator rebuild and static artifact audit passed. The earlier UI attempts exposed confirmation presentation/accessibility timing issues; those attempts are not counted as passes.
+The final targeted UI run passed both `testClearUpNextFromLibraryTopAndPlayer` and the full `testLocalPlaylistFavoriteQueueEditingAndRelaunch` regression (2 tests, 0 failures). Result bundle: `/tmp/erato-local-library-build/Logs/Test/Test-Muses-2026.09.27_16-29-32--0700.xcresult`.

@@ -103,6 +103,39 @@ final class PublicYouTubeFlowTests: XCTestCase {
         XCTAssertTrue(try session.repository!.list(PlaybackHistoryEntry.self, kind: .history).isEmpty)
     }
 
+    func testClearUpNextKeepsPlayingCurrentAndPersistsEmptyQueue() throws {
+        let url = try store()
+        let session = PublicYouTubeSession(storeURL: url)
+        session.open(try VideoID("dQw4w9WgXcQ"), title: "Current")
+        let track = try XCTUnwrap(session.currentTrack)
+        session.enqueueTrack(track)
+        session.enqueueTrack(track)
+        let adapter = YouTubeIFrameAdapter()
+        session.attach(adapter)
+        defer { session.detach() }
+        let id = try XCTUnwrap(IFrameVideoID("dQw4w9WgXcQ"))
+        adapter.onEvent?(.init(videoID: id, generation: 1, kind: .playing))
+        adapter.onEvent?(.init(videoID: id, generation: 1, kind: .time(position: 12, duration: 100)))
+        let before = session.queue.snapshot
+        session.clearUpcoming()
+        XCTAssertTrue(session.queue.snapshot.upcoming.isEmpty)
+        XCTAssertEqual(session.queue.snapshot.current, before.current)
+        XCTAssertEqual(session.queue.snapshot.history, before.history)
+        XCTAssertEqual(session.queue.snapshot.positionMilliseconds, before.positionMilliseconds)
+        XCTAssertEqual(session.queue.snapshot.intent, .play)
+        XCTAssertEqual(session.state.state, .playing)
+        XCTAssertTrue(session.isPlayerVisible)
+        let cleared = session.queue.snapshot
+        session.clearUpcoming()
+        XCTAssertEqual(session.queue.snapshot, cleared, "Empty clear is a no-op")
+        let reopened = PublicYouTubeSession(storeURL: url)
+        XCTAssertNil(reopened.recoveryMessage)
+        XCTAssertFalse(reopened.hasNext)
+        XCTAssertEqual(reopened.queue.snapshot.current, before.current)
+        XCTAssertEqual(reopened.queue.snapshot.positionMilliseconds, 12000)
+        XCTAssertEqual(reopened.queue.snapshot.intent, .pause)
+    }
+
     func testLegacyAndCorruptUpgradeNeverCreateReplacement() throws {
         let url = try store()
         let legacy = url.deletingLastPathComponent().appending(path: "muses-youtube-native.sqlite-wal")
