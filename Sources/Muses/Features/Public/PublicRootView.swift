@@ -4,11 +4,11 @@ import MusesDomain
 import MusesCatalog
 
 private enum PublicStyle {
-    static let gold = BrandColors.laurelGold
-    static let background = BrandColors.background
-    static let surface = BrandColors.surface
-    static let ink = BrandColors.textPrimary
-    static let muted = BrandColors.textSecondary
+    static let gold = Color(red: 0.82, green: 0.68, blue: 0.44)
+    static let background = Color(uiColor: .systemBackground)
+    static let surface = Color(uiColor: .secondarySystemBackground)
+    static let ink = Color(uiColor: .label)
+    static let muted = Color(uiColor: .secondaryLabel)
     static let inset: CGFloat = 22
 }
 
