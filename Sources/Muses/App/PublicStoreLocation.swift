@@ -7,3 +7,10 @@ func musesDefaultStoreURL() -> URL {
         ?? URL.documentsDirectory
     return base.appending(path: "Muses/muses-youtube-native.sqlite")
 }
+
+/// A partial legacy store is still user data requiring recovery. Do not create a
+/// fresh public library while any member of its SQLite file set remains.
+func legacyStoreArtifactsPresent(at storeURL: URL, manager: FileManager = .default) -> Bool {
+    [storeURL.path, storeURL.path + "-wal", storeURL.path + "-shm"]
+        .contains { manager.fileExists(atPath: $0) }
+}

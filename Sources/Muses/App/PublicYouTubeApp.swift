@@ -72,7 +72,7 @@ final class PublicYouTubeSession {
         do {
             // The inherited autoschema remains untouched until full parity migration is verified.
             let old = musesDefaultStoreURL()
-            if FileManager.default.fileExists(atPath: old.path) {
+            if legacyStoreArtifactsPresent(at: old) {
                 recoveryMessage = "An earlier Muses library was found. This version leaves it intact. Library migration needs verification before opening the new library."
                 return
             }

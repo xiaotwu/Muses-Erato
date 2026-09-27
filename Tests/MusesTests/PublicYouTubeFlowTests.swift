@@ -3,6 +3,20 @@ import MusesDomain
 @testable import Muses
 
 final class PublicYouTubeFlowTests: XCTestCase {
+    func testLegacyGateBlocksEverySQLiteSidecar() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = directory.appending(path: "muses-youtube-native.sqlite")
+        XCTAssertFalse(legacyStoreArtifactsPresent(at: store))
+        for suffix in ["", "-wal", "-shm"] {
+            let file = URL(fileURLWithPath: store.path + suffix)
+            try Data([1]).write(to: file)
+            XCTAssertTrue(legacyStoreArtifactsPresent(at: store), suffix)
+            try FileManager.default.removeItem(at: file)
+        }
+    }
+
     func testKnownVideoLinksRejectOtherHostsAndMalformedIDs() throws {
         let id = "dQw4w9WgXcQ"
         XCTAssertEqual(PublicYouTubeSession.videoID(from: id)?.rawValue, id)

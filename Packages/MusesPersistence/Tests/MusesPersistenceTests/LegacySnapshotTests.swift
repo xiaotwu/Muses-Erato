@@ -17,6 +17,8 @@ final class LegacySnapshotTests: XCTestCase {
         XCTAssertEqual(sqlite3_exec(db, "CREATE TABLE user_truth (value TEXT)", nil, nil, nil), SQLITE_OK)
         XCTAssertEqual(sqlite3_exec(db, "INSERT INTO user_truth VALUES ('from wal')", nil, nil, nil), SQLITE_OK)
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path + "-wal"))
+        let originalMain = try Data(contentsOf: source)
+        let originalWAL = try Data(contentsOf: URL(fileURLWithPath: source.path + "-wal"))
         XCTAssertEqual(try LegacyStoreSnapshotter.snapshot(sourceURL: source, destinationURL: copy), copy)
         var copied: OpaquePointer?
         XCTAssertEqual(sqlite3_open_v2(copy.path, &copied, SQLITE_OPEN_READONLY, nil), SQLITE_OK)
@@ -28,6 +30,8 @@ final class LegacySnapshotTests: XCTestCase {
         XCTAssertEqual(String(cString: sqlite3_column_text(statement, 0)), "from wal")
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path + "-wal"))
+        XCTAssertEqual(try Data(contentsOf: source), originalMain)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: source.path + "-wal")), originalWAL)
     }
 
     func testCorruptSourceDoesNotProduceReplacementStore() throws {
