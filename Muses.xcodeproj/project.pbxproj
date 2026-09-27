@@ -10,6 +10,7 @@
 		09EF9F7672736CFDB429908A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0E499433DA82459A29E31C98 /* Assets.xcassets */; };
 		109B68E82A26267834BF227E /* KeyboardDismissalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */; };
 		1691B322D0E2E4A124CA3976 /* MusesNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = B6C839E616E7ADEBC1EA86EE /* MusesNetworking */; };
+		1C9CDF738ED2298F36CF3394 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 14D40A8955CC50AB87F7462D /* PrivacyInfo.xcprivacy */; };
 		21FFC3D5C065537765A08A93 /* YouTubeIFrameContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBD23204B11D9B81CB4880E /* YouTubeIFrameContract.swift */; };
 		27019D7DA05EF8F43D7C1096 /* PublicRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027F187DCE7E94BA6D2C5B03 /* PublicRootView.swift */; };
 		3C6D1046A049A3AD9EBF7903 /* PublicStoreLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D8A3E3A2F0AB70964281DF /* PublicStoreLocation.swift */; };
@@ -47,6 +48,7 @@
 		027F187DCE7E94BA6D2C5B03 /* PublicRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicRootView.swift; sourceTree = "<group>"; };
 		0E499433DA82459A29E31C98 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		120CD27C0FCFF0CCB913A7F0 /* MusesPublicUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusesPublicUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		14D40A8955CC50AB87F7462D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		18429725DF2EDAD606C8F793 /* OAuth */ = {isa = PBXFileReference; lastKnownFileType = folder; name = OAuth; path = Platform/iOS/OAuth; sourceTree = SOURCE_ROOT; };
 		27D48D0063152B94B2CA0707 /* MusesCatalog */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesCatalog; path = Packages/MusesCatalog; sourceTree = SOURCE_ROOT; };
 		3DBD23204B11D9B81CB4880E /* YouTubeIFrameContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeIFrameContract.swift; sourceTree = "<group>"; };
@@ -110,6 +112,7 @@
 			isa = PBXGroup;
 			children = (
 				0E499433DA82459A29E31C98 /* Assets.xcassets */,
+				14D40A8955CC50AB87F7462D /* PrivacyInfo.xcprivacy */,
 			);
 			name = Resources;
 			path = Sources/Muses/Resources;
@@ -292,6 +295,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				09EF9F7672736CFDB429908A /* Assets.xcassets in Resources */,
+				1C9CDF738ED2298F36CF3394 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

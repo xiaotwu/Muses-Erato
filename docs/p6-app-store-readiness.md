@@ -2,6 +2,8 @@
 
 **Snapshot:** 2026-09-27, `670d893` (`codex/erato-integration-base`), before P4 integration. **Decision:** **NO GO** for public TestFlight external review or App Store submission. This is a review worksheet, not an Apple/Google approval. Re-run every check against the exact archived build SHA; P4 may change these findings.
 
+**Integration update:** subsequent implementation evidence is recorded in [implementation-status.md](implementation-status.md). The public source allowlist, visible IFrame, physical Google sign-in/search/playback, and local-library flows have advanced beyond the historical table below. `PrivacyInfo.xcprivacy` declares the own-app UserDefaults access reason `CA92.1` for inherited-settings migration; [Apple's required reason API reference](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype) is the source. This manifest covers accessed APIs only. It is not a completed App Privacy/ATT collection inventory or privacy policy, and the embedded Google player must be included in that final assessment.
+
 ## Release decision and owners
 
 Use this sequence: P4 integrates a public YouTube-only target → P6 audits its built artifact → owner supplies Google/Apple assets → device operator records physical tests → release owner completes TestFlight and App Store Connect → submit for review. A simulator build, package test, or Ad Hoc IPA never closes a physical-device or policy gate. Any failed **Must** row blocks submission. Record evidence in the packet below, including failures.

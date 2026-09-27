@@ -41,6 +41,8 @@ targets:
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameContract.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameDemoViewController.swift
       - path: Sources/Muses/Resources/Assets.xcassets
+      - path: Sources/Muses/Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: MusesDomain
       - package: MusesQueue
