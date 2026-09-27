@@ -6,10 +6,5 @@
 	<array>
 		<string>group.com.xiaotwu.muses.erato</string>
 	</array>
-	<!-- CarPlay Audio: turn this capability on for the App ID in Apple Developer.
-	     Simulator still attaches the scene; a device build without the capability
-	     will fail to sign. The iPhone UI does not depend on this key. -->
-	<key>com.apple.developer.carplay-audio</key>
-	<true/>
 </dict>
 </plist>

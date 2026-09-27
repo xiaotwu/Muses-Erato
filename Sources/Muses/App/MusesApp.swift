@@ -22,7 +22,7 @@ struct AppLauncher {
         if isRunningTests {
             TestApp.main()
         } else {
-            MusesApp.main()
+            PublicYouTubeApp.main()
         }
     }
 }
@@ -158,4 +158,3 @@ extension MusesApp {
         }
     }
 }
-

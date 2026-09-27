@@ -35,34 +35,22 @@
 			<string>com.xiaotwu.muses.erato.oauth</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>muses-erato</string>
+				<string>$(MUSES_GOOGLE_REDIRECT_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>audio</string>
-	</array>
+	<key>MusesYouTubeAPIKey</key>
+	<string>$(MUSES_YOUTUBE_API_KEY)</string>
+	<key>MusesGoogleIOSClientID</key>
+	<string>$(MUSES_GOOGLE_IOS_CLIENT_ID)</string>
+	<key>MusesGoogleRedirectScheme</key>
+	<string>$(MUSES_GOOGLE_REDIRECT_SCHEME)</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<true/>
-		<key>UISceneConfigurations</key>
-		<dict>
-			<key>CPTemplateApplicationSceneSessionRoleApplication</key>
-			<array>
-				<dict>
-					<key>UISceneClassName</key>
-					<string>CPTemplateApplicationScene</string>
-					<key>UISceneConfigurationName</key>
-					<string>CarPlay</string>
-					<key>UISceneDelegateClassName</key>
-					<string>$(PRODUCT_MODULE_NAME).CarPlaySceneDelegate</string>
-				</dict>
-			</array>
-		</dict>
 	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
