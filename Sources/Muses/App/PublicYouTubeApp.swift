@@ -44,7 +44,8 @@ final class PublicYouTubeSession {
     private var oauth: OAuthClient?
     private var oauthConfiguration: OAuthConfiguration?
     private var authorizationSession: IOSAuthorizationSession?
-    private var recordedGeneration: UInt64?
+    private var accountEpoch: UInt64 = 0
+    private var recordedEntryID: UUID?
 
     init() {
         do {
@@ -84,8 +85,11 @@ final class PublicYouTubeSession {
                     budget: RequestBudget(searchCallsPerDay: 10, otherUnitsPerDay: 100))
                 catalog = remote
                 Task { await privateData.setCatalog(remote) }
+                let epoch = accountEpoch
                 Task { [weak self] in
-                    if (try? await auth.accessToken()) != nil { self?.signedIn = true }
+                    if (try? await auth.accessToken()) != nil, self?.accountEpoch == epoch {
+                        self?.signedIn = true
+                    }
                 }
             } else if let apiKey {
                 catalog = YouTubeDataCatalog(apiKey: apiKey,
@@ -148,6 +152,7 @@ final class PublicYouTubeSession {
             defer { authorizationSession = nil }
             let callback = try await browser.authorize(attempt)
             try await oauth.complete(attempt, callback: callback)
+            accountEpoch &+= 1
             signedIn = true
             await loadSubscriptions()
         } catch { failureMessage = "Sign in failed: \(error.localizedDescription)" }
@@ -161,6 +166,7 @@ final class PublicYouTubeSession {
 
     func signOut() async {
         guard let oauth else { return }
+        accountEpoch &+= 1
         do { try await oauth.revokeAndDelete() }
         catch {
             failureMessage = "Local account data was removed. Google revocation may have failed; review access in your Google account settings."
@@ -289,8 +295,8 @@ final class PublicYouTubeSession {
         case .playing:
             state.state = .playing
             queue.setIntent(.play)
-            if recordedGeneration != queue.snapshot.generation {
-                recordedGeneration = queue.snapshot.generation
+            if let entryID = queue.snapshot.current?.id, recordedEntryID != entryID {
+                recordedEntryID = entryID
                 if let track = currentTrack {
                     let entry = PlayedVideo(id: UUID(), trackID: track.id, date: Date())
                     do {
@@ -334,6 +340,7 @@ final class PublicYouTubeSession {
 
     func deleteLocalData() async {
         detach()
+        accountEpoch &+= 1
         do {
             try await oauth?.deleteLocalAccount()
             await catalog?.clearPrivateCache()
