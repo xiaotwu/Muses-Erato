@@ -37,6 +37,9 @@ targets:
       - path: Sources/Muses/App/PublicStoreLocation.swift
       - path: Sources/Muses/Features/Public/PublicRootView.swift
       - path: Sources/Muses/Features/Public/PublicKeyboardDismissal.swift
+      - path: Sources/Muses/Features/Public/PublicCatalogViews.swift
+      # Compile-time DEBUG only; activated exclusively by isolated UI fixtures.
+      - path: Tests/Support/PublicCatalogFixtureTransport.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameAdapter.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameContract.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameDemoViewController.swift

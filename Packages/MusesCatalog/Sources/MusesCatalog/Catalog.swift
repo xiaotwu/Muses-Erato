@@ -11,8 +11,14 @@ public struct CatalogItem: Sendable, Equatable, Codable {
     public let channelID: String?
     public let thumbnailURL: URL?
     public let source: String
-    public init(kind: Kind, id: String, title: String, channelID: String?, thumbnailURL: URL?, source: String = "youtubeDataAPI") {
+    public let description: String?
+    public let listEntryID: String?
+    public var rowID: String { kind.rawValue + ":" + (listEntryID ?? id) }
+    public let fetchedAt: Date?
+    public let uploadsPlaylistID: String?
+    public init(kind: Kind, id: String, title: String, channelID: String?, thumbnailURL: URL?, source: String = "youtubeDataAPI", description: String? = nil, uploadsPlaylistID: String? = nil, fetchedAt: Date? = nil, listEntryID: String? = nil) {
         self.kind = kind; self.id = id; self.title = title; self.channelID = channelID; self.thumbnailURL = thumbnailURL; self.source = source
+        self.listEntryID = listEntryID; self.fetchedAt = fetchedAt; self.description = description; self.uploadsPlaylistID = uploadsPlaylistID
     }
 }
 
@@ -36,7 +42,20 @@ public protocol CatalogCredential: Sendable {
     func accessToken() async throws -> String
 }
 
+/// Application identity required for an iOS-restricted Google API key.
+/// This is a restriction signal, not a secret or app attestation.
+public struct CatalogClientIdentity: Sendable, Equatable {
+    public let iOSBundleID: String
+    public init?(iOSBundleID: String) {
+        guard !iOSBundleID.isEmpty, iOSBundleID.count <= 255,
+              iOSBundleID.split(separator: ".", omittingEmptySubsequences: false).allSatisfy({ !$0.isEmpty }),
+              iOSBundleID.utf8.allSatisfy({ (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 46 }) else { return nil }
+        self.iOSBundleID = iOSBundleID
+    }
+}
+
 public actor YouTubeDataCatalog {
+    private let clientIdentity: CatalogClientIdentity?
     private let apiKey: String?
     private let credential: (any CatalogCredential)?
     private let coalescer: GETCoalescer
@@ -44,18 +63,23 @@ public actor YouTubeDataCatalog {
     private let budget: RequestBudget?
     private var cache: [String: (CatalogPage, Date)] = [:]
     private let ttl: TimeInterval
+    private var cacheEpoch: UInt64 = 0
 
-    public init(apiKey: String? = nil, credential: (any CatalogCredential)? = nil, transport: any HTTPTransport = URLSessionTransport(), ledger: RequestLedger = RequestLedger(), budget: RequestBudget? = nil, cacheTTL: TimeInterval = 300) {
+    public init(apiKey: String? = nil, credential: (any CatalogCredential)? = nil, transport: any HTTPTransport = URLSessionTransport(), ledger: RequestLedger = RequestLedger(), budget: RequestBudget? = nil, cacheTTL: TimeInterval = 300, clientIdentity: CatalogClientIdentity? = nil) {
+        self.clientIdentity = clientIdentity
         self.apiKey = apiKey; self.credential = credential; self.coalescer = GETCoalescer(transport: transport); self.ledger = ledger; self.budget = budget; self.ttl = min(max(cacheTTL, 0), 3600)
     }
     public func requestCounts() async -> RequestLedger.Snapshot { await ledger.snapshot() }
-    public func clearPrivateCache() { cache = cache.filter { !$0.key.hasPrefix("private:") } }
-    public func clearAllCache() { cache.removeAll() }
+    public func clearPrivateCache() { cacheEpoch &+= 1; cache = cache.filter { !$0.key.hasPrefix("private:") } }
+    public func purgeExpiredCache() { cache = cache.filter { $0.value.1 > Date() } }
+    public func clearAllCache() { cacheEpoch &+= 1; cache.removeAll() }
 
-    public func search(_ query: String, pageToken: String? = nil, pageSize: Int = 20) async throws -> CatalogPage {
+    public func search(_ query: String, pageToken: String? = nil, pageSize: Int = 20, kind: CatalogItem.Kind = .video) async throws -> CatalogPage {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return CatalogPage(items: [], nextPageToken: nil) }
-        return try await fetch(.search, parameters: ["part":"snippet", "q":normalized, "type":"video", "videoEmbeddable":"true", "maxResults":String(min(max(pageSize, 1), 50))], pageToken: pageToken, authorized: false)
+        var parameters = ["part":"snippet", "q":normalized, "type":kind.rawValue, "maxResults":String(min(max(pageSize, 1), 50))]
+        if kind == .video { parameters["videoEmbeddable"] = "true" }
+        return try await fetch(.search, parameters: parameters, pageToken: pageToken, authorized: false)
     }
     public func videos(_ ids: [String]) async throws -> CatalogPage {
         let unique = Array(Set(ids)).sorted()
@@ -63,14 +87,17 @@ public actor YouTubeDataCatalog {
         guard unique.count <= 50 else { throw APIError.invalidResponse }
         return try await fetch(.videos, parameters: ["part":"snippet", "id":unique.joined(separator: ","), "maxResults":"50"], pageToken: nil, authorized: false)
     }
-    public func playlist(id: String, pageToken: String? = nil) async throws -> CatalogPage {
-        try await fetch(.playlistItems, parameters: ["part":"snippet", "playlistId":id, "maxResults":"50"], pageToken: pageToken, authorized: false)
+    public func playlist(id: String, pageToken: String? = nil, authorized: Bool = false) async throws -> CatalogPage {
+        try await fetch(.playlistItems, parameters: ["part":"snippet", "playlistId":id, "maxResults":"50"], pageToken: pageToken, authorized: authorized)
     }
-    public func playlistMetadata(id: String) async throws -> CatalogPage {
-        try await fetch(.playlists, parameters: ["part":"snippet", "id":id], pageToken: nil, authorized: false)
+    public func playlistMetadata(id: String, authorized: Bool = false) async throws -> CatalogPage {
+        try await fetch(.playlists, parameters: ["part":"snippet", "id":id], pageToken: nil, authorized: authorized)
     }
-    public func channel(id: String) async throws -> CatalogPage {
-        try await fetch(.channels, parameters: ["part":"snippet", "id":id], pageToken: nil, authorized: false)
+    public func channel(id: String, isHandle: Bool = false) async throws -> CatalogPage {
+        try await fetch(.channels, parameters: ["part":"snippet,contentDetails", isHandle ? "forHandle" : "id":id], pageToken: nil, authorized: false)
+    }
+    public func channelPlaylists(id: String, pageToken: String? = nil) async throws -> CatalogPage {
+        try await fetch(.playlists, parameters: ["part":"snippet", "channelId":id, "maxResults":"50"], pageToken: pageToken, authorized: false)
     }
     public func myPlaylists(pageToken: String? = nil) async throws -> CatalogPage {
         try await fetch(.playlists, parameters: ["part":"snippet", "mine":"true", "maxResults":"50"], pageToken: pageToken, authorized: true)
@@ -83,6 +110,7 @@ public actor YouTubeDataCatalog {
     }
 
     private func fetch(_ endpoint: CatalogEndpoint, parameters: [String:String], pageToken: String?, authorized: Bool) async throws -> CatalogPage {
+        let epoch = cacheEpoch
         guard pageToken == nil || (!pageToken!.isEmpty && pageToken!.count < 512) else { throw APIError.invalidResponse }
         // Google accepts OAuth credentials for the same read endpoints. This lets
         // a signed-in user browse when the public API key is not configured.
@@ -97,9 +125,13 @@ public actor YouTubeDataCatalog {
         guard let url = parts.url else { throw APIError.invalidResponse }
         let accountMarker = token.map { Data(SHA256.hash(data: Data($0.utf8))).base64EncodedString() } ?? ""
         let identity = (token != nil ? "private:\(accountMarker):" : "public:") + endpoint.rawValue + ":" + (parts.percentEncodedQuery ?? "")
+        purgeExpiredCache()
         if let cached = cache[identity], cached.1 > Date() { return cached.0 }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        if token == nil, let clientIdentity {
+            request.setValue(clientIdentity.iOSBundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
+        }
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         let response: HTTPResponse
         do { response = try await coalescer.get(request, identity: identity, ledger: ledger, endpoint: endpoint.rawValue, budget: budget) }
@@ -109,6 +141,7 @@ public actor YouTubeDataCatalog {
         if let error = APIError.classify(response) { throw error }
         guard let decoded = try? JSONDecoder().decode(ListResponse.self, from: response.body) else { throw APIError.invalidResponse }
         let page = CatalogPage(items: decoded.items.compactMap { $0.catalogItem(endpoint: endpoint) }, nextPageToken: decoded.nextPageToken)
+        guard epoch == cacheEpoch else { throw CancellationError() }
         cache[identity] = (page, Date().addingTimeInterval(ttl))
         return page
     }
@@ -122,7 +155,12 @@ private struct DataItem: Decodable {
     struct ResourceID: Decodable { let kind: String?; let videoId: String?; let playlistId: String?; let channelId: String? }
     struct Thumb: Decodable { let url: URL? }
     struct Thumbs: Decodable { let `default`: Thumb?; let medium: Thumb? }
-    struct Snippet: Decodable { let title: String?; let channelId: String?; let resourceId: ResourceID?; let thumbnails: Thumbs? }
+    struct Snippet: Decodable { let title: String?; let description: String?; let videoOwnerChannelId: String?; let channelId: String?; let resourceId: ResourceID?; let thumbnails: Thumbs? }
+    struct ContentDetails: Decodable {
+        struct Related: Decodable { let uploads: String? }
+        let relatedPlaylists: Related?
+    }
+    let contentDetails: ContentDetails?
     let id: IDValue?
     let snippet: Snippet?
     func catalogItem(endpoint: CatalogEndpoint) -> CatalogItem? {
@@ -142,7 +180,7 @@ private struct DataItem: Decodable {
         case .channels: kind = .channel; rawID = id?.stringValue
         }
         guard let rawID, !rawID.isEmpty else { return nil }
-        return CatalogItem(kind: kind, id: rawID, title: title, channelID: snippet.channelId, thumbnailURL: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url)
+        return CatalogItem(kind: kind, id: rawID, title: title, channelID: endpoint == .playlistItems ? snippet.videoOwnerChannelId : snippet.channelId, thumbnailURL: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url, description: snippet.description, uploadsPlaylistID: contentDetails?.relatedPlaylists?.uploads, fetchedAt: Date(), listEntryID: endpoint == .playlistItems ? id?.stringValue : nil)
     }
 }
 private enum IDValue: Decodable {

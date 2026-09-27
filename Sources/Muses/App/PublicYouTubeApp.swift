@@ -51,13 +51,23 @@ final class PublicYouTubeSession {
     private(set) var state = PlaybackSnapshot()
     private(set) var failureMessage: String?
     private(set) var recoveryMessage: String?
-    private(set) var searchItems: [MusesCatalog.CatalogItem] = []
+    let searchPages = CatalogPager()
+    let subscriptionPages = CatalogPager()
+    let accountPlaylistPages = CatalogPager()
+    let accountChannelPages = CatalogPager()
+    var searchKind: MusesCatalog.CatalogItem.Kind = .video
+    private var submittedSearch = ""
+    private var submittedKind: MusesCatalog.CatalogItem.Kind = .video
+    private var linkGeneration = UUID()
+    var catalogRoute: YouTubeCatalogLink?
+    var searchItems: [MusesCatalog.CatalogItem] { localSearchItems + searchPages.items.filter { online in !localSearchItems.contains { $0.kind == online.kind && $0.id == online.id } } }
+    private var localSearchItems: [MusesCatalog.CatalogItem] = []
     private(set) var playedIDs: [TrackID] = []
     private(set) var playlists: [LocalPlaylist] = []
-    private(set) var searchError: String?
-    private(set) var searching = false
+    var searchError: String? { searchPages.error }
+    var searching: Bool { searchPages.loading }
     private(set) var signedIn = false
-    private(set) var subscriptions: [MusesCatalog.CatalogItem] = []
+    var subscriptions: [MusesCatalog.CatalogItem] { subscriptionPages.items }
     var showPlayer = false
     var selectedCategory: LibraryCategory = .videos
     private var adapter: YouTubeIFrameAdapter?
@@ -70,7 +80,7 @@ final class PublicYouTubeSession {
     private var accountEpoch: UInt64 = 0
     private var recordedEntryID: UUID?
 
-    init(storeURL: URL? = nil) {
+    init(storeURL: URL? = nil, catalogOverride: YouTubeDataCatalog? = nil) {
         do {
             // The inherited autoschema remains untouched until full parity migration is verified.
             let old = storeURL?.deletingLastPathComponent().appending(path: "muses-youtube-native.sqlite") ?? musesDefaultStoreURL()
@@ -89,6 +99,7 @@ final class PublicYouTubeSession {
             let repo = SwiftDataSnapshotRepository(context: container.mainContext)
             repository = repo
             tracks = try repo.list(MusesDomain.Track.self, kind: .track)
+            try expireCatalogMetadata()
             playedIDs = try repo.list(PlaybackHistoryEntry.self, kind: .history).sorted { $0.date > $1.date }.map(\.trackID)
             playlists = try repo.localPlaylists()
             queue = try PlaybackQueue(snapshot: repo.queue() ?? .init())
@@ -102,6 +113,18 @@ final class PublicYouTubeSession {
                 state = PlaybackSnapshot(state: .paused, source: current.source,
                                          generation: queue.snapshot.generation, intent: .pause)
             }
+            if let catalogOverride {
+                catalog = catalogOverride; hasPublicAPIKey = true
+                return
+            }
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] != nil,
+               ProcessInfo.processInfo.environment["MUSES_UI_TEST_CATALOG"] == "fixtures" {
+                catalog = YouTubeDataCatalog(apiKey: "ui-fixture", credential: PublicFixtureCredential(), transport: PublicCatalogFixtureTransport())
+                hasPublicAPIKey = true; signedIn = true
+                return
+            }
+            #endif
             let key = Bundle.main.object(forInfoDictionaryKey: "MusesYouTubeAPIKey") as? String
             let apiKey = key.flatMap { !$0.isEmpty && !$0.hasPrefix("$(") ? $0 : nil }
             hasPublicAPIKey = apiKey != nil
@@ -117,7 +140,8 @@ final class PublicYouTubeSession {
                     privateData: privateData)
                 oauth = auth
                 let remote = YouTubeDataCatalog(apiKey: apiKey, credential: auth,
-                    budget: RequestBudget(searchCallsPerDay: 10, otherUnitsPerDay: 100))
+                    budget: RequestBudget(searchCallsPerDay: 10, otherUnitsPerDay: 100),
+                    clientIdentity: Bundle.main.bundleIdentifier.flatMap { CatalogClientIdentity(iOSBundleID: $0) })
                 catalog = remote
                 Task { await privateData.setCatalog(remote) }
                 let epoch = accountEpoch
@@ -128,7 +152,8 @@ final class PublicYouTubeSession {
                 }
             } else if let apiKey {
                 catalog = YouTubeDataCatalog(apiKey: apiKey,
-                    budget: RequestBudget(searchCallsPerDay: 10, otherUnitsPerDay: 100))
+                    budget: RequestBudget(searchCallsPerDay: 10, otherUnitsPerDay: 100),
+                    clientIdentity: Bundle.main.bundleIdentifier.flatMap { CatalogClientIdentity(iOSBundleID: $0) })
             }
         } catch {
             repository = nil
@@ -152,27 +177,99 @@ final class PublicYouTubeSession {
 
     func search(_ input: String) async {
         let query = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { searchItems = []; searchError = nil; return }
-        searchItems = tracks.filter { $0.title.localizedCaseInsensitiveContains(query) || $0.artist.localizedCaseInsensitiveContains(query) }
+        if query == submittedSearch, submittedKind == searchKind, searchPages.loading { return }
+        submittedSearch = query; submittedKind = searchKind
+        searchPages.reset()
+        localSearchItems = searchKind == .video ? tracks.filter { $0.title.localizedCaseInsensitiveContains(query) || $0.artist.localizedCaseInsensitiveContains(query) }
             .compactMap { track in
                 guard case .youtubeVideo(let id) = track.source else { return nil }
                 return MusesCatalog.CatalogItem(kind: .video, id: id.rawValue, title: track.title,
                     channelID: nil, thumbnailURL: nil, source: "local")
-            }
-        guard let catalog, apiConfigured else {
-            searchError = "Online search needs a YouTube Data API key or a Google sign in. Paste a YouTube video link to play without one."
-            return
+            } : []
+        guard !query.isEmpty else { localSearchItems = []; return }
+        await nextSearchPage()
+    }
+
+    func nextSearchPage() async {
+        let query = submittedSearch, kind = submittedKind
+        guard !query.isEmpty else { return }
+        await searchPages.load { token in
+            guard let catalog = self.catalog, self.apiConfigured else { throw APIError.unauthorized }
+            return try await catalog.search(query, pageToken: token, kind: kind)
         }
-        searching = true
-        defer { searching = false }
+    }
+
+    func readCatalog(_ route: YouTubeCatalogLink, token: String? = nil, contents: Bool = false, authorized: Bool = false) async throws -> MusesCatalog.CatalogPage {
+        guard let catalog, apiConfigured, !authorized || signedIn else { throw APIError.unauthorized }
+        switch route {
+        case .video(let id): return try await catalog.videos([id])
+        case .playlist(let id):
+            return try await contents ? catalog.playlist(id: id, pageToken: token, authorized: authorized) : catalog.playlistMetadata(id: id, authorized: authorized)
+        case .channel(let id):
+            return try await contents ? catalog.channelPlaylists(id: id, pageToken: token) : catalog.channel(id: id)
+        case .handle(let handle): return try await catalog.channel(id: handle, isHandle: true)
+        }
+    }
+
+    func loadAccountPlaylists() async {
+        await accountPlaylistPages.load { token in
+            guard self.signedIn, let catalog = self.catalog else { throw APIError.unauthorized }
+            return try await catalog.myPlaylists(pageToken: token)
+        }
+    }
+    func loadAccountChannel() async {
+        await accountChannelPages.load { _ in
+            guard self.signedIn, let catalog = self.catalog else { throw APIError.unauthorized }
+            return try await catalog.myChannel()
+        }
+    }
+    private func resetAccountCatalog() {
+        subscriptionPages.reset(); accountPlaylistPages.reset(); accountChannelPages.reset()
+        searchPages.reset(); localSearchItems = []; catalogRoute = nil
+    }
+
+    func maintainCatalogData() async {
+        do { try expireCatalogMetadata() } catch { failureMessage = "Could not expire YouTube metadata: \(error.localizedDescription)" }
+        searchPages.expire(); subscriptionPages.expire(); accountPlaylistPages.expire(); accountChannelPages.expire()
+        await catalog?.purgeExpiredCache()
+    }
+
+    func expireCatalogMetadata(at date: Date = Date(), force: Bool = false) throws {
+        for index in tracks.indices {
+            var track = tracks[index]
+            track.expireYouTubeMetadata(at: date, force: force)
+            if track != tracks[index] { try repository?.saveTrack(track); tracks[index] = track; localSearchItems = [] }
+        }
+    }
+
+    private(set) var refreshingMetadata = false
+    func refreshSavedMetadata() async {
+        guard !refreshingMetadata else { return }
+        refreshingMetadata = true
+        defer { refreshingMetadata = false }
+        guard let catalog, apiConfigured else { failureMessage = APIError.unauthorized.localizedDescription; return }
+        let epoch = accountEpoch
+        let ids = tracks.filter { $0.metadataOrigin != .user }.compactMap { track -> String? in
+            if case .youtubeVideo(let id) = track.source { return id.rawValue }; return nil
+        }
         do {
-            let page = try await catalog.search(query)
-            let savedIDs = Set(searchItems.map(\.id))
-            searchItems += page.items.filter { $0.kind == .video && !savedIDs.contains($0.id) }
-            searchError = nil
-        } catch {
-            searchError = "Online search unavailable: \(error.localizedDescription). Saved results remain available."
-        }
+            try expireCatalogMetadata()
+            for start in stride(from: 0, to: ids.count, by: 50) {
+                let batch = Array(ids[start..<min(start + 50, ids.count)])
+                let page = try await catalog.videos(batch)
+                guard epoch == accountEpoch else { return }
+                for index in tracks.indices {
+                    guard case .youtubeVideo(let id) = tracks[index].source, batch.contains(id.rawValue), tracks[index].metadataOrigin != .user else { continue }
+                    var track = tracks[index]
+                    if let item = page.items.first(where: { $0.id == id.rawValue }) {
+                        track.title = item.title; track.artist = "YouTube"
+                        track.metadataOrigin = .youtubeDataAPI; track.metadataFetchedAt = page.fetchedAt
+                    } else { track.expireYouTubeMetadata(force: true) }
+                    try repository?.saveTrack(track); tracks[index] = track
+                }
+            }
+            failureMessage = nil
+        } catch { failureMessage = error.localizedDescription }
     }
 
     func signIn() async {
@@ -190,20 +287,25 @@ final class PublicYouTubeSession {
             let callback = try await browser.authorize(attempt)
             try await oauth.complete(attempt, callback: callback)
             accountEpoch &+= 1
+            resetAccountCatalog()
             signedIn = true
             await loadSubscriptions()
         } catch { failureMessage = "Sign in failed: \(error.localizedDescription)" }
     }
 
     func loadSubscriptions() async {
-        guard signedIn, let catalog else { return }
-        do { subscriptions = try await catalog.mySubscriptions().items }
-        catch { failureMessage = "Subscriptions unavailable: \(error.localizedDescription)" }
+        await subscriptionPages.load { token in
+            guard self.signedIn, let catalog = self.catalog else { throw APIError.unauthorized }
+            return try await catalog.mySubscriptions(pageToken: token)
+        }
     }
 
     func signOut() async {
         guard let oauth else { return }
         accountEpoch &+= 1
+        signedIn = false
+        resetAccountCatalog()
+        do { try expireCatalogMetadata(force: true) } catch { failureMessage = "Metadata could not be removed: \(error.localizedDescription)" }
         do { try await oauth.revokeAndDelete() }
         catch OAuthFailure.storage {
             failureMessage = "Account cleanup could not finish on this device. Retry when the device is unlocked and review Google account access."
@@ -212,37 +314,38 @@ final class PublicYouTubeSession {
             failureMessage = "Local account data was removed. Google revocation may have failed; review access in your Google account settings."
         }
         signedIn = false
-        subscriptions = []
+        resetAccountCatalog()
         await catalog?.clearPrivateCache()
     }
 
     func openLink(_ text: String) async {
-        guard let video = Self.videoID(from: text) else {
-            failureMessage = "Enter a YouTube video link or an 11-character video ID."
+        let generation = UUID(), epoch = accountEpoch
+        linkGeneration = generation
+        guard let route = YouTubeCatalogLink.parse(text) else {
+            failureMessage = "Enter a YouTube video, playlist or channel URL (including @handle), or an 11-character video ID."
             return
         }
+        guard case .video(let rawID) = route, let video = try? VideoID(rawID) else {
+            catalogRoute = route
+            return
+        }
+        var fetchedAt: Date?
         var title = "YouTube video \(video.rawValue)"
         if let catalog, let result = try? await catalog.videos([video.rawValue]),
            let item = result.items.first(where: { $0.id == video.rawValue }) {
             title = item.title
+            fetchedAt = item.fetchedAt
         }
-        open(video, title: title)
+        guard generation == linkGeneration, epoch == accountEpoch, !Task.isCancelled else { return }
+        open(video, title: title, metadataFetchedAt: fetchedAt)
     }
 
     nonisolated static func videoID(from input: String) -> VideoID? {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let id = try? VideoID(trimmed) { return id }
-        guard let url = URLComponents(string: trimmed), url.scheme == "https",
-              let host = url.host?.lowercased(), ["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"].contains(host) else { return nil }
-        let raw: String?
-        if host == "youtu.be" { raw = url.path.split(separator: "/").first.map(String.init) }
-        else if url.path == "/watch" { raw = url.queryItems?.first(where: { $0.name == "v" })?.value }
-        else if url.path.hasPrefix("/shorts/") || url.path.hasPrefix("/embed/") { raw = url.path.split(separator: "/").last.map(String.init) }
-        else { raw = nil }
-        return raw.flatMap { try? VideoID($0) }
+        guard case .video(let raw) = YouTubeCatalogLink.parse(input) else { return nil }
+        return try? VideoID(raw)
     }
 
-    func open(_ id: VideoID, title: String) {
+    func open(_ id: VideoID, title: String, metadataFetchedAt: Date? = nil) {
         guard repository != nil else { return }
         do {
             let track: MusesDomain.Track
@@ -250,7 +353,8 @@ final class PublicYouTubeSession {
             else {
                 track = try MusesDomain.Track(id: TrackID(UUID().uuidString), title: title,
                     artist: "YouTube", source: .youtubeVideo(id),
-                    provenance: Provenance(provider: ProviderID("youtube"), originalID: id.rawValue))
+                    provenance: Provenance(provider: ProviderID("youtube"), originalID: id.rawValue),
+                    metadataOrigin: metadataFetchedAt == nil ? (title == "YouTube video \(id.rawValue)" ? .placeholder : .user) : .youtubeDataAPI, metadataFetchedAt: metadataFetchedAt)
                 try repository?.saveTrack(track)
                 tracks.append(track)
             }
@@ -263,7 +367,7 @@ final class PublicYouTubeSession {
         } catch { failureMessage = error.localizedDescription }
     }
 
-    func enqueue(_ id: VideoID, title: String) {
+    func enqueue(_ id: VideoID, title: String, metadataFetchedAt: Date? = nil) {
         guard repository != nil else { return }
         do {
             let track: MusesDomain.Track
@@ -271,7 +375,8 @@ final class PublicYouTubeSession {
             else {
                 track = try MusesDomain.Track(id: TrackID(UUID().uuidString), title: title,
                     artist: "YouTube", source: .youtubeVideo(id),
-                    provenance: Provenance(provider: ProviderID("youtube"), originalID: id.rawValue))
+                    provenance: Provenance(provider: ProviderID("youtube"), originalID: id.rawValue),
+                    metadataOrigin: metadataFetchedAt == nil ? (title == "YouTube video \(id.rawValue)" ? .placeholder : .user) : .youtubeDataAPI, metadataFetchedAt: metadataFetchedAt)
                 try repository?.saveTrack(track)
                 tracks.append(track)
             }
@@ -455,6 +560,8 @@ final class PublicYouTubeSession {
     func deleteLocalData() async {
         detach()
         accountEpoch &+= 1
+        signedIn = false
+        resetAccountCatalog()
         do {
             try await oauth?.deleteLocalAccount()
             await catalog?.clearPrivateCache()
@@ -465,9 +572,9 @@ final class PublicYouTubeSession {
             tracks = []
             queue = try PlaybackQueue()
             state = PlaybackSnapshot()
-            searchItems = []
+            localSearchItems = []; searchPages.reset()
             playedIDs = []
-            subscriptions = []
+            resetAccountCatalog()
             signedIn = false
             failureMessage = nil
         } catch { failureMessage = "Local data could not be deleted: \(error.localizedDescription)" }
@@ -486,3 +593,9 @@ enum LibraryCategory: String, CaseIterable, Identifiable {
     case playlists = "Playlists", history = "History"
     var id: String { rawValue }
 }
+
+#if DEBUG
+private struct PublicFixtureCredential: CatalogCredential {
+    func accessToken() async throws -> String { "ui-fixture-token" }
+}
+#endif

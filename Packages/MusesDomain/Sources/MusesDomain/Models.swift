@@ -13,10 +13,15 @@ public struct Track: Hashable, Codable, Sendable, Identifiable {
     public var source: PlaybackSource
     public var provenance: Provenance
     public var durationMilliseconds: Int?
+    /// nil marks legacy metadata whose source/time was not recorded.
+    public enum MetadataOrigin: String, Codable, Sendable { case user, youtubeDataAPI, placeholder }
+    public var metadataOrigin: MetadataOrigin?
+    public var metadataFetchedAt: Date?
     public var liked: Bool
-    public init(id: TrackID, title: String, artist: String, source: PlaybackSource, provenance: Provenance, durationMilliseconds: Int? = nil, liked: Bool = false) {
+    public init(id: TrackID, title: String, artist: String, source: PlaybackSource, provenance: Provenance, durationMilliseconds: Int? = nil, liked: Bool = false, metadataOrigin: MetadataOrigin? = nil, metadataFetchedAt: Date? = nil) {
         self.id = id; self.title = title; self.artist = artist; self.source = source; self.provenance = provenance
         self.durationMilliseconds = durationMilliseconds; self.liked = liked
+        self.metadataOrigin = metadataOrigin; self.metadataFetchedAt = metadataFetchedAt
     }
 }
 
@@ -58,4 +63,16 @@ public protocol MusicCatalog: Sendable {
     func artist(id: ArtistID) async throws -> CatalogPage
     func release(id: ReleaseID) async throws -> CatalogPage
     func playlist(id: PlaylistID) async throws -> CatalogPage
+}
+
+
+extension Track {
+    /// Delete API-derived fields before the 30-calendar-day storage ceiling.
+    /// IDs and user-authored collection relationships are never removed here.
+    public mutating func expireYouTubeMetadata(at now: Date = Date(), force: Bool = false) {
+        guard case .youtubeVideo(let video) = source, metadataOrigin != .user, metadataOrigin != .placeholder else { return }
+        guard force || metadataFetchedAt == nil || now.timeIntervalSince(metadataFetchedAt!) >= 29 * 86400 || metadataFetchedAt! > now else { return }
+        title = "YouTube video \(video.rawValue)"; artist = "YouTube"
+        durationMilliseconds = nil; metadataFetchedAt = nil; metadataOrigin = .placeholder
+    }
 }

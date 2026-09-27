@@ -39,6 +39,7 @@ private enum PublicDestination: Int, CaseIterable, Identifiable {
 
 struct PublicRootView: View {
     @Bindable var session: PublicYouTubeSession
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selection: PublicDestination = .home
@@ -98,12 +99,27 @@ struct PublicRootView: View {
                 }
             }
         }
+        .task {
+            while !Task.isCancelled {
+                await session.maintainCatalogData()
+                do { try await Task.sleep(for: .seconds(3600)) } catch { break }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await session.maintainCatalogData() } }
+        }
         .tint(PublicStyle.gold)
         .background(PublicKeyboardDismissal())
         .sheet(isPresented: $showSettings) {
             NavigationStack { settings }
+                .fullScreenCover(isPresented: $session.showPlayer) {
+                    PublicPlayerView(session: session)
+                }
         }
-        .fullScreenCover(isPresented: $session.showPlayer) {
+        .fullScreenCover(isPresented: Binding(
+            get: { session.showPlayer && !showSettings },
+            set: { session.showPlayer = $0 }
+        )) {
             PublicPlayerView(session: session)
         }
     }
@@ -176,6 +192,9 @@ struct PublicRootView: View {
             .frame(maxWidth: .infinity)
         }
         .background(PublicStyle.background)
+        .navigationDestination(item: $session.catalogRoute) { route in
+            PublicCatalogDetail(session: session, route: route)
+        }
         .navigationTitle("Muses")
         .scrollDismissesKeyboard(.interactively)
         .navigationBarTitleDisplayMode(.inline)
@@ -184,13 +203,13 @@ struct PublicRootView: View {
 
     private var linkCard: some View {
         VStack(alignment: .leading, spacing: 15) {
-            Label("Open a YouTube video", systemImage: "play.rectangle")
+            Label("Open YouTube content", systemImage: "play.rectangle")
                 .font(.headline)
                 .foregroundStyle(PublicStyle.ink)
-            Text("Paste a video link or ID. Playback stays in the visible official player.")
+            Text("Paste a video, playlist or channel link. Playback stays in the visible official player.")
                 .font(.subheadline)
                 .foregroundStyle(PublicStyle.muted)
-            TextField("Paste YouTube video URL or ID", text: $link)
+            TextField("Paste YouTube URL or video ID", text: $link)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textContentType(.URL)
@@ -201,7 +220,7 @@ struct PublicRootView: View {
                 .background(PublicStyle.background, in: RoundedRectangle(cornerRadius: 12))
                 .accessibilityIdentifier("public.link")
             Button(action: openLink) {
-                Label("Open video", systemImage: "arrow.up.right")
+                Label("Open link", systemImage: "arrow.up.right")
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
@@ -231,6 +250,8 @@ struct PublicRootView: View {
                         symbol: "wifi.slash"
                     )
                 }
+                NavigationLink("Account & YouTube collections") { PublicYouTubeAccountCatalog(session: session) }
+                Text("Open a playlist or channel link on Home to browse without using search quota.").font(.footnote).foregroundStyle(.secondary)
                 sectionHeading("Explore by search", detail: "Search runs only when selected")
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 12)], spacing: 12) {
                     discoveryTile("Live sessions", symbol: "music.mic", query: "live music sessions")
@@ -281,14 +302,14 @@ struct PublicRootView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 PublicPageHeading(
-                    eyebrow: "FIND A VIDEO",
+                    eyebrow: "SEARCH YOUTUBE",
                     title: "Search.",
-                    subtitle: "Search saved videos and, when configured, YouTube videos."
+                    subtitle: "Search saved videos or choose YouTube videos, playlists and channels."
                 )
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(PublicStyle.muted)
-                    TextField("Search videos", text: $query)
+                    TextField("Search YouTube", text: $query)
                         .submitLabel(.search)
                         .autocorrectionDisabled()
                         .focused($searchFocused)
@@ -297,6 +318,12 @@ struct PublicRootView: View {
                 }
                 .padding(15)
                 .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
+                Picker("Search type", selection: $session.searchKind) {
+                    Text("Videos").tag(MusesCatalog.CatalogItem.Kind.video)
+                    Text("Playlists").tag(MusesCatalog.CatalogItem.Kind.playlist)
+                    Text("Channels").tag(MusesCatalog.CatalogItem.Kind.channel)
+                }.pickerStyle(.segmented)
+                Text("Each search page uses search quota. More results load only when requested.").font(.footnote).foregroundStyle(.secondary)
                 Button("Search YouTube", action: submitSearch)
                     .buttonStyle(.borderedProminent)
                     .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
@@ -313,7 +340,7 @@ struct PublicRootView: View {
                     PublicNotice(message: error, symbol: "exclamationmark.circle")
                         .accessibilityIdentifier("public.searchError")
                 }
-                sectionHeading("Results", detail: session.searchItems.isEmpty ? "" : "\(session.searchItems.count) videos")
+                sectionHeading("Results", detail: session.searchItems.isEmpty ? "" : "\(session.searchItems.count) items")
                 if session.searchItems.isEmpty && !session.searching {
                     PublicEmptyState(
                         symbol: "magnifyingglass",
@@ -322,37 +349,12 @@ struct PublicRootView: View {
                     )
                 }
                 LazyVStack(spacing: 10) {
-                    ForEach(session.searchItems, id: \.id) { item in
-                        if let id = try? VideoID(item.id) {
-                            HStack(spacing: 12) {
-                                Button {
-                                    session.open(id, title: item.title)
-                                } label: {
-                                    PublicVideoArtwork(videoID: id.rawValue)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(item.title)
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(PublicStyle.ink)
-                                            .lineLimit(2)
-                                        Text(item.source == "local" ? "Saved video" : "YouTube video")
-                                            .font(.caption)
-                                            .foregroundStyle(PublicStyle.muted)
-                                    }
-                                    Spacer(minLength: 0)
-                                }
-                                .buttonStyle(.plain)
-                                Button {
-                                    session.enqueue(id, title: item.title)
-                                } label: {
-                                    Image(systemName: "text.badge.plus")
-                                        .frame(width: 44, height: 44)
-                                }
-                                .accessibilityLabel("Add \(item.title) to queue")
-                            }
-                            .padding(8)
-                            .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 15))
-                        }
+                    ForEach(session.searchItems, id: \.rowID) { item in
+                        PublicCatalogRow(session: session, item: item)
                     }
+                }
+                if session.searchPages.loaded || session.searchPages.error != nil {
+                    PublicCatalogPaging(page: session.searchPages) { await session.nextSearchPage() }
                 }
             }
             .frame(maxWidth: 900, alignment: .leading)
@@ -491,14 +493,10 @@ struct PublicRootView: View {
                 if session.subscriptions.isEmpty {
                     PublicEmptyState(symbol: "person.crop.rectangle.stack", title: "No subscriptions loaded", detail: "Refresh to read subscriptions from your YouTube account.")
                 }
-                ForEach(session.subscriptions, id: \.id) { item in
-                    Text(item.title)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                        .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 12))
+                ForEach(session.subscriptions, id: \.rowID) { item in
+                    PublicCatalogRow(session: session, item: item)
                 }
-                Button("Refresh subscriptions") { Task { await session.loadSubscriptions() } }
-                    .buttonStyle(.bordered)
+                PublicCatalogPaging(page: session.subscriptionPages, initialTitle: "Load subscriptions") { await session.loadSubscriptions() }
             } else {
                 PublicEmptyState(symbol: "person.crop.rectangle.stack", title: "Sign in to see subscriptions", detail: "A configured Google account grants read-only access to your YouTube subscriptions.")
                 Button("Account settings") { showSettings = true }
@@ -563,6 +561,7 @@ struct PublicRootView: View {
             Section("YouTube account") {
                 if session.signedIn {
                     Text("Signed in for read-only YouTube account data")
+                    NavigationLink("Account & YouTube collections") { PublicYouTubeAccountCatalog(session: session) }
                     Button("Sign out and revoke access") { Task { await session.signOut() } }
                 } else if session.oauthConfigured {
                     Button("Sign in with Google") { Task { await session.signIn() } }
@@ -572,6 +571,8 @@ struct PublicRootView: View {
                 }
             }
             Section("Local data") {
+                Button("Refresh saved YouTube metadata") { Task { await session.refreshSavedMetadata() } }.disabled(session.refreshingMetadata)
+                Text("YouTube titles expire after 29 days. Your video IDs, favorites and local playlists remain.").font(.footnote)
                 Button("Delete videos, playlists, queue and history", role: .destructive) { confirmDelete = true }
                 Text("This removes data stored by Muses on this device. It does not delete YouTube data.")
                     .font(.footnote)

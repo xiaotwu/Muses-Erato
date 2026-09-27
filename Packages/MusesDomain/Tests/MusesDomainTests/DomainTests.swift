@@ -35,3 +35,32 @@ final class DomainTests: XCTestCase {
         XCTAssertFalse(page.isComplete)
     }
 }
+
+extension DomainTests {
+    func testYouTubeMetadataExpiryPreservesIdentityAndUserEdits() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        var track = Track(id: try TrackID(UUID().uuidString), title: "API title", artist: "API creator",
+            source: .youtubeVideo(try VideoID("abcdefghijk")), provenance: try Provenance(provider: ProviderID("youtube"), originalID: "abcdefghijk"),
+            durationMilliseconds: 10_000, liked: true, metadataOrigin: .youtubeDataAPI, metadataFetchedAt: now.addingTimeInterval(-29 * 86400))
+        let identity = track.id, provenance = track.provenance
+        track.expireYouTubeMetadata(at: now)
+        XCTAssertEqual(track.title, "YouTube video abcdefghijk")
+        XCTAssertEqual(track.id, identity); XCTAssertEqual(track.provenance, provenance)
+        XCTAssertTrue(track.liked); XCTAssertNil(track.durationMilliseconds); XCTAssertNil(track.metadataFetchedAt)
+        track.title = "My own title"; track.metadataOrigin = .user
+        track.expireYouTubeMetadata(at: now, force: true)
+        XCTAssertEqual(track.title, "My own title")
+    }
+    func testLegacyMetadataWithoutTimestampIsPurgedAndNewStampRoundTrips() throws {
+        let original = Track(id: try TrackID(UUID().uuidString), title: "Old API title", artist: "Old creator",
+            source: .youtubeVideo(try VideoID("abcdefghijk")), provenance: try Provenance(provider: ProviderID("youtube"), originalID: "abcdefghijk"))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+        json.removeValue(forKey: "metadataOrigin")
+        var decoded = try JSONDecoder().decode(Track.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertNil(decoded.metadataOrigin)
+        decoded.expireYouTubeMetadata()
+        XCTAssertEqual(decoded.metadataOrigin, .placeholder)
+        decoded.metadataOrigin = .youtubeDataAPI; decoded.metadataFetchedAt = Date()
+        XCTAssertEqual(try JSONDecoder().decode(Track.self, from: JSONEncoder().encode(decoded)), decoded)
+    }
+}

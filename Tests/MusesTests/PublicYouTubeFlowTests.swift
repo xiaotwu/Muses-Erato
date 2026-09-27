@@ -2,6 +2,8 @@ import XCTest
 import MusesDomain
 import MusesPersistence
 import SwiftData
+import MusesCatalog
+import MusesNetworking
 @testable import Muses
 
 final class PublicYouTubeFlowTests: XCTestCase {
@@ -178,5 +180,52 @@ final class PublicYouTubeFlowTests: XCTestCase {
         XCTAssertFalse(session.editQueue { try $0.remove(id: UUID()) })
         XCTAssertEqual(session.queue.snapshot, before)
         XCTAssertEqual(session.tracks.first?.id, track.id)
+    }
+}
+
+
+private actor MetadataBatchHTTP: HTTPTransport {
+    var batchSizes: [Int] = []
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+        let ids = query.first { $0.name == "id" }!.value!.split(separator: ",").map(String.init)
+        batchSizes.append(ids.count)
+        let items: [[String: Any]] = ids.map { ["id": $0, "snippet": ["title": "Updated \($0)"]] }
+        return HTTPResponse(status: 200, body: try JSONSerialization.data(withJSONObject: ["items": items]))
+    }
+}
+
+extension PublicLocalLibraryFlowTests {
+    func testExpiredAPITitleIsRemovedWithoutLosingFavoritePlaylistOrQueue() throws {
+        let url = try store()
+        let session = PublicYouTubeSession(storeURL: url)
+        session.open(try VideoID("abcdefghijk"), title: "API title", metadataFetchedAt: Date().addingTimeInterval(-30 * 86400))
+        let id = try XCTUnwrap(session.currentTrack?.id)
+        session.toggleFavorite(id)
+        XCTAssertTrue(session.createPlaylist("User playlist", trackIDs: [id]))
+        let reopened = PublicYouTubeSession(storeURL: url)
+        XCTAssertEqual(reopened.currentTrack?.title, "YouTube video abcdefghijk")
+        XCTAssertEqual(reopened.currentTrack?.metadataOrigin, .placeholder)
+        XCTAssertEqual(reopened.favorites.map(\.id), [id])
+        XCTAssertEqual(reopened.playlists.first?.trackIDs, [id])
+        XCTAssertEqual(reopened.playlists.first?.name, "User playlist")
+        XCTAssertEqual(reopened.queue.snapshot.current?.trackID, id)
+    }
+    func testSavedMetadataRefreshUsesBatchesAndPreservesUserTitles() async throws {
+        let transport = MetadataBatchHTTP()
+        let catalog = YouTubeDataCatalog(apiKey: "fixture", transport: transport)
+        let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: catalog)
+        for index in 0..<51 {
+            let raw = String(format: "%011d", index)
+            session.enqueue(try VideoID(raw), title: "YouTube video \(raw)")
+        }
+        session.enqueue(try VideoID("abcdefghijk"), title: "My custom title")
+        await session.refreshSavedMetadata()
+        let batches = await transport.batchSizes
+        XCTAssertEqual(batches, [50, 1])
+        XCTAssertEqual(session.tracks.filter { $0.metadataOrigin == .youtubeDataAPI }.count, 51)
+        XCTAssertEqual(session.tracks.last?.title, "My custom title")
+        XCTAssertEqual(session.queue.snapshot.upcoming.count, 52)
+        XCTAssertTrue(session.tracks.dropLast().allSatisfy { $0.metadataFetchedAt != nil })
     }
 }
