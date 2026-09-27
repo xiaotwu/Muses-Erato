@@ -39,10 +39,15 @@ struct IFrameEvent: Equatable, Sendable {
 
 /// Rejects messages from old players, removed views, and unexpected origins.
 struct IFrameEventGate {
+    let expectedOriginHost: String
     private(set) var videoID: IFrameVideoID?
     private(set) var generation: UInt64 = 0
     private(set) var isAlive = true
     private var endedGeneration: UInt64?
+
+    init(expectedOriginHost: String) {
+        self.expectedOriginHost = expectedOriginHost
+    }
 
     mutating func load(_ id: IFrameVideoID) -> UInt64 {
         generation &+= 1
@@ -60,7 +65,7 @@ struct IFrameEventGate {
     mutating func accept(_ message: [String: Any], isMainFrame: Bool,
                          originScheme: String, originHost: String) -> IFrameEvent? {
         guard isAlive, isMainFrame, originScheme == "https",
-              originHost == "www.youtube.com",
+              originHost == expectedOriginHost,
               let id = videoID,
               message["videoID"] as? String == id.rawValue,
               let rawGeneration = message["generation"] as? String,

@@ -8,7 +8,7 @@ This file records verified evidence, not completion claims. The original checkou
 | Phase | Integrated result | Verification | Remaining gate |
 | --- | --- | --- | --- |
 | P0 | Source baseline, capability matrix and migration plan | macOS 671 tests; core 3 tests; original iOS baseline had two known failures | Keep parity matrix current |
-| P1 | Visible official YouTube IFrame adapter | Swift typecheck and simulated public UI flow | Real video playback, error, navigation and interruption on device |
+| P1 | Visible official YouTube IFrame adapter | Swift typecheck, simulated public UI flow and physical iPhone video playback | Next, embedding error, navigation and interruption on device |
 | P2 | Domain, queue, V1 persistence and lossless legacy archive contracts | Package tests pass; legacy archive 14 tests pass | Physical old SwiftData fixture, app reader, rollback proof |
 | P3 | Official Data API catalog, OAuth with PKCE, quota ledger and caching | Package tests pass; Google sign-in succeeded on physical iPhone | Guest Data API key, live catalog result and quota measurements |
 | P4 | Public app shell, iPhone/iPad navigation, local history/favorites and visible player route | iPhone simulator app/UI tests pass; iPad layout visually inspected; signed app installed and launched on iPhone | Playlists, notes, queue UX, broader parity and accessibility audit |
@@ -18,7 +18,9 @@ This file records verified evidence, not completion claims. The original checkou
 
 - A paired iPhone 16,1 accepted the signed Debug app under `com.xiaotwu.muses.erato` using Apple team `9URWGD9Q86`.
 - The iOS OAuth plist supplied by the user matches the bundle ID and supplies a registered reverse-client-ID URL scheme. The user confirmed Google sign-in succeeded on device. The plist contains no YouTube Data API key.
-- The app can now use OAuth for public read endpoints when no API key is configured. Package tests cover authorization headers, cache clearing and absence of a key in the request URL. The user confirmed live signed-in search returned correct results on the physical iPhone. Video playback still needs device confirmation.
+- The app can now use OAuth for public read endpoints when no API key is configured. Package tests cover authorization headers, cache clearing and absence of a key in the request URL. The user confirmed live signed-in search returned correct results on the physical iPhone.
+- The first device playback attempt stayed loading. The embedded HTML now uses the app's Bundle ID as its HTTPS client origin, validates bridge messages against that origin, and permits its own local HTML navigation. After reinstall, the user confirmed video playback works. The WebView retains visible YouTube controls and the app does not resolve media streams.
+- The user reported that tapping outside a text field did not dismiss the keyboard. A window tap recognizer now dismisses input without cancelling controls or taps inside text fields. Home and Search UI regression tests pass, and the user confirmed the fix on device.
 - No key or token is committed to the repository. The local OAuth `.xcconfig` is outside the checkout under `/tmp`.
 
 ## Active work

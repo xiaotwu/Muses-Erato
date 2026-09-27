@@ -2,6 +2,8 @@
 
 This folder is the P1-owned, iOS-only playback adapter. It uses the official `https://www.youtube.com/iframe_api` inside a visible `WKWebView`. The player keeps its controls, attribution, and ads. The adapter accepts only validated 11-character video IDs; it never returns or caches a media URL.
 
+The local HTML's base URL and Player API origin use `https://<lowercase Bundle ID>` as required by YouTube's [embedded client identity rules](https://developers.google.com/youtube/terms/required-minimum-functionality#embedded-player-api-client-identity). The bridge accepts only main-frame messages from that exact app origin. The navigation delegate permits the initial local HTML load and rejects unrelated top-level navigation.
+
 ## P4 integration contract
 
 1. Add these three Swift files to the iOS target when updating `project.yml` and the Xcode project. P1 intentionally does not modify those shared files. `YouTubeIFrameFactory.make()` creates an adapter on the main actor.
@@ -27,6 +29,6 @@ Typecheck the iOS adapter and demo without changing the shared project:
 xcrun swiftc -swift-version 6 -strict-concurrency=complete -typecheck -target arm64-apple-ios18.0-simulator -sdk "$(xcrun --sdk iphonesimulator --show-sdk-path)" Sources/Muses/Platform/iOS/YouTubeIFrame/*.swift
 ```
 
-No physical iPhone or iPad was available in P0. The required device evidence remains: actual visible play and audio, Next in the same WebView, leave screen, background/return, offline/network loss, blocked embedding, controls and attribution on both iPhone and iPad. Simulator typechecking and bridge checks do not establish those outcomes or App Store acceptance.
+On 2026-09-27, after fixing the app-origin and local-navigation configuration, the user confirmed video playback on a physical iPhone. Next, leave screen, background/return, offline/network loss, blocked embedding, and iPad device playback still require evidence. Simulator typechecking and bridge checks do not establish those outcomes or App Store acceptance.
 
 Official API references: [IFrame Player API](https://developers.google.com/youtube/iframe_api_reference), [embedded player requirements](https://developers.google.com/youtube/player_parameters), and [iOS helper guidance](https://developers.google.com/youtube/v3/guides/ios_youtube_helper).

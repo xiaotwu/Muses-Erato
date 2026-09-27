@@ -8,12 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		09EF9F7672736CFDB429908A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0E499433DA82459A29E31C98 /* Assets.xcassets */; };
+		109B68E82A26267834BF227E /* KeyboardDismissalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */; };
 		1691B322D0E2E4A124CA3976 /* MusesNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = B6C839E616E7ADEBC1EA86EE /* MusesNetworking */; };
 		21FFC3D5C065537765A08A93 /* YouTubeIFrameContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBD23204B11D9B81CB4880E /* YouTubeIFrameContract.swift */; };
 		27019D7DA05EF8F43D7C1096 /* PublicRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027F187DCE7E94BA6D2C5B03 /* PublicRootView.swift */; };
 		3C6D1046A049A3AD9EBF7903 /* PublicStoreLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D8A3E3A2F0AB70964281DF /* PublicStoreLocation.swift */; };
 		3CA9C72BA6514C9F43931BD0 /* PublicSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88CC19B6BBEFF7A59783565 /* PublicSmokeTests.swift */; };
 		6E308E0EE68117B2D348D7BF /* PublicYouTubeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38F7FFDCC49F387A86934E8 /* PublicYouTubeApp.swift */; };
+		7273935935728720CB6E452E /* PublicKeyboardDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */; };
 		7F08B637B7E304022B8FF1B1 /* PublicYouTubeFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DFB0F5C9F1F00760EEE27DB /* PublicYouTubeFlowTests.swift */; };
 		83B838F9077E758A8FD941DD /* MusesPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = 59C04AE7291360CB2F8D1980 /* MusesPersistence */; };
 		9FA5A58E5A957104F5A695B9 /* MusesQueue in Frameworks */ = {isa = PBXBuildFile; productRef = E849032D7BF5D062EC253E75 /* MusesQueue */; };
@@ -49,9 +51,11 @@
 		27D48D0063152B94B2CA0707 /* MusesCatalog */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesCatalog; path = Packages/MusesCatalog; sourceTree = SOURCE_ROOT; };
 		3DBD23204B11D9B81CB4880E /* YouTubeIFrameContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeIFrameContract.swift; sourceTree = "<group>"; };
 		450AF4AE3A6C4930373DD319 /* YouTubeIFrameAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeIFrameAdapter.swift; sourceTree = "<group>"; };
+		619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicKeyboardDismissal.swift; sourceTree = "<group>"; };
 		876106BAA6581C1CB6DDDB90 /* MusesTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		89C5A75EEAC78DF115AC3B08 /* MusesQueue */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesQueue; path = Packages/MusesQueue; sourceTree = SOURCE_ROOT; };
 		8DFB0F5C9F1F00760EEE27DB /* PublicYouTubeFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicYouTubeFlowTests.swift; sourceTree = "<group>"; };
+		91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDismissalTests.swift; sourceTree = "<group>"; };
 		9822313D18A980A1C93BA3D9 /* MusesNetworking */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesNetworking; path = Packages/MusesNetworking; sourceTree = SOURCE_ROOT; };
 		9C8A5E00E87E54C6FDC16B7B /* YouTubeIFrameDemoViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeIFrameDemoViewController.swift; sourceTree = "<group>"; };
 		B38F7FFDCC49F387A86934E8 /* PublicYouTubeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicYouTubeApp.swift; sourceTree = "<group>"; };
@@ -114,6 +118,7 @@
 		435F32758A99587684E1F8A6 /* Public */ = {
 			isa = PBXGroup;
 			children = (
+				619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */,
 				027F187DCE7E94BA6D2C5B03 /* PublicRootView.swift */,
 			);
 			name = Public;
@@ -123,6 +128,7 @@
 		4737C6BAEEB8FD2F13916204 /* MusesPublicUITests */ = {
 			isa = PBXGroup;
 			children = (
+				91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */,
 				B88CC19B6BBEFF7A59783565 /* PublicSmokeTests.swift */,
 			);
 			name = MusesPublicUITests;
@@ -296,6 +302,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7273935935728720CB6E452E /* PublicKeyboardDismissal.swift in Sources */,
 				27019D7DA05EF8F43D7C1096 /* PublicRootView.swift in Sources */,
 				3C6D1046A049A3AD9EBF7903 /* PublicStoreLocation.swift in Sources */,
 				6E308E0EE68117B2D348D7BF /* PublicYouTubeApp.swift in Sources */,
@@ -317,6 +324,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				109B68E82A26267834BF227E /* KeyboardDismissalTests.swift in Sources */,
 				3CA9C72BA6514C9F43931BD0 /* PublicSmokeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

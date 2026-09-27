@@ -36,6 +36,7 @@ targets:
       - path: Sources/Muses/App/PublicYouTubeApp.swift
       - path: Sources/Muses/App/PublicStoreLocation.swift
       - path: Sources/Muses/Features/Public/PublicRootView.swift
+      - path: Sources/Muses/Features/Public/PublicKeyboardDismissal.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameAdapter.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameContract.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameDemoViewController.swift

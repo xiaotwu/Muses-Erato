@@ -44,6 +44,7 @@ struct PublicRootView: View {
     @State private var showSettings = false
     @State private var link = ""
     @FocusState private var linkFocused: Bool
+    @FocusState private var searchFocused: Bool
     @State private var query = ""
     @State private var confirmDelete = false
 
@@ -96,6 +97,7 @@ struct PublicRootView: View {
             }
         }
         .tint(PublicStyle.gold)
+        .background(PublicKeyboardDismissal())
         .sheet(isPresented: $showSettings) {
             NavigationStack { settings }
         }
@@ -173,6 +175,7 @@ struct PublicRootView: View {
         }
         .background(PublicStyle.background)
         .navigationTitle("Muses")
+        .scrollDismissesKeyboard(.interactively)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { settingsToolbar }
     }
@@ -286,12 +289,13 @@ struct PublicRootView: View {
                     TextField("Search videos", text: $query)
                         .submitLabel(.search)
                         .autocorrectionDisabled()
-                        .onSubmit { Task { await session.search(query) } }
+                        .focused($searchFocused)
+                        .onSubmit(submitSearch)
                         .accessibilityIdentifier("public.search")
                 }
                 .padding(15)
                 .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
-                Button("Search YouTube") { Task { await session.search(query) } }
+                Button("Search YouTube", action: submitSearch)
                     .buttonStyle(.borderedProminent)
                     .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
                 if session.searching {
@@ -356,8 +360,14 @@ struct PublicRootView: View {
         }
         .background(PublicStyle.background)
         .navigationTitle("Search")
+        .scrollDismissesKeyboard(.interactively)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { settingsToolbar }
+    }
+
+    private func submitSearch() {
+        searchFocused = false
+        Task { await session.search(query) }
     }
 
     private var library: some View {
@@ -775,12 +785,8 @@ private struct PublicPlayerView: View {
             if let adapter {
                 PublicIFrameSurface(adapter: adapter)
                     .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                    .background(.black, in: RoundedRectangle(cornerRadius: 12))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(PublicStyle.gold.opacity(0.55), lineWidth: 1)
-                    }
+                    .frame(minHeight: 200)
+                    .background(.black)
                     .accessibilityLabel("Visible YouTube player")
                     .accessibilityIdentifier("public.iframe")
             } else {

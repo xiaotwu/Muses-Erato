@@ -9,13 +9,17 @@ final class YouTubeIFrameAdapter: NSObject {
     let view: WKWebView
     var onEvent: ((IFrameEvent) -> Void)?
 
-    private var gate = IFrameEventGate()
+    private var gate: IFrameEventGate
+    private let clientOrigin: URL
     private var apiLoaded = false
     private var playerReady = false
     private var pausedByHost = false
     private var backgroundObserver: NSObjectProtocol?
 
     override init() {
+        let appID = (Bundle.main.bundleIdentifier ?? "com.xiaotwu.muses.erato").lowercased()
+        clientOrigin = URL(string: "https://\(appID)")!
+        gate = IFrameEventGate(expectedOriginHost: appID)
         let controller = WKUserContentController()
         let configuration = WKWebViewConfiguration()
         configuration.userContentController = controller
@@ -47,7 +51,9 @@ final class YouTubeIFrameAdapter: NSObject {
             send(["action": "switch", "videoID": id.rawValue,
                   "generation": String(generation)])
         } else {
-            view.loadHTMLString(Self.html, baseURL: URL(string: "https://www.youtube.com/"))
+            let originJSON = String(data: try! JSONEncoder().encode(clientOrigin.absoluteString), encoding: .utf8)!
+            view.loadHTMLString(Self.html.replacingOccurrences(of: "__ERATO_ORIGIN__", with: originJSON),
+                                baseURL: clientOrigin)
         }
         return generation
     }
@@ -106,7 +112,7 @@ final class YouTubeIFrameAdapter: NSObject {
     private func receive(_ message: WKScriptMessage) {
         guard gate.isAlive, message.frameInfo.isMainFrame,
               message.frameInfo.securityOrigin.protocol == "https",
-              message.frameInfo.securityOrigin.host == "www.youtube.com",
+              message.frameInfo.securityOrigin.host == clientOrigin.host,
               let body = message.body as? [String: Any] else { return }
         if body["kind"] as? String == "apiReady" {
             apiLoaded = true
@@ -117,7 +123,8 @@ final class YouTubeIFrameAdapter: NSObject {
             return
         }
         guard let event = gate.accept(body, isMainFrame: true,
-                                      originScheme: "https", originHost: "www.youtube.com") else { return }
+                                      originScheme: message.frameInfo.securityOrigin.protocol,
+                                      originHost: message.frameInfo.securityOrigin.host) else { return }
         if case .ready = event.kind { playerReady = true }
         if case .playing = event.kind, pausedByHost {
             // Native pause during buffering remains the final intent.
@@ -130,6 +137,7 @@ final class YouTubeIFrameAdapter: NSObject {
     private static let html = #"""
     <!doctype html><html><head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <style>html,body,#player{width:100%;height:100%;margin:0;background:#000;overflow:hidden}
     iframe{width:100%;height:100%;border:0}</style></head><body>
     <div id="player"></div>
@@ -162,7 +170,7 @@ final class YouTubeIFrameAdapter: NSObject {
         active = token;
         player = new YT.Player('player', {
           videoId:token.videoID,
-          playerVars:{playsinline:1, controls:1, origin:'https://www.youtube.com'},
+          playerVars:{playsinline:1, controls:1, origin:__ERATO_ORIGIN__},
           events:{
             onReady:function(){emit('ready',null,token)},
             onStateChange:function(e){
@@ -213,6 +221,10 @@ extension YouTubeIFrameAdapter: WKNavigationDelegate, WKUIDelegate {
         guard navigationAction.targetFrame?.isMainFrame == true,
               let url = navigationAction.request.url,
               url.scheme != "about" else { return .allow }
+        if navigationAction.navigationType == .other,
+           url.scheme == clientOrigin.scheme, url.host == clientOrigin.host {
+            return .allow
+        }
         return .cancel
     }
 
