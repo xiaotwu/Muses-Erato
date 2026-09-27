@@ -34,18 +34,18 @@ public struct BrowseBackground: View {
 
                         let palette = resolvedPalette
                         let blobs: [(CGPoint, CGFloat, Color)] = [
-                            (CGPoint(x: size.width * (0.18 + 0.04 * sin(t * 0.11)),
-                                     y: size.height * (0.22 + 0.03 * cos(t * 0.09))),
-                             size.width * 0.72, palette[0].opacity(0.42)),
-                            (CGPoint(x: size.width * (0.82 + 0.03 * cos(t * 0.08)),
-                                     y: size.height * (0.18 + 0.04 * sin(t * 0.10))),
-                             size.width * 0.64, palette[1].opacity(0.36)),
-                            (CGPoint(x: size.width * (0.55 + 0.05 * sin(t * 0.07)),
-                                     y: size.height * (0.62 + 0.04 * cos(t * 0.12))),
-                             size.width * 0.78, palette[2].opacity(0.28)),
-                            (CGPoint(x: size.width * (0.28 + 0.03 * cos(t * 0.06)),
-                                     y: size.height * (0.78 + 0.03 * sin(t * 0.08))),
-                             size.width * 0.55, palette[0].opacity(0.18)),
+                            (CGPoint(x: size.width * (0.20 + 0.03 * sin(t * 0.05)),
+                                     y: size.height * (0.18 + 0.02 * cos(t * 0.04))),
+                             size.width * 0.85, palette[0].opacity(0.18)),
+                            (CGPoint(x: size.width * (0.80 + 0.02 * cos(t * 0.04)),
+                                     y: size.height * (0.24 + 0.03 * sin(t * 0.05))),
+                             size.width * 0.70, palette[1].opacity(0.15)),
+                            (CGPoint(x: size.width * (0.50 + 0.03 * sin(t * 0.03)),
+                                     y: size.height * (0.65 + 0.02 * cos(t * 0.04))),
+                             size.width * 0.90, palette[2].opacity(0.12)),
+                            (CGPoint(x: size.width * (0.25 + 0.02 * cos(t * 0.04)),
+                                     y: size.height * (0.82 + 0.02 * sin(t * 0.03))),
+                             size.width * 0.65, palette[0].opacity(0.10)),
                         ]
 
                         for (center, radius, color) in blobs {
@@ -58,7 +58,7 @@ public struct BrowseBackground: View {
                             context.fill(
                                 Path(ellipseIn: rect),
                                 with: .radialGradient(
-                                    Gradient(colors: [color, color.opacity(0.01)]),
+                                    Gradient(colors: [color, color.opacity(0.005)]),
                                     center: center,
                                     startRadius: 0,
                                     endRadius: radius / 2
@@ -75,9 +75,9 @@ public struct BrowseBackground: View {
 
     private var resolvedPalette: [Color] {
         let fallback: [Color] = [
-            Color(white: 0.14),
-            Color(white: 0.42).opacity(0.55),
-            Color(white: 0.72).opacity(0.28),
+            Color(red: 0.12, green: 0.12, blue: 0.15),
+            Color(red: 0.18, green: 0.18, blue: 0.22),
+            Color(red: 0.10, green: 0.10, blue: 0.12),
         ]
         if colors.count >= 3 { return Array(colors.prefix(3)) }
         if colors.count == 2 { return colors + [fallback[2]] }

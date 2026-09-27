@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 
 public enum WebHomeProtocolVersion {
@@ -230,3 +231,4 @@ public struct WebHomeResponse: Codable, Sendable, Equatable {
         self.error = error
     }
 }
+#endif

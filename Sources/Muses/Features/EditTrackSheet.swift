@@ -17,21 +17,7 @@ struct EditTrackSheet: View {
     @State private var lyrics = ""
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Text(tr("Edit Info", "编辑信息")).font(.headline).foregroundStyle(BrandColors.textPrimary)
-                Spacer()
-                Button(tr("Cancel", "取消")) { dismiss() }
-                    .foregroundStyle(BrandColors.textSecondary)
-                Button(tr("Save", "保存")) { save() }
-                    .musesAction(prominent: true)
-                    .tint(BrandColors.accent)
-            }
-            .padding(16)
-
-            Divider().background(BrandColors.hairline)
-
+        NavigationStack {
             Form {
                 Section(tr("Basic Info", "基本信息")) {
                     TextField(tr("Title", "标题"), text: $title)
@@ -52,11 +38,23 @@ struct EditTrackSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
+            .navigationTitle(tr("Edit Info", "编辑信息"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(tr("Cancel", "取消")) { dismiss() }
+                        .foregroundStyle(BrandColors.textSecondary)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(tr("Save", "保存")) { save() }
+                        .font(.headline)
+                        .foregroundStyle(BrandColors.accent)
+                }
+            }
+            .frame(maxWidth: 560)
         }
-        .musesFloatingChrome(cornerRadius: 16)
-        .frame(width: 480)
-        .frame(maxHeight: 560)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
         .onAppear { loadFields() }
     }
 

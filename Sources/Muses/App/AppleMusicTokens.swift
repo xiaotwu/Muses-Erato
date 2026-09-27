@@ -21,7 +21,7 @@ public enum AppleMusicSpacing {
 }
 
 public enum OverlayChromeMetrics {
-    public static let scrollBottomInset: CGFloat = 120
+    public static let scrollBottomInset: CGFloat = 140
 }
 
 enum PlaylistOverviewMetrics {
@@ -44,9 +44,9 @@ enum HomeMediaCardMetrics {
 
 /// Core visual design tokens for Muses (iOS Liquid Glass Edition).
 public enum AppleMusicTokens {
-    /// Neutral brand key — logo is black/white/gray; interactive accent follows label color.
-    public static let keyColorHex = "F5F5F7"
-    public static var keyColor: Color { Color.primary }
+    /// Neutral brand key — classical lyre & laurel gold.
+    public static let keyColorHex = "C7A66B"
+    public static var keyColor: Color { BrandColors.laurelGold }
 
     // Layout Dimensions for iOS
     public static let tabBarHeight: CGFloat = 58
@@ -87,39 +87,59 @@ public enum AppleMusicTokens {
     public static let nowPlayingControlHeight: CGFloat = 64
 }
 
-/// Dynamic semantic brand colors — monochrome logo + laser edge accents.
+/// Dynamic semantic brand colors — Erato Muse classical palette + authentic Liquid Glass optics.
 public enum BrandColors {
-    /// Primary interactive accent (adaptive black/white), matching the Muse logo.
-    public static var accent: Color { AppleMusicTokens.keyColor }
-    /// Legacy aliases redirected to neutral accent (no coral/pink brand).
-    public static var magenta: Color { accent }
-    public static var pink: Color { accent }
+    /// Classical lyre & laurel warm gold accent for subtle, noble highlights (strings, playhead, active indicators).
+    public static var laurelGold: Color {
+        Color(red: 0.82, green: 0.68, blue: 0.44)
+    }
+
+    /// Primary interactive accent, matching the classical laurel gold tone.
+    public static var accent: Color { laurelGold }
+
+    /// Legacy aliases redirected to laurel gold accent.
+    public static var magenta: Color { laurelGold }
+    public static var pink: Color { laurelGold }
     public static var scrim: Color { Color.black.opacity(0.4) }
-    public static var hairline: Color { Color.white.opacity(0.12) }
+    public static var hairline: Color { Color.white.opacity(0.14) }
 
     /// Soft gray used for secondary chrome fills.
     public static var neutralGray: Color {
         Color(white: 0.55)
     }
 
-    /// Iridescent spectrum for laser holographic strokes on glass chrome.
+    /// Monochrome specular reflection for glass rim highlights (replaces rainbow laser spectrum).
     public static var laserSpectrum: [Color] {
         [
-            Color(red: 0.35, green: 0.95, blue: 1.00),
-            Color(red: 0.55, green: 0.45, blue: 1.00),
-            Color(red: 1.00, green: 0.40, blue: 0.85),
-            Color(red: 1.00, green: 0.75, blue: 0.35),
-            Color(red: 0.40, green: 1.00, blue: 0.65),
-            Color(red: 0.35, green: 0.95, blue: 1.00),
+            Color.white.opacity(0.40),
+            Color.white.opacity(0.20),
+            Color.white.opacity(0.08),
+            Color.white.opacity(0.04),
+            Color.white.opacity(0.18),
+            Color.white.opacity(0.40),
         ]
     }
 
-    /// Dynamic background adapting between Obsidian/Pure Black in Dark Mode and Crisp Off-White in Light Mode.
+    /// Directional specular rim gradient simulating top-left light incidence on Liquid Glass.
+    public static var glassRimGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(0.45),
+                Color.white.opacity(0.15),
+                Color.white.opacity(0.05),
+                Color.black.opacity(0.10)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    /// Dynamic background: Obsidian/Pure Ink in Dark Mode and Crisp Alabaster in Light Mode.
     public static var background: Color {
         #if os(iOS)
         Color(uiColor: .systemBackground)
         #else
-        Color(red: 18 / 255, green: 18 / 255, blue: 20 / 255)
+        Color(red: 9 / 255, green: 9 / 255, blue: 11 / 255)
         #endif
     }
 
@@ -128,7 +148,7 @@ public enum BrandColors {
         #if os(iOS)
         Color(uiColor: .secondarySystemBackground)
         #else
-        Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+        Color(red: 22 / 255, green: 22 / 255, blue: 25 / 255)
         #endif
     }
 
@@ -137,7 +157,7 @@ public enum BrandColors {
         #if os(iOS)
         Color(uiColor: .tertiarySystemBackground)
         #else
-        Color(red: 40 / 255, green: 40 / 255, blue: 44 / 255)
+        Color(red: 32 / 255, green: 32 / 255, blue: 36 / 255)
         #endif
     }
 
@@ -170,11 +190,29 @@ public enum BrandColors {
 
     /// Specular hairline highlight for Liquid Glass edges.
     public static var glassBorder: Color {
-        Color.white.opacity(0.18)
+        Color.white.opacity(0.22)
     }
 
-    /// Liquid Glass shadow color.
+    /// Liquid Glass natural depth shadow color.
     public static var glassShadow: Color {
-        Color.black.opacity(0.18)
+        Color.black.opacity(0.20)
+    }
+}
+
+/// Poetic and classical typography tokens inspired by Erato and Apple New York.
+public enum EratoTypography {
+    /// Poetic title font using Apple system serif (New York) for lyrical and editorial headers.
+    public static func poeticTitle(size: CGFloat = 28, weight: Font.Weight = .semibold) -> Font {
+        .system(size: size, weight: weight, design: .serif)
+    }
+
+    /// Classical lyric font with generous line tracking.
+    public static func lyric(size: CGFloat = 22, weight: Font.Weight = .medium) -> Font {
+        .system(size: size, weight: weight, design: .serif)
+    }
+
+    /// Precision technical / duration / bit-depth font.
+    public static func mono(size: CGFloat = 13, weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight, design: .monospaced)
     }
 }

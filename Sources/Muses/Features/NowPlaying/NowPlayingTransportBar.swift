@@ -3,8 +3,8 @@ import MediaPlayer
 import SwiftUI
 import UIKit
 
-/// Centered Now Playing transport: glass laser dock, balanced controls,
-/// and a single Audio button for volume + route (AirPlay / device).
+/// Centered Now Playing transport: authentic Liquid Glass dock, balanced tactile controls,
+/// and an Audio button for volume + route (AirPlay / device).
 struct NowPlayingTransportBar: View {
     @Bindable var playback: PlaybackService
     var onWatchVideo: () -> Void
@@ -28,7 +28,7 @@ struct NowPlayingTransportBar: View {
 
                 Spacer(minLength: 4)
 
-                HStack(spacing: 20) {
+                HStack(spacing: 28) {
                     sideButton(
                         systemName: "backward.fill",
                         label: tr("Previous", "上一首", zhHant: "上一首")
@@ -48,28 +48,30 @@ struct NowPlayingTransportBar: View {
 
                 Spacer(minLength: 4)
 
-                sideButton(
-                    systemName: "play.rectangle.fill",
-                    label: tr("Watch Video", "观看视频", zhHant: "觀看影片"),
-                    enabled: canWatchVideo,
-                    action: onWatchVideo
-                )
+                if canWatchVideo {
+                    sideButton(
+                        systemName: "play.rectangle.fill",
+                        label: tr("Watch Video", "观看视频", zhHant: "觀看影片"),
+                        enabled: true,
+                        action: onWatchVideo
+                    )
+                } else {
+                    sideButton(
+                        systemName: "shuffle",
+                        label: tr("Shuffle", "随机播放", zhHant: "隨機播放"),
+                        enabled: true,
+                        active: playback.queue.shuffle
+                    ) {
+                        playback.queue.toggleShuffle()
+                    }
+                }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(BrandColors.hairline.opacity(0.55), lineWidth: 0.6)
-                    .allowsHitTesting(false)
-            }
-            .laserStrokeCapsule(lineWidth: 0.95, opacity: 0.68)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 24)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: 520)
         .sheet(isPresented: $showAudioSheet) {
             AudioOutputSheet()
-                .presentationDetents([.height(240)])
+                .presentationDetents([.height(260), .medium])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.ultraThinMaterial)
         }
@@ -80,12 +82,11 @@ struct NowPlayingTransportBar: View {
             playback.toggle()
         } label: {
             Image(systemName: playback.state.isPlaying ? "pause.fill" : "play.fill")
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(Color.black.opacity(0.92))
-                .offset(x: playback.state.isPlaying ? 0 : 1)
-                .frame(width: 58, height: 58)
+                .offset(x: playback.state.isPlaying ? 0 : 1.5)
+                .frame(width: 60, height: 60)
                 .background(Circle().fill(Color.white))
-                .laserStrokeCircle(lineWidth: 1.15, opacity: 0.78)
                 .shadow(color: .black.opacity(0.28), radius: 10, y: 4)
                 .contentShape(Circle())
         }
@@ -101,15 +102,16 @@ struct NowPlayingTransportBar: View {
         systemName: String,
         label: String,
         enabled: Bool = true,
+        active: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white.opacity(enabled ? 0.95 : 0.32))
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(
+                    active ? BrandColors.laurelGold : .white.opacity(enabled ? 0.92 : 0.32)
+                )
                 .frame(width: 44, height: 44)
-                .musesGlass(in: Circle(), tint: Color.white.opacity(0.12), role: .compactControl)
-                .laserStrokeCircle(lineWidth: 0.85, opacity: enabled ? 0.58 : 0.28)
                 .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)
                 .contentShape(Circle())
         }
@@ -145,7 +147,10 @@ private struct AudioOutputSheet: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(Color.white.opacity(0.08))
                     )
-                    .laserStroke(cornerRadius: 14, lineWidth: 0.8, opacity: 0.55)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(BrandColors.glassRimGradient, lineWidth: 0.6)
+                    }
                     .accessibilityLabel(tr("Volume", "音量", zhHant: "音量"))
             }
 
@@ -164,8 +169,10 @@ private struct AudioOutputSheet: View {
                     activeTint: UIColor.white
                 )
                 .frame(width: 44, height: 44)
-                .musesGlass(in: Circle(), tint: Color.white.opacity(0.12), role: .compactControl)
-                .laserStrokeCircle(lineWidth: 0.85, opacity: 0.58)
+                .musesGlass(in: Circle(), role: .compactControl)
+                .overlay {
+                    Circle().stroke(BrandColors.glassRimGradient, lineWidth: 0.65)
+                }
                 .accessibilityLabel(tr("Choose Device", "选择设备", zhHant: "選擇裝置"))
             }
 
@@ -173,6 +180,7 @@ private struct AudioOutputSheet: View {
         }
         .padding(.horizontal, 22)
         .padding(.bottom, 16)
+        .frame(maxWidth: 480)
     }
 }
 

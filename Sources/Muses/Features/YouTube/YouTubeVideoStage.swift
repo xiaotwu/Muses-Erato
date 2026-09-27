@@ -111,6 +111,7 @@ struct YouTubeVideoOverlay: View {
                     }
                 }
             }
+            .frame(maxWidth: 820)
         }
         .onAppear {
             if playbackSuspension == nil {

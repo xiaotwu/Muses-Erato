@@ -34,7 +34,11 @@ struct BrowseView: View {
                         EmptyStateView(
                             icon: "wifi.exclamationmark",
                             title: tr("Couldn’t load Browse", "无法加载发现页"),
-                            subtitle: loadError
+                            subtitle: loadError,
+                            actionTitle: tr("Try Again", "重试"),
+                            action: {
+                                Task { await loadCatalog(force: true) }
+                            }
                         )
                         .padding(.top, 32)
                     } else {
@@ -67,13 +71,13 @@ struct BrowseView: View {
     private func shelfSection(title: String, entries: [YTDlpPlaylistEntry], loading: Bool) -> some View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
             Text(title)
-                .font(.system(size: 22, weight: .bold))
+                .font(EratoTypography.poeticTitle(size: 22, weight: .bold))
                 .foregroundStyle(BrandColors.textPrimary)
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
             if loading {
                 ProgressView()
-                    .tint(BrandColors.accent)
+                    .tint(BrandColors.laurelGold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
             } else if entries.isEmpty {
@@ -97,7 +101,7 @@ struct BrowseView: View {
     private var genreGridSection: some View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
             Text(tr("Browse by Category", "按分类浏览"))
-                .font(.system(size: 22, weight: .bold))
+                .font(EratoTypography.poeticTitle(size: 22, weight: .bold))
                 .foregroundStyle(BrandColors.textPrimary)
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
@@ -111,16 +115,22 @@ struct BrowseView: View {
                         Task { await selectGenre(genre) }
                     } label: {
                         Text(genre)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(BrandColors.textPrimary)
+                            .font(.system(size: 15, weight: selected ? .semibold : .medium))
+                            .foregroundStyle(selected ? BrandColors.textPrimary : BrandColors.textSecondary)
                             .frame(maxWidth: .infinity, minHeight: AppleMusicSpacing.hitTarget)
                             .background {
                                 if selected {
-                                    Color.clear
-                                        .musesGlassCapsule(tint: BrandColors.accent.opacity(0.18), role: .compactControl)
-                                        .laserStroke(Capsule(), lineWidth: 1.0, opacity: 0.7)
+                                    Capsule()
+                                        .fill(BrandColors.laurelGold.opacity(0.18))
+                                        .overlay(
+                                            Capsule().stroke(BrandColors.laurelGold.opacity(0.65), lineWidth: 0.8)
+                                        )
                                 } else {
-                                    Capsule().fill(BrandColors.surface.opacity(0.35))
+                                    Capsule()
+                                        .fill(BrandColors.surface.opacity(0.65))
+                                        .overlay(
+                                            Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.6)
+                                        )
                                 }
                             }
                     }
@@ -136,7 +146,7 @@ struct BrowseView: View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
             HStack {
                 Text(selectedGenre.map { tr("Results · \($0)", "结果 · \($0)") } ?? "")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(EratoTypography.poeticTitle(size: 20, weight: .bold))
                     .foregroundStyle(BrandColors.textPrimary)
                 Spacer()
                 if isSearchingGenre {
@@ -275,6 +285,41 @@ struct BrowseView: View {
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
+
+        if entry.resourceKind == .playlist || entry.id.hasPrefix("OLAK") || entry.id.hasPrefix("PL") || entry.id.hasPrefix("MPREb_") {
+            let pid = entry.id
+            Task {
+                let playlistURL: String
+                if pid.hasPrefix("http") {
+                    playlistURL = pid
+                } else if pid.hasPrefix("VL") {
+                    playlistURL = "https://music.youtube.com/playlist?list=\(pid.dropFirst(2))"
+                } else if pid.hasPrefix("MPREb_") {
+                    playlistURL = "https://music.youtube.com/playlist?list=\(pid)"
+                } else {
+                    playlistURL = "https://music.youtube.com/playlist?list=\(pid)"
+                }
+                if let resolved = try? await YouTubeResolver.shared.fetchPlaylist(url: playlistURL),
+                   let first = resolved.first(where: { $0.resourceKind == .video || $0.id.count == 11 }) ?? resolved.first {
+                    let track = TrackSnapshot(
+                        id: UUID(),
+                        title: first.title,
+                        artist: first.uploader ?? entry.uploader ?? "",
+                        albumTitle: entry.title,
+                        durationSeconds: first.duration ?? 0,
+                        youTubeId: first.id,
+                        artworkUrl: YouTubeThumbnail.urlString(videoId: first.id),
+                        sampleRate: nil,
+                        bitDepth: nil,
+                        codec: nil,
+                        isLossless: false
+                    )
+                    playback.play(track, from: .search)
+                }
+            }
+            return
+        }
+
         let track = TrackSnapshot(
             id: UUID(),
             title: entry.title,

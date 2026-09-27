@@ -26,11 +26,10 @@ struct SongsListView: View {
     @Environment(LibraryService.self) private var library
     @Environment(PlaybackService.self) private var playback
     @Query(sort: \Playlist.name) private var allPlaylists: [Playlist]
+    @Query(sort: \Track.title) private var allTracks: [Track]
 
     var body: some View {
-        let _ = library.likedRevision
-        let _ = library.metadataRevision
-        let rows = CollectionTrackRow.songs(from: library.allTracks())
+        let rows = CollectionTrackRow.songs(from: allTracks)
         let snapshots = rows.map(\.snapshot)
 
         CollectionPage(

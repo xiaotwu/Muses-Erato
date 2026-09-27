@@ -113,49 +113,58 @@ final class YouTubeStreamEngine: PlayerEngine {
         engine.attach(playerB)
         engine.attach(preMixer)
         engine.attach(eq)
-        // Two players → preMixer (multi-input bus) → EQ → main mixer
+        // Two players → preMixer (multi-input bus) → EQ
         engine.connect(playerA, to: preMixer, format: nil)
         engine.connect(playerB, to: preMixer, format: nil)
         engine.connect(preMixer, to: eq, format: nil)
-        engine.connect(eq, to: engine.mainMixerNode, format: nil)
 
-        #if os(iOS)
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .default, options: [])
-            try audioSession.setActive(true)
-        } catch {
-            log.warning("AVAudioSession setup failed: \(error.localizedDescription)")
+        let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+            ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil ||
+            ProcessInfo.processInfo.environment["XCInjectBundleInto"] != nil ||
+            NSClassFromString("XCTestCase") != nil
+
+        if !isRunningTests {
+            ensureGraphConnectedToMainMixer()
         }
-        #endif
     }
 
     // MARK: - Runtime IO-cycle gating
+
+    private var isGraphConnectedToMainMixer = false
+
+    private func ensureGraphConnectedToMainMixer() {
+        guard !isGraphConnectedToMainMixer else { return }
+        engine.connect(eq, to: engine.mainMixerNode, format: nil)
+        isGraphConnectedToMainMixer = true
+    }
 
     /// Readiness signal for the runtime IO cycle.
     /// `player.play()` is called only when this is true and `hasAudioOutput`, preventing crashes in headless processes.
     private var ioCycleReady = false
 
     private var hasAudioOutput: Bool {
-        engine.mainMixerNode.outputFormat(forBus: 0).sampleRate > 0
+        guard isGraphConnectedToMainMixer else { return false }
+        return engine.mainMixerNode.outputFormat(forBus: 0).sampleRate > 0
     }
 
-    /// Ensures the engine is started and waits for the render thread to enter an IO cycle (spinning the run loop until
-    /// `mainMixerNode.lastRenderTime` is non-nil; on timeout `ioCycleReady` becomes false).
+    /// 确保引擎已启动并正确连接到主混音器（纯非阻塞实现，彻底移除 RunLoop 循环阻塞）
     @discardableResult
     private func ensureEngineRunning() -> Bool {
-        if engine.isRunning && ioCycleReady { return true }
-        if !engine.isRunning {
-            engine.prepare()
-            do { try engine.start() }
-            catch { ioCycleReady = false; return false }
+        ensureGraphConnectedToMainMixer()
+        guard !engine.isRunning else {
+            ioCycleReady = true
+            return true
         }
-        let deadline = Date(timeIntervalSinceNow: 0.3)
-        while engine.mainMixerNode.lastRenderTime == nil, Date() < deadline {
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.005))
+        engine.prepare()
+        do {
+            try engine.start()
+            ioCycleReady = true
+            return true
+        } catch {
+            log.error("AVAudioEngine 启动失败: \(error.localizedDescription)")
+            ioCycleReady = false
+            return false
         }
-        ioCycleReady = (engine.mainMixerNode.lastRenderTime != nil)
-        return ioCycleReady
     }
 
     // MARK: - PlayerEngine
@@ -772,6 +781,9 @@ final class YouTubeStreamEngine: PlayerEngine {
                     try FileManager.default.removeItem(at: tempURL)
                 }
                 try FileManager.default.copyItem(at: url, to: tempURL)
+                Task.detached(priority: .utility) {
+                    MediaFileCache.pruneIfNeeded()
+                }
                 return true
             }
             let (tmp, resp) = try await session.download(from: url)
@@ -783,6 +795,9 @@ final class YouTubeStreamEngine: PlayerEngine {
                 try FileManager.default.removeItem(at: tempURL)
             }
             try FileManager.default.moveItem(at: tmp, to: tempURL)
+            Task.detached(priority: .utility) {
+                MediaFileCache.pruneIfNeeded()
+            }
             return true
         } catch {
             log.error("Download failed: \(error.localizedDescription)")
@@ -919,3 +934,42 @@ final class YouTubeStreamEngine: PlayerEngine {
         }
     }
 }
+
+// MARK: - AudioGraphRecoverable
+
+extension YouTubeStreamEngine: AudioGraphRecoverable {
+    /// mediaserverd 崩溃后全量重建音频节点树
+    func rebuildAudioGraph() {
+        log.warning("开始重建 YouTubeStreamEngine 音频图...")
+
+        // 1. 停止并释放已有节点
+        playerA.stop()
+        playerB.stop()
+        engine.stop()
+        engine.reset()
+
+        // 2. 重新附加并连接拓扑结构
+        isGraphConnectedToMainMixer = false
+        if !engine.attachedNodes.contains(playerA) { engine.attach(playerA) }
+        if !engine.attachedNodes.contains(playerB) { engine.attach(playerB) }
+        if !engine.attachedNodes.contains(preMixer) { engine.attach(preMixer) }
+        if !engine.attachedNodes.contains(eq) { engine.attach(eq) }
+
+        engine.connect(playerA, to: preMixer, format: nil)
+        engine.connect(playerB, to: preMixer, format: nil)
+        engine.connect(preMixer, to: eq, format: nil)
+        ensureGraphConnectedToMainMixer()
+
+        // 3. 重新应用 EQ 参数
+        applyRequestedEQ()
+
+        // 4. 重置就绪态与文件调度
+        ioCycleReady = false
+        if let file = currentFile, let track = currentTrack {
+            _ = decodeAndScheduleOnInactive(tempURL: file.url, track: track, fromFrame: 0)
+        }
+
+        log.info("YouTubeStreamEngine 音频图重建完成")
+    }
+}
+

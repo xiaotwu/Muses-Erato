@@ -56,7 +56,6 @@ struct FavoritesListIOSView: View {
     @Query(filter: #Predicate<Track> { $0.liked }, sort: \Track.title) private var tracks: [Track]
 
     var body: some View {
-        let _ = library.likedRevision
         LibraryTrackListView(
             title: tr("Loved", "喜欢的音乐"),
             emptyIcon: "heart",

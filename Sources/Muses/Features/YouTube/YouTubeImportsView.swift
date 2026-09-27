@@ -30,13 +30,13 @@ struct YouTubeImportsView: View {
                             .foregroundStyle(BrandColors.textPrimary)
                     }
                     Spacer()
-                    Button {
+                    ChromeIconButton(
+                        systemName: "plus",
+                        help: tr("Import YouTube Playlist", "导入 YouTube 歌单"),
+                        accessibility: tr("Import YouTube Playlist", "导入 YouTube 歌单")
+                    ) {
                         showImportSheet = true
-                    } label: {
-                        Label(tr("Import YouTube Playlist", "导入 YouTube 歌单"), systemImage: "plus")
                     }
-                    .musesAction(prominent: true)
-                    .tint(BrandColors.accent)
                     .disabled(importing)
                 }
                 .padding(.horizontal, 20)
@@ -133,20 +133,21 @@ struct YouTubeImportCard: View {
                                 .foregroundStyle(BrandColors.textSecondary)
                         }
                     }
-                    // Action buttons
-                    HStack(spacing: 8) {
-                        Button {
+                    // Standardized equal-sized action buttons
+                    HStack(spacing: 10) {
+                        ImportActionButton(
+                            systemName: "arrow.down.to.line",
+                            isLoading: syncing,
+                            help: tr("Check Remote", "检查远端")
+                        ) {
                             Task { await checkRemote() }
-                        } label: {
-                            if syncing {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Label(tr("Check Remote", "检查远端"), systemImage: "arrow.down.to.line")
-                            }
                         }
-                        .musesControls().disabled(syncing)
+                        .disabled(syncing)
 
-                        Button {
+                        ImportActionButton(
+                            systemName: "arrow.up.right.square",
+                            help: tr("Open in YT", "在 YT 中打开")
+                        ) {
                             if let url = URL(string: imp.url) {
                                 #if canImport(UIKit)
                                 UIApplication.shared.open(url)
@@ -154,20 +155,23 @@ struct YouTubeImportCard: View {
                                 NSWorkspace.shared.open(url)
                                 #endif
                             }
-                        } label: { Label(tr("Open in YT", "在 YT 中打开"), systemImage: "arrow.up.right.square") }
-                        .musesControls()
+                        }
 
-                        Button(role: .destructive) {
-                            deleteImport()
-                        } label: { Label(tr("Delete", "删除"), systemImage: "trash") }
-                        .musesControls()
+                        ImportActionButton(
+                            systemName: "trash",
+                            isDestructive: true,
+                            help: tr("Delete", "删除"),
+                            action: deleteImport
+                        )
 
-                        Button {
-                            playAll()
-                        } label: { Label(tr("Play", "播放"), systemImage: "play.fill") }
-                        .musesAction(prominent: true)
+                        ImportActionButton(
+                            systemName: "play.fill",
+                            isProminent: true,
+                            help: tr("Play", "播放"),
+                            action: playAll
+                        )
                     }
-                    .padding(.top, 2)
+                    .padding(.top, 4)
                     if let syncError {
                         Text(syncError)
                             .font(.caption)
@@ -337,3 +341,47 @@ struct YouTubeImportCard: View {
         return .placeholder
     }
 }
+
+/// Standardized, equal-sized action icon button for import cards.
+private struct ImportActionButton: View {
+    let systemName: String
+    var isProminent: Bool = false
+    var isDestructive: Bool = false
+    var isLoading: Bool = false
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                if isLoading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: systemName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(
+                            isProminent
+                                ? Color.black
+                                : (isDestructive ? BrandColors.magenta : BrandColors.textPrimary)
+                        )
+                }
+            }
+            .frame(width: 34, height: 34)
+            .background {
+                if isProminent {
+                    Circle().fill(BrandColors.laurelGold)
+                } else {
+                    Circle()
+                        .fill(BrandColors.surface.opacity(0.85))
+                        .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 0.8))
+                }
+            }
+        }
+        .buttonStyle(MusesPressStyle(scale: 0.94))
+        .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)
+        .contentShape(Rectangle())
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+

@@ -4,7 +4,7 @@ import XCTest
 final class MusesCoreTests: XCTestCase {
     func testBrowseIdsMatchMusicHomeContract() {
         XCTAssertEqual(YouTubeMusicBrowseIDs.home, "FEmusic_home")
-        XCTAssertEqual(YouTubeMusicBrowseIDs.charts, "FEcharts")
+        XCTAssertEqual(YouTubeMusicBrowseIDs.charts, "FEmusic_charts")
     }
 
     func testCatalogIdentityPrefersChannel() {

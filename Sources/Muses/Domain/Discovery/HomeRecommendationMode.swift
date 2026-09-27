@@ -32,8 +32,8 @@ enum HomeRecommendationMode: String, Codable, CaseIterable, Sendable, Identifiab
     }
 
     static var current: HomeRecommendationMode {
-        let raw = UserDefaults.standard.string(forKey: PrefKey.homeRecommendationMode) ?? HomeRecommendationMode.muses.rawValue
-        return HomeRecommendationMode(rawValue: raw) ?? .muses
+        let raw = UserDefaults.standard.string(forKey: PrefKey.homeRecommendationMode) ?? HomeRecommendationMode.youtubeMusic.rawValue
+        return HomeRecommendationMode(rawValue: raw) ?? .youtubeMusic
     }
 
     static func setCurrent(_ mode: HomeRecommendationMode) {

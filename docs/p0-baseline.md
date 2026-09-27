@@ -6,8 +6,8 @@ Captured 2026-09-27 in `/Users/xiaotwu/.codex/worktrees/94a2/Muses-Erato`. Statu
 
 | Repository | Checkout / ref at capture | Working state | Role |
 | --- | --- | --- | --- |
-| Muses-Erato | `/Users/xiaotwu/Code/Muses-Erato`, `feat/bw-laser-ui-normalize`, `3e0ffa5` | 65 porcelain entries: 56 modified tracked files and 9 untracked paths | Source working tree; never edited by P0 |
-| Muses-Erato P0 | this managed worktree, copied from the above working tree at `3e0ffa5`; branch `codex/p0-ios-baseline` | Same 65 entries before P0 edits; tracked binary diff SHA-256 `676960a8ae1d4a372372582299d819e6e0f85703e42209a447bc89982734265f` matched source | P0 documentation only; original modifications remain uncommitted |
+| Muses-Erato | `/Users/xiaotwu/Code/Muses-Erato`, `feat/bw-laser-ui-normalize`, `3e0ffa5` | 65 porcelain entries: 57 modified tracked files and 8 untracked paths | Source working tree; never edited by P0 |
+| Muses-Erato P0 | this managed worktree, copied from the above working tree at `3e0ffa5`; branch `codex/p0-ios-baseline` | Same 65 source entries before P0 documents; tracked binary diff SHA-256 `676960a8ae1d4a372372582299d819e6e0f85703e42209a447bc89982734265f` matched source | P0 documentation only; original modifications remain uncommitted |
 | Muses | `/Users/xiaotwu/Code/Muses`, `main`, `86ba9e3` | 27 porcelain entries: 24 modified tracked files and 3 untracked paths | macOS product reference; read only |
 
 The matching diff hash covers tracked modifications. The source's nine untracked files were also compared file by file using SHA-256; there were zero mismatches. The copied `docs/ios-port-research-plan.md` content was not edited; it is committed on this P0 branch so subsequent branches inherit the authoritative plan, while the source checkout's untracked file remains untouched. P0's own documents are separate files. Before later rebases/merges, compare against the source again and handle conflicts explicitly. Neither remote history nor the macOS tree was changed.

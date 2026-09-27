@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import Observation
 
@@ -615,3 +616,4 @@ final class WebHomeSessionController: HomeDiscoveryProvider {
         }
     }
 }
+#endif

@@ -8,63 +8,35 @@ struct HomeView: View {
 
     @Environment(HomeDiscoveryService.self) private var homeDiscovery
     @Environment(LibraryService.self) private var library
-    @Environment(SituationalRecommendationService.self) private var situational
-
-    @State private var situationalSections: [SituationalSection] = []
-    @State private var isLoadingSituational = false
-    @AppStorage(PrefKey.homeRecommendationMode) private var homeRecommendationModeRaw: String = HomeRecommendationMode.muses.rawValue
 
     init(playback: PlaybackService, showSettings: Binding<Bool>) {
         self.playback = playback
         self._showSettings = showSettings
     }
 
-    private var recentTracks: [TrackSnapshot] {
-        library.recentlyPlayedTracks(limit: 12)
-    }
-
-    private var libraryIsEmpty: Bool {
-        library.allTracks().isEmpty
-    }
-
-    private var hasAnyContent: Bool {
-        !recentTracks.isEmpty
-            || !homeDiscovery.sections.contains(where: { !$0.items.isEmpty })
-            || !situationalSections.isEmpty
-    }
-
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionSpacing) {
-                    if libraryIsEmpty && !hasAnyContent && !homeDiscovery.isRefreshing {
+                    if homeDiscovery.sections.isEmpty && !homeDiscovery.isRefreshing {
                         EmptyStateView(
                             icon: "music.note.house",
-                            title: tr("Your library is empty", "资料库为空"),
+                            title: tr("YouTube Music", "YouTube Music"),
                             subtitle: tr(
-                                "Import music or search YouTube to start listening. Home will show Listen Again and recommendations here.",
-                                "导入音乐或搜索 YouTube 后，首页会显示「再听一次」和推荐内容。"
-                            )
+                                "Pull down to refresh YouTube Music recommendations.",
+                                "下拉刷新以载入 YouTube Music 推荐内容。"
+                            ),
+                            showsEratoLogo: true
                         )
                         .padding(.top, 40)
                     } else {
-                        if !recentTracks.isEmpty {
-                            listenAgainSection
-                        }
-
-                        if situational.isEnabled && !situationalSections.isEmpty {
-                            ForEach(situationalSections) { section in
-                                situationalShelf(section)
-                            }
-                        }
-
                         ForEach(homeDiscovery.sections.filter { !$0.items.isEmpty || $0.status == .loading }) { section in
                             discoveryShelf(section)
                         }
 
                         if homeDiscovery.isRefreshing && homeDiscovery.sections.isEmpty {
                             ProgressView()
-                                .tint(BrandColors.accent)
+                                .tint(BrandColors.laurelGold)
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 24)
                         }
@@ -78,23 +50,6 @@ struct HomeView: View {
             .navigationTitle(tr("Home", "首页"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker(
-                            tr("Recommendation source", "推荐来源"),
-                            selection: $homeRecommendationModeRaw
-                        ) {
-                            ForEach(HomeRecommendationMode.allCases) { mode in
-                                Text(mode.title).tag(mode.rawValue)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "sparkles.rectangle.stack")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(BrandColors.textPrimary)
-                    }
-                    .accessibilityLabel(tr("Recommendation source", "推荐来源"))
-                }
-                ToolbarItem(placement: .topBarTrailing) {
                     ChromeIconButton(
                         systemName: "gearshape",
                         help: tr("Settings", "设置"),
@@ -105,118 +60,11 @@ struct HomeView: View {
                     }
                 }
             }
-            .onChange(of: homeRecommendationModeRaw) { _, _ in
-                homeDiscovery.reload()
-            }
             .task {
                 homeDiscovery.load()
-                await refreshSituational()
             }
             .refreshable {
                 homeDiscovery.reload()
-                await refreshSituational()
-            }
-        }
-    }
-
-    // MARK: - Listen Again
-
-    private var listenAgainSection: some View {
-        VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            Text(tr("Listen Again", "再听一次"))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(BrandColors.textPrimary)
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppleMusicSpacing.shelfItemSpacing) {
-                    ForEach(recentTracks) { track in
-                        Button {
-                            triggerHaptic()
-                            playback.play(track, context: recentTracks, from: .recently)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ArtworkView(
-                                    source: .resolve(for: track),
-                                    cornerRadius: AppleMusicTokens.cardCornerRadius,
-                                    glyphSize: 36,
-                                    targetSize: 140
-                                )
-                                .frame(width: 140, height: 140)
-                                .clipped()
-                                .shadow(color: .black.opacity(0.1), radius: 6, y: 3)
-
-                                Text(track.title)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(BrandColors.textPrimary)
-                                    .lineLimit(1)
-                                    .frame(width: 140, alignment: .leading)
-
-                                Text(track.artist)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(BrandColors.textSecondary)
-                                    .lineLimit(1)
-                                    .frame(width: 140, alignment: .leading)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-            }
-        }
-    }
-
-    // MARK: - Situational
-
-    private func situationalShelf(_ section: SituationalSection) -> some View {
-        VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(section.title)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(BrandColors.textPrimary)
-                if let subtitle = section.subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(size: 13))
-                        .foregroundStyle(BrandColors.textSecondary)
-                }
-            }
-            .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppleMusicSpacing.shelfItemSpacing) {
-                    ForEach(section.items) { track in
-                        Button {
-                            triggerHaptic()
-                            playback.play(track, context: section.items, from: .songs)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ArtworkView(
-                                    source: .resolve(for: track),
-                                    cornerRadius: AppleMusicTokens.cardCornerRadius,
-                                    glyphSize: 36,
-                                    targetSize: 140
-                                )
-                                .frame(width: 140, height: 140)
-                    .clipped()
-
-                                Text(track.title)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(BrandColors.textPrimary)
-                                    .lineLimit(1)
-                                    .frame(width: 140, alignment: .leading)
-
-                                Text(track.artist)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(BrandColors.textSecondary)
-                                    .lineLimit(1)
-                                    .frame(width: 140, alignment: .leading)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
             }
         }
     }
@@ -227,7 +75,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: AppleMusicSpacing.sectionHeaderToContent) {
             HStack {
                 Text(section.title)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(EratoTypography.poeticTitle(size: 22, weight: .bold))
                     .foregroundStyle(BrandColors.textPrimary)
                 if case .loading = section.status {
                     ProgressView()
@@ -320,31 +168,80 @@ struct HomeView: View {
     }
 
     private func playYouTubeCard(_ card: YouTubeDiscoveryCard) {
-        guard let videoId = card.playableVideoID, !videoId.isEmpty else { return }
-        let track = TrackSnapshot(
-            id: UUID(),
-            title: card.title,
-            artist: card.uploader ?? "",
-            albumTitle: nil,
-            durationSeconds: card.duration ?? 0,
-            youTubeId: videoId,
-            artworkUrl: card.thumbnailURL,
-            sampleRate: nil,
-            bitDepth: nil,
-            codec: nil,
-            isLossless: false
-        )
-        playback.play(track, from: .search)
-    }
-
-    private func refreshSituational() async {
-        guard situational.isEnabled else {
-            situationalSections = []
+        if let videoId = card.playableVideoID, !videoId.isEmpty {
+            let track = TrackSnapshot(
+                id: UUID(),
+                title: card.title,
+                artist: card.uploader ?? "",
+                albumTitle: nil,
+                durationSeconds: card.duration ?? 0,
+                youTubeId: videoId,
+                artworkUrl: card.thumbnailURL,
+                sampleRate: nil,
+                bitDepth: nil,
+                codec: nil,
+                isLossless: false
+            )
+            playback.play(track, from: .search)
             return
         }
-        isLoadingSituational = true
-        situationalSections = await situational.compute()
-        isLoadingSituational = false
+
+        // If card is a playlist or album without immediate video ID
+        let identifier = card.playEndpoint?.identifier ?? card.browseEndpoint?.identifier
+        guard let identifier, !identifier.isEmpty else { return }
+
+        Task {
+            let playlistURL: String
+            if identifier.hasPrefix("http") {
+                playlistURL = identifier
+            } else if identifier.hasPrefix("VL") {
+                playlistURL = "https://music.youtube.com/playlist?list=\(identifier.dropFirst(2))"
+            } else if identifier.hasPrefix("MPREb_") {
+                playlistURL = "https://music.youtube.com/playlist?list=\(identifier)"
+            } else {
+                playlistURL = "https://music.youtube.com/playlist?list=\(identifier)"
+            }
+
+            do {
+                let entries = try await YouTubeResolver.shared.fetchPlaylist(url: playlistURL)
+                let snaps = entries.filter { $0.resourceKind == .video || $0.id.count == 11 }.map { entry in
+                    TrackSnapshot(
+                        id: UUID(),
+                        title: entry.title,
+                        artist: entry.uploader ?? card.uploader ?? "",
+                        albumTitle: card.title,
+                        durationSeconds: entry.duration ?? 0,
+                        youTubeId: entry.id,
+                        artworkUrl: YouTubeThumbnail.urlString(videoId: entry.id),
+                        sampleRate: nil,
+                        bitDepth: nil,
+                        codec: nil,
+                        isLossless: false
+                    )
+                }
+                if let first = snaps.first {
+                    playback.playTrack(first, context: snaps, from: .playlist)
+                }
+            } catch {
+                if let results = try? await YouTubeResolver.shared.searchYouTube(query: "\(card.title) \(card.uploader ?? "")", limit: 10),
+                   let first = results.first {
+                    let track = TrackSnapshot(
+                        id: UUID(),
+                        title: first.title,
+                        artist: first.uploader ?? card.uploader ?? "",
+                        albumTitle: card.title,
+                        durationSeconds: first.duration ?? 0,
+                        youTubeId: first.id,
+                        artworkUrl: YouTubeThumbnail.urlString(videoId: first.id),
+                        sampleRate: nil,
+                        bitDepth: nil,
+                        codec: nil,
+                        isLossless: false
+                    )
+                    playback.play(track, from: .search)
+                }
+            }
+        }
     }
 
     private func triggerHaptic() {
@@ -353,3 +250,4 @@ struct HomeView: View {
         #endif
     }
 }
+

@@ -220,8 +220,7 @@ struct TrackContextMenuItems: View {
 
         if let resolvedTrack {
             Divider()
-            let _ = library.likedRevision
-            let liked = library.isLiked(id: resolvedTrack.id)
+            let liked = resolvedTrack.liked
             Button(liked ? tr("Unlike", "取消收藏") : tr("Like", "收藏")) {
                 library.toggleLike(resolvedTrack)
             }

@@ -7,11 +7,11 @@ struct HoverPlayButton: View {
     var body: some View {
         Button(action: onPlay) {
             Image(systemName: "play.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.black)
                 .frame(width: 36, height: 36)
-                .background(BrandColors.magenta, in: Circle())
-                .shadow(color: BrandColors.magenta.opacity(0.35), radius: 6, y: 2)
+                .background(BrandColors.laurelGold, in: Circle())
+                .shadow(color: BrandColors.laurelGold.opacity(0.35), radius: 6, y: 2)
         }
         .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
         .frame(minWidth: AppleMusicSpacing.hitTarget, minHeight: AppleMusicSpacing.hitTarget)

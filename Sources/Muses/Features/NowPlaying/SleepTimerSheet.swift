@@ -13,7 +13,7 @@ struct SleepTimerSheet: View {
                     Section {
                         HStack {
                             Label(tr("Timer Active", "定时运行中"), systemImage: "clock.fill")
-                                .foregroundStyle(BrandColors.magenta)
+                                .foregroundStyle(BrandColors.laurelGold)
                             Spacer()
                             Text(sleepTimer.remainingFormatted)
                                 .font(.headline.monospacedDigit())
@@ -40,7 +40,7 @@ struct SleepTimerSheet: View {
                                 Spacer()
                                 if sleepTimer.isActive && Int(sleepTimer.totalSeconds / 60) == minutes {
                                     Image(systemName: "checkmark")
-                                        .foregroundStyle(BrandColors.magenta)
+                                        .foregroundStyle(BrandColors.laurelGold)
                                 }
                             }
                         }
@@ -52,9 +52,14 @@ struct SleepTimerSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(tr("Done", "完成")) { dismiss() }
+                        .font(.headline)
+                        .foregroundStyle(BrandColors.accent)
                 }
             }
+            .frame(maxWidth: 520)
         }
         .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.ultraThinMaterial)
     }
 }

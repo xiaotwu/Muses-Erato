@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Holographic laser edge: thin AngularGradient spectrum stroke over glass chrome.
+/// Pure Liquid Glass specular rim highlight: subtle directional Fresnel light stroke.
 struct LaserStrokeModifier<S: Shape>: ViewModifier {
     var shape: S
     var lineWidth: CGFloat
@@ -9,10 +9,10 @@ struct LaserStrokeModifier<S: Shape>: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
-    init(shape: S, lineWidth: CGFloat = 1.0, opacity: Double = 0.70) {
+    init(shape: S, lineWidth: CGFloat = 0.65, opacity: Double = 0.60) {
         self.shape = shape
-        self.lineWidth = lineWidth
-        self.opacity = min(0.85, max(0.55, opacity))
+        self.lineWidth = min(lineWidth, 0.8)
+        self.opacity = min(0.75, max(0.25, opacity))
     }
 
     func body(content: Content) -> some View {
@@ -22,12 +22,10 @@ struct LaserStrokeModifier<S: Shape>: ViewModifier {
                     .allowsHitTesting(false)
             } else {
                 shape.stroke(
-                    AngularGradient(
-                        colors: BrandColors.laserSpectrum.map { $0.opacity(opacity) },
-                        center: .center
-                    ),
+                    BrandColors.glassRimGradient,
                     lineWidth: lineWidth
                 )
+                .opacity(opacity)
                 .allowsHitTesting(false)
             }
         }

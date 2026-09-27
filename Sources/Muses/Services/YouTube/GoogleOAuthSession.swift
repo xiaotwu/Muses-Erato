@@ -7,7 +7,9 @@ import UIKit
 #elseif canImport(AppKit)
 import AppKit
 #endif
+#if os(macOS)
 import Network
+#endif
 
 /// Application-owned Google Desktop OAuth configuration.
 ///
@@ -247,14 +249,11 @@ final class GoogleOAuthSession {
         guard let authURL = components.url else { throw OAuthError.authFailed("Failed to build the authorization URL") }
 
         let callback: URL
+        #if os(macOS)
         if config.isLoopbackRedirect {
             let server = LoopbackCallbackServer()
             async let accepted = server.listen(port: config.loopbackPort)
-            #if canImport(UIKit)
-            _ = await UIApplication.shared.open(authURL)
-            #else
             NSWorkspace.shared.open(authURL)
-            #endif
             guard let url = await accepted else { throw OAuthError.userCancelled }
             callback = url
         } else {
@@ -264,6 +263,14 @@ final class GoogleOAuthSession {
             }
             callback = url
         }
+        #else
+        // iOS 平台：强制统一使用 ASWebAuthenticationSession，杜绝手机起本地 TCP 服务
+        guard let url = await presenter.present(
+            authURL: authURL, callbackScheme: config.redirectScheme) else {
+            throw OAuthError.userCancelled
+        }
+        callback = url
+        #endif
         // Parse code / state.
         let cbComps = URLComponents(url: callback, resolvingAgainstBaseURL: false)
         let items = cbComps?.queryItems ?? []
@@ -435,6 +442,7 @@ private extension Data {
     }
 }
 
+#if os(macOS)
 /// Local HTTP listener for Google Desktop OAuth loopback redirects.
 final class LoopbackCallbackServer: @unchecked Sendable {
     private final class ResumeBox: @unchecked Sendable {
@@ -492,3 +500,4 @@ final class LoopbackCallbackServer: @unchecked Sendable {
         }
     }
 }
+#endif

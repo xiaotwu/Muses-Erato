@@ -320,8 +320,32 @@ final class QueueService {
 
     // MARK: - Persistence
 
-    /// Writes the current queue state to `modelContext` (single-row upsert). No-op without a context.
+    private var debounceTask: Task<Void, Never>?
+    private let debounceInterval: Duration = .milliseconds(300)
+
+    /// 标记队列状态发生变化，并调度 300ms 后的防抖写盘
     func persist() {
+        debounceTask?.cancel()
+        debounceTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: self?.debounceInterval ?? .milliseconds(300))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            self?.executePersist()
+        }
+    }
+
+    /// 立即强制写盘（用于 App 进入后台或即将终止时）
+    func flush() {
+        debounceTask?.cancel()
+        debounceTask = nil
+        executePersist()
+    }
+
+    /// 执行真正的写盘操作
+    private func executePersist() {
         guard let ctx = modelContext else { return }
         let encoder = JSONEncoder()
         let itemsJSON = (try? String(data: encoder.encode(items), encoding: .utf8)) ?? "[]"

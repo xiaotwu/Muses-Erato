@@ -218,14 +218,15 @@ struct AlbumObjectView: View {
                             HStack(spacing: 3) {
                                 Image(systemName: isNowPlaying ? "waveform" : "square.stack")
                                     .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(isNowPlaying ? BrandColors.magenta : Color.white.opacity(0.8))
+                                    .foregroundStyle(isNowPlaying ? BrandColors.laurelGold : Color.white.opacity(0.9))
                                 Text(tag)
                                     .font(.system(size: 8.5, weight: .bold))
-                                    .foregroundStyle(Color.white.opacity(0.9))
+                                    .foregroundStyle(Color.white.opacity(0.95))
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
-                            .background(Color.white.opacity(0.14), in: Capsule())
+                            .background(Color.black.opacity(0.45), in: Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 0.5))
                         }
 
                         Spacer(minLength: 0)
@@ -236,17 +237,20 @@ struct AlbumObjectView: View {
                             Text(isNowPlaying ? tr("Playing", "播放中") : tr("Play", "播放"))
                                 .font(.system(size: 9, weight: .semibold))
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(isNowPlaying || hovering ? Color.black : Color.white)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
                         .background(
                             isNowPlaying || hovering
-                                ? BrandColors.magenta
-                                : Color.white.opacity(0.22),
+                                ? BrandColors.laurelGold
+                                : Color.black.opacity(0.45),
                             in: Capsule()
                         )
                         .overlay(
-                            Capsule().stroke(Color.white.opacity(0.35), lineWidth: 0.75)
+                            Capsule().stroke(
+                                isNowPlaying || hovering ? BrandColors.laurelGold.opacity(0.6) : Color.white.opacity(0.3),
+                                lineWidth: 0.75
+                            )
                         )
                     }
                     .padding(.top, 2)
@@ -260,7 +264,7 @@ struct AlbumObjectView: View {
             .overlay {
                 cardShape.stroke(
                     isNowPlaying
-                        ? BrandColors.magenta.opacity(0.85)
+                        ? BrandColors.laurelGold.opacity(0.85)
                         : (hovering ? Color.white.opacity(0.28) : BrandColors.hairline),
                     lineWidth: (hovering || isNowPlaying) ? 1.5 : 1.0
                 )

@@ -87,13 +87,15 @@ struct TrackNotesSheet: View {
                 Button {
                     addBookmarkAtEnd()
                 } label: { Image(systemName: "plus.circle.fill") }
-                    .buttonStyle(.plain).foregroundStyle(BrandColors.magenta)
+                    .buttonStyle(.plain).foregroundStyle(BrandColors.laurelGold)
                     .disabled(!enabled)
             }
         }
         .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: 580, maxHeight: .infinity, alignment: .topLeading)
         .background(BrandColors.background)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .onAppear { reload() }
         .sheet(item: $editingBookmark) { bm in
             VStack(alignment: .leading, spacing: 12) {
@@ -110,7 +112,9 @@ struct TrackNotesSheet: View {
                 }
             }
             .padding(20)
-            .presentationDetents([.medium])
+            .frame(maxWidth: 480)
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -121,7 +125,7 @@ struct TrackNotesSheet: View {
 
     private func bookmarkRow(_ bm: TrackBookmark) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "bookmark.fill").foregroundStyle(BrandColors.magenta)
+            Image(systemName: "bookmark.fill").foregroundStyle(BrandColors.laurelGold)
             Text(formatTimestamp(bm.timestampMs)).font(.callout)
                 .foregroundStyle(BrandColors.textPrimary).monospacedDigit()
                 .frame(width: 56, alignment: .leading)

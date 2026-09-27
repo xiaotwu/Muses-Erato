@@ -1,8 +1,7 @@
-import Foundation
 #if os(macOS)
+import Foundation
 import Security
 import Darwin
-#endif
 
 enum WebHomeHelperClientError: Error, Equatable {
     case missingHelper
@@ -27,7 +26,6 @@ enum WebHomeHelperClientError: Error, Equatable {
     }
 }
 
-#if os(macOS)
 /// Launches exactly one fixed, signed helper per request. Request/response
 /// bodies are never logged. The explicit test initializer is internal so only
 /// tests can substitute a fake executable and signature validator.
@@ -327,31 +325,4 @@ private enum WebHomeHelperSignatureValidator {
         return dictionary[kSecCodeInfoTeamIdentifier] as? String
     }
 }
-
-#else
-
-actor WebHomeHelperClient {
-    static let defaultTimeout: Duration = .seconds(12)
-    static let maximumOutputBytes = 10 * 1024 * 1024
-
-    init(bundle: Bundle = .main) {}
-
-    init(helperURL: URL,
-         maximumOutputBytes: Int = WebHomeHelperClient.maximumOutputBytes,
-         signatureValidator: @escaping @Sendable (URL) -> Bool) {}
-
-    static func bundledHelperURL(in bundle: Bundle) -> URL {
-        bundle.bundleURL.appendingPathComponent("MusesWebHomeHelper")
-    }
-
-    func execute(
-        _ request: WebHomeRequest,
-        timeout: Duration = WebHomeHelperClient.defaultTimeout
-    ) async throws -> WebHomeResponse {
-        throw WebHomeHelperClientError.missingHelper
-    }
-
-    func cancel() {}
-}
-
 #endif

@@ -1,6 +1,5 @@
 #if os(macOS)
 import AppKit
-#endif
 import Foundation
 
 /// Browser families whose profile layout is supported by the isolated helper.
@@ -33,7 +32,6 @@ enum DefaultBrowserCookieSourceResolution: Equatable, Sendable {
 /// Resolves the handler for an HTTPS YouTube Music URL.
 @MainActor
 enum DefaultBrowserCookieSourceDetector {
-    #if os(macOS)
     static func resolve(
         workspace: NSWorkspace = .shared
     ) -> DefaultBrowserCookieSourceResolution {
@@ -52,11 +50,6 @@ enum DefaultBrowserCookieSourceDetector {
             bundleIdentifier: bundleIdentifier,
             applicationName: applicationName)
     }
-    #else
-    static func resolve() -> DefaultBrowserCookieSourceResolution {
-        return .unavailable
-    }
-    #endif
 
     static func resolution(
         bundleIdentifier: String?,
@@ -85,3 +78,4 @@ enum DefaultBrowserCookieSourceDetector {
             bundleIdentifier: identifier)
     }
 }
+#endif

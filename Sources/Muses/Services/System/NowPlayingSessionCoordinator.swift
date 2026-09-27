@@ -11,12 +11,12 @@ final class NowPlayingSessionCoordinator {
     private let playback: PlaybackService
     private let store: NowPlayingSnapshotStore
     private let policy: LiveActivitySessionPolicy
-    private var loop: Task<Void, Never>?
+    private var eventSubscription: UUID?
     private var activity: Activity<ListeningActivityAttributes>?
     private var startedAt: Date?
     private var lastPausedAt: Date?
     private var lastArtworkURL: String?
-    private var lastWidgetSignature: String?
+    private(set) var lastWidgetSignature: String?
     private var darwinObserver: DarwinPlaybackObserver?
 
     init(
@@ -37,16 +37,28 @@ final class NowPlayingSessionCoordinator {
     }
 
     deinit {
-        loop?.cancel()
+        if let sub = eventSubscription {
+            let bus = playback.eventBus
+            Task { @MainActor in
+                bus.unsubscribe(sub)
+            }
+        }
     }
 
     private func start() {
-        loop = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                await self?.tick()
-                try? await Task.sleep(for: .seconds(1))
+        // 订阅播放事件总线，替代原有的 1 秒轮询 Task
+        eventSubscription = playback.eventBus.subscribe { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.handleEventTrigger()
             }
         }
+        Task { await tick() }
+    }
+
+    private func handleEventTrigger() async {
+        publishSnapshot()
+        PhoneWatchSession.shared?.publishIfNeeded()
+        await applyLiveActivityPolicy()
     }
 
     private func tick() async {
@@ -95,10 +107,12 @@ final class NowPlayingSessionCoordinator {
             )
             lastArtworkURL = nil
         }
-        store.save(snapshot)
+
+        // 数据指纹防抖：只有状态变化才落盘与刷新 Widget
         let signature = "\(snapshot.trackId ?? "")|\(snapshot.isPlaying)|\(snapshot.artworkFileName ?? "")"
         if signature != lastWidgetSignature {
             lastWidgetSignature = signature
+            store.save(snapshot) // 仅在变化时写盘
             WidgetCenter.shared.reloadAllTimelines()
         }
     }
@@ -110,7 +124,7 @@ final class NowPlayingSessionCoordinator {
             if let fileName = store.writeArtwork(data), var snapshot = store.load() {
                 snapshot.artworkFileName = fileName
                 store.save(snapshot)
-                lastWidgetSignature = nil
+                lastWidgetSignature = "\(snapshot.trackId ?? "")|\(snapshot.isPlaying)|\(fileName)"
                 WidgetCenter.shared.reloadAllTimelines()
             }
         } catch {

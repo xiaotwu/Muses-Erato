@@ -21,7 +21,7 @@ final class MusesTests: XCTestCase {
     }
 
     func testAppleMusicTokens() {
-        XCTAssertEqual(AppleMusicTokens.keyColorHex, "F5F5F7")
+        XCTAssertEqual(AppleMusicTokens.keyColorHex, "C7A66B")
         XCTAssertGreaterThan(AppleMusicTokens.miniPlayerHeight, 50)
         XCTAssertGreaterThan(AppleMusicTokens.tabBarHeight, 50)
     }
@@ -41,5 +41,19 @@ final class MusesTests: XCTestCase {
         )
         XCTAssertEqual(entry.id, "abc123xyz")
         XCTAssertEqual(entry.title, "Test Song")
+    }
+
+    func testSeedPlaylistJSON() throws {
+        let seedURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/Muses/Resources/muses-debug-seed.json")
+        let data = try Data(contentsOf: seedURL)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertNotNil(json)
+        XCTAssertEqual(json?["playlistId"] as? String, "PLVRppllwHcDw")
+        let entries = json?["entries"] as? [[String: Any]]
+        XCTAssertEqual(entries?.count, 506)
     }
 }

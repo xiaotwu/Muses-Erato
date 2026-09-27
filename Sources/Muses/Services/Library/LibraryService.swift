@@ -2,15 +2,23 @@ import Foundation
 import Observation
 import SwiftData
 
-/// YouTube-native library operations. Every persisted Track has a stable
-/// YouTube video identity; filesystem discovery and local-file repair are not
-/// part of this service.
+/// YouTube-native 媒体库服务。
+/// 统一由 modelContainer.mainContext 驱动，保障 SwiftData 实体图一致性与响应式追踪。
 @MainActor
 @Observable
 final class LibraryService {
     let modelContainer: ModelContainer
+
+    /// 统一使用主线程上下文，避免频繁分配临时 Context 导致的对象图断裂
+    private var mainContext: ModelContext {
+        modelContainer.mainContext
+    }
+
+    @available(*, deprecated, message: "Manual revision tracking is deprecated in favor of SwiftData mainContext reactive dirty tracking.")
     private(set) var likedRevision = 0
+    @available(*, deprecated, message: "Manual revision tracking is deprecated in favor of SwiftData mainContext reactive dirty tracking.")
     private(set) var playRevision = 0
+    @available(*, deprecated, message: "Manual revision tracking is deprecated in favor of SwiftData mainContext reactive dirty tracking.")
     private(set) var metadataRevision = 0
 
     init(modelContainer: ModelContainer) {
@@ -18,10 +26,9 @@ final class LibraryService {
     }
 
     func allTracks(search: String? = nil) -> [Track] {
-        let context = ModelContext(modelContainer)
         let query = search?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !query.isEmpty else {
-            return (try? context.fetch(FetchDescriptor<Track>(
+            return (try? mainContext.fetch(FetchDescriptor<Track>(
                 sortBy: [SortDescriptor(\.title)]))) ?? []
         }
         let descriptor = FetchDescriptor<Track>(
@@ -31,33 +38,28 @@ final class LibraryService {
                     || $0.albumTitle?.localizedStandardContains(query) == true
             },
             sortBy: [SortDescriptor(\.title)])
-        return (try? context.fetch(descriptor)) ?? []
+        return (try? mainContext.fetch(descriptor)) ?? []
     }
 
     func toggleLike(_ track: Track) {
-        toggleLike(id: track.id)
+        track.liked.toggle()
+        saveContext()
+        likedRevision &+= 1
     }
 
     func toggleLike(id: UUID) {
-        let context = ModelContext(modelContainer)
-        guard let track = try? context.fetch(FetchDescriptor<Track>(
+        guard let track = try? mainContext.fetch(FetchDescriptor<Track>(
             predicate: #Predicate { $0.id == id })).first else { return }
         track.liked.toggle()
-        do {
-            try context.save()
-            likedRevision &+= 1
-        } catch {
-            AppLog.for("LibraryService").warning(
-                "toggleLike save failed: \(error.localizedDescription)")
-        }
+        saveContext()
+        likedRevision &+= 1
     }
 
     func updateTrack(id: UUID, title: String, artist: String,
                      albumTitle: String?, albumArtist: String?,
                      trackNo: Int?, discNo: Int?, year: Int?,
                      genre: String?, lyrics: String?) {
-        let context = ModelContext(modelContainer)
-        guard let track = try? context.fetch(FetchDescriptor<Track>(
+        guard let track = try? mainContext.fetch(FetchDescriptor<Track>(
             predicate: #Predicate { $0.id == id })).first else { return }
         track.title = title
         track.artist = artist
@@ -83,45 +85,35 @@ final class LibraryService {
             }
         }
 
-        do {
-            try context.save()
-            metadataRevision &+= 1
-        } catch {
-            AppLog.for("LibraryService").warning(
-                "updateTrack save failed: \(error.localizedDescription)")
-        }
+        saveContext()
+        metadataRevision &+= 1
     }
 
     func isLiked(id: UUID) -> Bool {
-        let context = ModelContext(modelContainer)
-        return ((try? context.fetch(FetchDescriptor<Track>(
+        return ((try? mainContext.fetch(FetchDescriptor<Track>(
             predicate: #Predicate { $0.id == id })).first)?.liked) ?? false
     }
 
     func track(by id: UUID) -> Track? {
-        let context = ModelContext(modelContainer)
-        return try? context.fetch(FetchDescriptor<Track>(
+        return try? mainContext.fetch(FetchDescriptor<Track>(
             predicate: #Predicate { $0.id == id })).first
     }
 
     func likedIDs(for ids: [UUID]) -> Set<UUID> {
         guard !ids.isEmpty else { return [] }
-        let context = ModelContext(modelContainer)
-        let rows = (try? context.fetch(FetchDescriptor<Track>(
+        let rows = (try? mainContext.fetch(FetchDescriptor<Track>(
             predicate: #Predicate { ids.contains($0.id) && $0.liked == true }))) ?? []
         return Set(rows.map(\.id))
     }
 
     func likedTracks() -> [Track] {
-        let context = ModelContext(modelContainer)
-        return (try? context.fetch(FetchDescriptor<Track>(
+        return (try? mainContext.fetch(FetchDescriptor<Track>(
             predicate: #Predicate { $0.liked == true },
             sortBy: [SortDescriptor(\.addedAt, order: .reverse)]))) ?? []
     }
 
     func recordPlay(trackId: UUID) {
-        let context = ModelContext(modelContainer)
-        guard let track = try? context.fetch(FetchDescriptor<Track>(
+        guard let track = try? mainContext.fetch(FetchDescriptor<Track>(
             predicate: #Predicate { $0.id == trackId })).first else {
             AppLog.for("LibraryService").warning(
                 "recordPlay missing track \(trackId)")
@@ -129,21 +121,15 @@ final class LibraryService {
         }
         track.lastPlayedAt = .init()
         track.playCount += 1
-        do {
-            try context.save()
-            playRevision &+= 1
-        } catch {
-            AppLog.for("LibraryService").warning(
-                "recordPlay save failed: \(error.localizedDescription)")
-        }
+        saveContext()
+        playRevision &+= 1
     }
 
     func recentlyPlayedTracks(limit: Int = 20) -> [TrackSnapshot] {
-        let context = ModelContext(modelContainer)
         let descriptor = FetchDescriptor<Track>(
             predicate: #Predicate { $0.lastPlayedAt != nil },
             sortBy: [SortDescriptor(\.lastPlayedAt, order: .reverse)])
-        guard let tracks = try? context.fetch(descriptor) else { return [] }
+        guard let tracks = try? mainContext.fetch(descriptor) else { return [] }
         var seen = Set<String>()
         var result: [TrackSnapshot] = []
         for track in tracks where seen.insert(track.youTubeId).inserted {
@@ -154,8 +140,7 @@ final class LibraryService {
     }
 
     func topArtistName() -> String? {
-        let context = ModelContext(modelContainer)
-        guard let tracks = try? context.fetch(FetchDescriptor<Track>(
+        guard let tracks = try? mainContext.fetch(FetchDescriptor<Track>(
             predicate: #Predicate { $0.playCount > 0 })) else { return nil }
         var totals: [String: Int] = [:]
         for track in tracks {
@@ -203,5 +188,15 @@ final class LibraryService {
             if result.count >= limit { break }
         }
         return result
+    }
+
+    private func saveContext() {
+        do {
+            if mainContext.hasChanges {
+                try mainContext.save()
+            }
+        } catch {
+            AppLog.for("LibraryService").warning("mainContext save failed: \(error.localizedDescription)")
+        }
     }
 }

@@ -680,14 +680,15 @@ struct CollectionDeckCardSurface: View {
                     HStack(spacing: 3) {
                         Image(systemName: isPlaying ? "waveform" : "music.note")
                             .font(.system(size: 8.5, weight: .bold))
-                            .foregroundStyle(isPlaying ? BrandColors.magenta : Color.white.opacity(0.8))
+                            .foregroundStyle(isPlaying ? BrandColors.laurelGold : Color.white.opacity(0.9))
                         Text(tr("SONG", "歌曲"))
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Color.white.opacity(0.9))
+                            .foregroundStyle(Color.white.opacity(0.95))
                     }
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.14), in: Capsule())
+                    .background(Color.black.opacity(0.45), in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 0.5))
 
                     Spacer(minLength: 0)
 
@@ -698,17 +699,20 @@ struct CollectionDeckCardSurface: View {
                         Text(isPlaying ? tr("Pause", "暂停") : tr("Play", "播放"))
                             .font(.system(size: 9.5, weight: .semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(isPlaying || isHovered ? Color.black : Color.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3.5)
                     .background(
                         isPlaying || isHovered
-                            ? BrandColors.magenta
-                            : Color.white.opacity(0.22),
+                            ? BrandColors.laurelGold
+                            : Color.black.opacity(0.45),
                         in: Capsule()
                     )
                     .overlay(
-                        Capsule().stroke(Color.white.opacity(0.35), lineWidth: 0.75)
+                        Capsule().stroke(
+                            isPlaying || isHovered ? BrandColors.laurelGold.opacity(0.6) : Color.white.opacity(0.3),
+                            lineWidth: 0.75
+                        )
                     )
                 }
                 .padding(.top, 2)
@@ -722,7 +726,7 @@ struct CollectionDeckCardSurface: View {
         .overlay {
             cardShape.stroke(
                 isPlaying
-                    ? BrandColors.magenta.opacity(0.85)
+                    ? BrandColors.laurelGold.opacity(0.85)
                     : (isFocused
                         ? Color.white.opacity(0.38)
                         : (isHovered ? Color.white.opacity(0.28) : BrandColors.hairline)),

@@ -58,7 +58,7 @@ struct MiniPlayerBar: View {
                     // Next Button
                     Button {
                         triggerHapticFeedback()
-                        _ = playback.next()
+                        playback.next()
                     } label: {
                         Image(systemName: "forward.fill")
                             .font(.system(size: 16, weight: .semibold))
@@ -73,22 +73,24 @@ struct MiniPlayerBar: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: AppleMusicTokens.miniPlayerHeight)
 
-                // Hairline Track Progress Bar
+                // Refined Hairline Track Progress Bar
                 GeometryReader { geo in
                     let progress = playback.state.duration > 0
                         ? min(1.0, max(0.0, playback.state.position / playback.state.duration))
                         : 0.0
 
                     ZStack(alignment: .leading) {
-                        Rectangle()
-                            .fill(Color.white.opacity(0.12))
+                        Capsule()
+                            .fill(Color.white.opacity(0.10))
 
-                        Rectangle()
-                            .fill(BrandColors.accent)
-                            .frame(width: geo.size.width * progress)
+                        Capsule()
+                            .fill(BrandColors.laurelGold)
+                            .frame(width: max(2, geo.size.width * progress))
                     }
                 }
-                .frame(height: 2.5)
+                .frame(height: 1.5)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 2)
             }
             .frame(maxWidth: .infinity)
             .offset(y: dragOffset)

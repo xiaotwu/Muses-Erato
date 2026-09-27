@@ -107,7 +107,8 @@ struct SearchView: View {
                     subtitle: tr(
                         "Recent searches and top artists from your library will show up here.",
                         "最近搜索和资料库中的常用艺人会出现在这里。"
-                    )
+                    ),
+                    showsEratoLogo: true
                 )
                 .padding(.top, 24)
             }
@@ -117,7 +118,7 @@ struct SearchView: View {
     private func chipSection(title: String, tags: [String]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(title)
-                .font(.system(size: 19, weight: .bold))
+                .font(EratoTypography.poeticTitle(size: 19, weight: .bold))
                 .foregroundStyle(BrandColors.textPrimary)
                 .padding(.horizontal, AppleMusicSpacing.pageHorizontal)
 
@@ -134,7 +135,13 @@ struct SearchView: View {
                                 .padding(.horizontal, 14)
                                 .frame(minHeight: AppleMusicSpacing.hitTarget)
                                 .contentShape(Capsule())
-                                .background(BrandColors.surface, in: Capsule())
+                                .background(
+                                    Capsule()
+                                        .fill(BrandColors.surface.opacity(0.75))
+                                        .overlay(
+                                            Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.6)
+                                        )
+                                )
                         }
                         .buttonStyle(.plain)
                     }

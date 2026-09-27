@@ -1,13 +1,12 @@
 import SwiftUI
 
-/// Main container: floating Liquid Glass tab bar (Home / Browse / Library),
-/// docked MiniPlayer, and a circular Search FAB at bottom-trailing.
+/// Main container: floating Liquid Glass tab bar (Home / Browse / Library / Search)
+/// and docked MiniPlayer capsule.
 struct MainTabView: View {
     @Bindable var playback: PlaybackService
     @State private var selectedTab: Int = 0
     @State private var showNowPlaying: Bool = false
     @State private var showSettings: Bool = false
-    @State private var showSearch: Bool = false
     @Namespace private var tabGlass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -32,29 +31,37 @@ struct MainTabView: View {
                 LibraryView(playback: playback)
                     .tag(2)
                     .toolbar(.hidden, for: .tabBar)
+
+                SearchView(playback: playback)
+                    .tag(3)
+                    .toolbar(.hidden, for: .tabBar)
             }
             .toolbar(.hidden, for: .tabBar)
             .tint(BrandColors.accent)
 
-            // Full-width dock: MiniPlayer and (tab capsule + Search FAB) share the same inset.
+            // Docked floating functional layer: MiniPlayer & 4-Tab Liquid Glass Capsule
             VStack(spacing: AppleMusicTokens.miniPlayerDockMargin) {
                 if playback.state.track != nil {
                     let shape = RoundedRectangle(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, style: .continuous)
                     MiniPlayerBar(playback: playback, isNowPlayingExpanded: $showNowPlaying)
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: 580)
                         .frame(height: AppleMusicTokens.miniPlayerHeight + 2.5)
                         .background(.ultraThinMaterial, in: shape)
-                        .overlay { shape.stroke(BrandColors.hairline.opacity(0.9), lineWidth: 0.6) }
-                        .laserStroke(cornerRadius: AppleMusicTokens.miniPlayerCornerRadius, lineWidth: 0.9, opacity: 0.62)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .overlay {
+                            shape.stroke(
+                                BrandColors.glassRimGradient,
+                                lineWidth: 0.65
+                            )
+                        }
+                        .shadow(color: BrandColors.glassShadow, radius: 10, x: 0, y: 4)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        ))
                 }
 
-                HStack(alignment: .center, spacing: 10) {
-                    floatingTabBar
-                        .frame(maxWidth: .infinity)
-                    searchFAB
-                }
-                .frame(maxWidth: .infinity)
+                floatingTabBar
+                    .frame(maxWidth: 480)
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, AppleMusicTokens.tabBarFloatingInset)
@@ -75,57 +82,26 @@ struct MainTabView: View {
             SettingsView(playback: playback)
                 .environment(playback)
         }
-        .fullScreenCover(isPresented: $showSearch) {
-            NavigationStack {
-                SearchView(playback: playback, isPresented: $showSearch)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button {
-                                showSearch = false
-                            } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .frame(width: 36, height: 36)
-                            }
-                            .musesControls()
-                            .accessibilityLabel(tr("Close", "关闭"))
-                        }
-                    }
-            }
-            .environment(playback)
-        }
     }
 
-
-    private var searchFAB: some View {
-
-        Button {
-            triggerHapticFeedback()
-            showSearch = true
-        } label: {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(BrandColors.textPrimary)
-                .frame(width: 54, height: 54)
-                .contentShape(Circle())
-        }
-        .buttonStyle(MusesPressStyle(scale: MusesMotion.pressScale))
-        .musesGlass(in: Circle(), role: .compactControl)
-        .laserStroke(Circle(), lineWidth: 1.15, opacity: 0.78)
-        .accessibilityLabel(tr("Search", "搜索"))
-    }
+    // MARK: - 4-Tab Liquid Glass Capsule
 
     private var floatingTabBar: some View {
         MusesGlassGroup(spacing: 0) {
-            HStack(spacing: 0) {
+            HStack(spacing: 4) {
                 tabButton(index: 0, title: tr("Home", "首页"), systemImage: "house.fill")
                 tabButton(index: 1, title: tr("Browse", "发现"), systemImage: "square.grid.2x2.fill")
                 tabButton(index: 2, title: tr("Library", "资料库"), systemImage: "music.note.list")
+                tabButton(index: 3, title: tr("Search", "搜索"), systemImage: "magnifyingglass")
             }
             .padding(4)
             .frame(height: AppleMusicTokens.tabBarHeight)
             .musesGlassCapsule(role: .tabBar)
-            .laserStroke(Capsule(), lineWidth: 1.05, opacity: 0.65)
+            .overlay {
+                Capsule()
+                    .stroke(BrandColors.glassRimGradient, lineWidth: 0.7)
+            }
+            .shadow(color: BrandColors.glassShadow, radius: 14, x: 0, y: 6)
         }
     }
 
@@ -134,13 +110,13 @@ struct MainTabView: View {
 
         return Button {
             triggerHapticFeedback()
-            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.78)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
                 selectedTab = index
             }
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: isSelected ? .bold : .medium))
+                    .font(.system(size: 19, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? BrandColors.accent : BrandColors.textSecondary)
 
                 Text(title)
@@ -161,16 +137,22 @@ struct MainTabView: View {
             if #available(iOS 26.0, *), !reduceTransparency, contrast != .increased {
                 Color.clear
                     .glassEffect(
-                        .regular.tint(BrandColors.accent.opacity(0.22)).interactive(!reduceMotion),
+                        .regular.tint(BrandColors.laurelGold.opacity(0.18)).interactive(!reduceMotion),
                         in: Capsule()
                     )
                     .glassEffectID("tab-selection", in: tabGlass)
+                    .overlay {
+                        Capsule().stroke(Color.white.opacity(0.18), lineWidth: 0.5)
+                    }
             } else {
-                Capsule().fill(BrandColors.accent.opacity(0.14))
+                Capsule()
+                    .fill(BrandColors.surface.opacity(0.85))
+                    .overlay {
+                        Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                    }
             }
         }
     }
-
 
     #if DEBUG
     private func applyDebugScreenFlags() {
@@ -185,7 +167,7 @@ struct MainTabView: View {
         }
         if defaults.bool(forKey: "muses.debug.showSearch") {
             defaults.set(false, forKey: "muses.debug.showSearch")
-            showSearch = true
+            selectedTab = 3
         }
         if defaults.bool(forKey: "muses.debug.showSettings") {
             defaults.set(false, forKey: "muses.debug.showSettings")

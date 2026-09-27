@@ -24,6 +24,7 @@ struct EQEditorView: View {
             presetSection
         }
         .padding(24)
+        .frame(maxWidth: 680)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .musesFloatingChrome(cornerRadius: 16)
         .onAppear {
@@ -37,7 +38,8 @@ struct EQEditorView: View {
 
     private var header: some View {
         HStack {
-            Text(tr("Equalizer", "均衡器")).font(.title2).fontWeight(.bold)
+            Text(tr("Equalizer", "均衡器"))
+                .font(EratoTypography.poeticTitle(size: 22, weight: .bold))
                 .foregroundStyle(BrandColors.textPrimary)
             Spacer()
             Button(tr("Reset", "重置")) {
@@ -46,7 +48,7 @@ struct EQEditorView: View {
                 activePresetIdRaw = "Flat"
             }
             .musesControls()
-            .tint(BrandColors.accent)
+            .tint(BrandColors.laurelGold)
         }
     }
 
@@ -95,7 +97,7 @@ struct EQEditorView: View {
             if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
             else { path.addLine(to: CGPoint(x: x, y: y)) }
         }
-        ctx.stroke(path, with: .color(BrandColors.magenta), lineWidth: 2)
+        ctx.stroke(path, with: .color(BrandColors.laurelGold), lineWidth: 2)
 
         // Band points
         for (i, band) in bands.enumerated() {
@@ -103,7 +105,7 @@ struct EQEditorView: View {
             let y = midY - CGFloat(band.gain) / 24.0 * (size.height / 2)
             ctx.fill(
                 Circle().path(in: CGRect(x: x - 4, y: y - 4, width: 8, height: 8)),
-                with: .color(BrandColors.magenta)
+                with: .color(BrandColors.laurelGold)
             )
         }
     }

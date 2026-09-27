@@ -20,10 +20,12 @@ final class NowPlayingManager {
     /// commands are simply not bound (never fabricated).
     private let library: LibraryService?
     private let queue: QueueService?
-    private var updateTask: Task<Void, Never>?
     private let publishInfo: ([String: Any]) -> Void
     private(set) var observationLifecycleStartCount = 0
     private var lastNotifiedTrackId: UUID?
+    private var eventSubscription: UUID?
+    private(set) var artworkLoadTask: Task<Void, Never>?
+    private(set) var currentArtwork: MPMediaItemArtwork?
 
     init(_ playback: PlaybackService,
          library: LibraryService? = nil,
@@ -43,31 +45,52 @@ final class NowPlayingManager {
     }
 
     deinit {
-        updateTask?.cancel()
+        if let sub = eventSubscription {
+            let bus = playback.eventBus
+            Task { @MainActor in
+                bus.unsubscribe(sub)
+            }
+        }
+        artworkLoadTask?.cancel()
     }
 
-    // MARK: - State observation
+    // MARK: - 纯事件驱动监听 (彻底消灭 250ms Polling Loop)
 
-    /// Starts the single state-publishing loop. Repeated calls are idempotent and never create an extra Task.
     func startObserving() {
-        guard updateTask == nil else { return }
+        guard eventSubscription == nil else { return }
         observationLifecycleStartCount += 1
-        updateTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                guard self != nil else { return }
-                self?.updateInfo()
-                do {
-                    try await Task.sleep(for: .milliseconds(250))
-                } catch {
-                    return
-                }
+        eventSubscription = playback.eventBus.subscribe { [weak self] event in
+            self?.handlePlaybackEvent(event)
+        }
+        if let track = playback.state.track {
+            loadArtwork(for: track)
+        }
+        updateNowPlayingInfo()
+    }
+
+    private func handlePlaybackEvent(_ event: PlaybackEvent) {
+        switch event {
+        case .trackStarted(let track):
+            currentArtwork = nil
+            loadArtwork(for: track)
+            updateNowPlayingInfo()
+            sendTrackChangeNotificationIfNeeded(for: track)
+        case .trackPaused, .trackResumed, .trackSeeked, .trackSkipped:
+            updateNowPlayingInfo()
+        case .trackStopped, .trackCompleted:
+            if playback.state.track == nil {
+                artworkLoadTask?.cancel()
+                currentArtwork = nil
             }
+            updateNowPlayingInfo()
+        default:
+            break
         }
     }
 
-    // MARK: - nowPlayingInfo
+    // MARK: - 锁屏信息构造 (依赖系统硬件插值，无需定时刷新)
 
-    private func updateInfo() {
+    func updateNowPlayingInfo() {
         var info: [String: Any] = [:]
         let state = playback.state
 
@@ -79,19 +102,63 @@ final class NowPlayingManager {
             }
             info[MPMediaItemPropertyPlaybackDuration] = state.duration
             info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = state.position
+            // playbackRate: 1.0 (播放时系统自动向前插值走针) 或 0.0 (暂停)
             info[MPNowPlayingInfoPropertyPlaybackRate] = state.isPlaying ? 1.0 : 0.0
+
+            if let artwork = currentArtwork {
+                info[MPMediaItemPropertyArtwork] = artwork
+            }
         }
 
         publishInfo(info)
+    }
 
-        // Track-change notification (opt-in)
-        if let track = state.track, track.id != lastNotifiedTrackId {
-            lastNotifiedTrackId = track.id
-            sendTrackChangeNotification(title: track.title, body: track.artist)
+    /// Alias for backwards compatibility
+    func updateInfo() {
+        updateNowPlayingInfo()
+    }
+
+    // MARK: - 锁屏高清封面异步加载
+
+    private func loadArtwork(for track: TrackSnapshot) {
+        artworkLoadTask?.cancel()
+        guard let urlString = track.artworkUrl, let url = URL(string: urlString) else { return }
+
+        artworkLoadTask = Task { [weak self] in
+            #if canImport(UIKit)
+            let image: UIImage?
+            if let cached = ImageLoader.shared.cachedImage(for: url) {
+                image = cached
+            } else {
+                let task = ImageLoader.shared.load(url)
+                image = await task.value
+            }
+
+            guard !Task.isCancelled, let finalImage = image else { return }
+            let artwork = MPMediaItemArtwork(boundsSize: finalImage.size) { _ in finalImage }
+            self?.currentArtwork = artwork
+            self?.updateNowPlayingInfo()
+            #endif
         }
     }
 
     // MARK: - Track-change notifications
+
+    private func sendTrackChangeNotificationIfNeeded(for track: TrackSnapshot) {
+        guard track.id != lastNotifiedTrackId else { return }
+        lastNotifiedTrackId = track.id
+        let enabled = UserDefaults.standard.bool(forKey: PrefKey.notificationsTrackChange)
+        guard enabled else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = track.title
+        content.body = track.artist
+        content.sound = nil
+        let request = UNNotificationRequest(
+            identifier: "muses.track.\(UUID().uuidString)",
+            content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
 
     private func sendTrackChangeNotification(title: String, body: String) {
         let enabled = UserDefaults.standard.bool(forKey: PrefKey.notificationsTrackChange)

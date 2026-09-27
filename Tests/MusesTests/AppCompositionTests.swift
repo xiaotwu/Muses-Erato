@@ -20,6 +20,7 @@ final class AppCompositionTests: XCTestCase {
         XCTAssertNotNil(composition.situational)
         XCTAssertNotNil(composition.context)
         XCTAssertNotNil(composition.history)
+        XCTAssertNotNil(composition.audioSessionCoordinator)
         XCTAssertFalse(
             composition.homeProviderHasWebEnhancement,
             "Default Home path must not require macOS WebHome helper"

@@ -22,6 +22,10 @@ public final class ImageLoader {
         memory.object(forKey: (url.absoluteString + "#letterbox-v6") as NSString)
     }
 
+    public func setCachedImage(_ image: PlatformImage, for url: URL) {
+        memory.setObject(image, forKey: (url.absoluteString + "#letterbox-v6") as NSString)
+    }
+
     public func load(_ url: URL) -> Task<PlatformImage?, Never> {
         // Versioned so letterbox-strip algorithm upgrades invalidate stale cached thumbs.
         let keyStr = url.absoluteString + "#letterbox-v6"

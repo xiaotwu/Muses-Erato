@@ -116,8 +116,10 @@ struct PlaylistsView: View {
                     EmptyStateView(
                         icon: "exclamationmark.triangle",
                         title: tr("Playlists unavailable", "歌单暂不可用"),
-                        subtitle: tr("Retry to load playlists from this Mac.",
-                                     "请重试从此 Mac 载入歌单。"))
+                        subtitle: tr("Retry to load playlists.", "请重试载入歌单。"),
+                        actionTitle: tr("Retry", "重试"),
+                        action: { _ = playlistService.fetchAll() }
+                    )
                         .padding(16)
                 } else if playlists.isEmpty && activeYouTubeImports.isEmpty
                     && deletedYouTubeImports.isEmpty {
@@ -233,6 +235,8 @@ struct PlaylistsView: View {
         .sheet(item: $revisionImport) { imported in
             PlaylistRevisionBrowserSheet(importID: imported.id,
                                          playlistTitle: imported.title)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
             pendingDeletion?.title ?? "",
@@ -605,33 +609,39 @@ struct PlaylistAddChoiceSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text(tr("Add Playlist", "添加歌单"))
-                    .font(.title2.weight(.semibold))
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                choiceButton(
+                    title: tr("New Playlist", "新建歌单"),
+                    subtitle: tr("Create an empty Muses playlist", "创建一个空的 Muses 歌单"),
+                    systemName: "plus.square.on.square",
+                    action: onNew
+                )
+                choiceButton(
+                    title: tr("Import YouTube Playlist", "导入 YouTube 歌单"),
+                    subtitle: tr("Paste a YouTube or YouTube Music playlist link", "粘贴 YouTube 或 YouTube Music 歌单链接"),
+                    systemName: "square.and.arrow.down",
+                    action: onImport
+                )
                 Spacer()
-                ChromeIconButton(systemName: "xmark",
-                                 help: tr("Close", "关闭"),
-                                 accessibility: tr("Close", "关闭")) {
-                    dismiss()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .frame(maxWidth: 460)
+            .navigationTitle(tr("Add Playlist", "添加歌单"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(tr("Cancel", "取消")) {
+                        dismiss()
+                    }
+                    .foregroundStyle(BrandColors.textSecondary)
                 }
             }
-            choiceButton(
-                title: tr("New Playlist", "新建歌单"),
-                subtitle: tr("Create an empty Muses playlist", "创建一个空的 Muses 歌单"),
-                systemName: "plus.square.on.square",
-                action: onNew
-            )
-            choiceButton(
-                title: tr("Import YouTube Playlist", "导入 YouTube 歌单"),
-                subtitle: tr("Paste a YouTube or YouTube Music playlist link", "粘贴 YouTube 或 YouTube Music 歌单链接"),
-                systemName: "square.and.arrow.down",
-                action: onImport
-            )
         }
-        .padding(20)
-        .frame(width: 420)
-        .musesFloatingChrome(cornerRadius: 18)
+        .presentationDetents([.height(240), .medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.ultraThinMaterial)
     }
 
     private func choiceButton(title: String, subtitle: String,
@@ -641,7 +651,7 @@ struct PlaylistAddChoiceSheet: View {
                 Image(systemName: systemName)
                     .font(.system(size: 20, weight: .semibold))
                     .frame(width: 30)
-                    .foregroundStyle(BrandColors.magenta)
+                    .foregroundStyle(BrandColors.laurelGold)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.headline).foregroundStyle(BrandColors.textPrimary)
                     Text(subtitle).font(.caption).foregroundStyle(BrandColors.textSecondary)
@@ -665,28 +675,41 @@ struct NewPlaylistSheet: View {
     @State private var name = ""
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text(tr("New Playlist", "新建歌单")).font(.headline)
-            TextField(tr("Playlist name", "歌单名称"), text: $name)
-                .textFieldStyle(.roundedBorder)
-            HStack {
-                Button(tr("Cancel", "取消")) {
-                    isPresented = false
-                    name = ""
+        NavigationStack {
+            VStack(spacing: 16) {
+                TextField(tr("Playlist name", "歌单名称"), text: $name)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+
+                Spacer()
+            }
+            .frame(maxWidth: 440)
+            .navigationTitle(tr("New Playlist", "新建歌单"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(tr("Cancel", "取消")) {
+                        isPresented = false
+                        name = ""
+                    }
+                    .foregroundStyle(BrandColors.textSecondary)
                 }
-                Button(tr("Create", "创建")) {
-                    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty { onCreate(trimmed) }
-                    isPresented = false
-                    name = ""
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(tr("Create", "创建")) {
+                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty { onCreate(trimmed) }
+                        isPresented = false
+                        name = ""
+                    }
+                    .font(.headline)
+                    .foregroundStyle(BrandColors.accent)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .musesAction(prominent: true)
-                .tint(BrandColors.accent)
-                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(24)
-        .frame(width: 320)
-        .musesFloatingChrome(cornerRadius: 16)
+        .presentationDetents([.height(200), .medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(.ultraThinMaterial)
     }
 }

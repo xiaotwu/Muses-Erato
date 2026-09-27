@@ -46,16 +46,16 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
     public let shape: S
     public let tint: Color?
     public let role: MusesGlassRole
-    public let showsLaserEdge: Bool
+    public let showsSpecularRim: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
 
-    public init(shape: S, tint: Color? = nil, role: MusesGlassRole = .floatingPlayer, showsLaserEdge: Bool = true) {
+    public init(shape: S, tint: Color? = nil, role: MusesGlassRole = .floatingPlayer, showsLaserEdge: Bool = false, showsSpecularRim: Bool = true) {
         self.shape = shape
         self.tint = tint
         self.role = role
-        self.showsLaserEdge = showsLaserEdge
+        self.showsSpecularRim = showsSpecularRim
     }
 
     public func body(content: Content) -> some View {
@@ -71,7 +71,7 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
             if #available(iOS 26.0, *) {
                 content
                     .glassEffect(glassVariant, in: shape)
-                    .overlay { laserEdgeOverlay }
+                    .overlay { if showsSpecularRim { specularBorder } }
             } else {
                 materialFallback(content)
             }
@@ -84,39 +84,16 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
     private func materialFallback(_ content: Content) -> some View {
         content
             .background(.ultraThinMaterial, in: shape)
-            .overlay(specularBorder)
-            .overlay { laserEdgeOverlay }
-            .shadow(color: BrandColors.glassShadow, radius: 14, x: 0, y: 6)
+            .overlay { if showsSpecularRim { specularBorder } }
+            .shadow(color: BrandColors.glassShadow, radius: 12, x: 0, y: 5)
     }
 
     private var specularBorder: some View {
         shape.stroke(
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(0.35),
-                    Color.white.opacity(0.08),
-                    Color.black.opacity(0.12)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            lineWidth: 0.6
+            BrandColors.glassRimGradient,
+            lineWidth: 0.65
         )
-    }
-
-    
-    @ViewBuilder
-    private var laserEdgeOverlay: some View {
-        if showsLaserEdge {
-            shape.stroke(
-                AngularGradient(
-                    colors: BrandColors.laserSpectrum.map { $0.opacity(0.58) },
-                    center: .center
-                ),
-                lineWidth: 0.75
-            )
-            .allowsHitTesting(false)
-        }
+        .allowsHitTesting(false)
     }
 
     @available(iOS 26.0, *)
@@ -128,8 +105,8 @@ public struct MusesGlassModifier<S: Shape>: ViewModifier {
 
 public extension View {
     func musesTitleGlow() -> some View {
-        shadow(color: BrandColors.textPrimary.opacity(0.28), radius: AppleMusicTokens.selectedGlowRadius)
-            .shadow(color: BrandColors.textPrimary.opacity(0.12), radius: 1)
+        shadow(color: BrandColors.textPrimary.opacity(0.18), radius: AppleMusicTokens.selectedGlowRadius)
+            .shadow(color: BrandColors.textPrimary.opacity(0.08), radius: 1)
     }
 
     /// Applies the Muses Liquid Glass effect to any custom shape.
@@ -137,7 +114,7 @@ public extension View {
         in shape: S,
         tint: Color? = nil,
         role: MusesGlassRole = .floatingPlayer,
-        showsLaserEdge: Bool = true
+        showsLaserEdge: Bool = false
     ) -> some View {
         modifier(MusesGlassModifier(shape: shape, tint: tint, role: role, showsLaserEdge: showsLaserEdge))
     }
@@ -147,7 +124,7 @@ public extension View {
         cornerRadius: CGFloat = AppleMusicTokens.miniPlayerCornerRadius,
         tint: Color? = nil,
         role: MusesGlassRole = .floatingPlayer,
-        showsLaserEdge: Bool = true
+        showsLaserEdge: Bool = false
     ) -> some View {
         modifier(
             MusesGlassModifier(
@@ -163,7 +140,7 @@ public extension View {
     func musesGlassCapsule(
         tint: Color? = nil,
         role: MusesGlassRole = .tabBar,
-        showsLaserEdge: Bool = true
+        showsLaserEdge: Bool = false
     ) -> some View {
         modifier(MusesGlassModifier(shape: Capsule(), tint: tint, role: role, showsLaserEdge: showsLaserEdge))
     }

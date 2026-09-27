@@ -14,29 +14,29 @@ struct AmbientMeshBackground: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                (palette.first ?? Color.black)
+                Color.black
                     .ignoresSafeArea()
                 if !reduceTransparency {
                     Circle()
-                        .fill(palette[safe: 0, fallback].opacity(0.55))
+                        .fill(palette[safe: 0, fallback].opacity(0.45))
                         .frame(width: geo.size.width * 1.25)
                         .blur(radius: 80)
                         .offset(x: animate ? -36 : 28, y: animate ? -50 : 16)
                     Circle()
-                        .fill(palette[safe: 1, fallback].opacity(0.42))
+                        .fill(palette[safe: 1, fallback].opacity(0.35))
                         .frame(width: geo.size.width * 1.1)
                         .blur(radius: 80)
                         .offset(x: animate ? 46 : -18, y: animate ? 8 : 70)
                     Circle()
-                        .fill(palette[safe: 2, fallback].opacity(0.32))
+                        .fill(palette[safe: 2, fallback].opacity(0.28))
                         .frame(width: geo.size.width * 1.3)
                         .blur(radius: 90)
                         .offset(x: animate ? -16 : 36, y: animate ? 110 : 36)
                     LinearGradient(
                         colors: [
-                            Color.black.opacity(0.28),
-                            Color.black.opacity(0.12),
-                            Color.black.opacity(0.5)
+                            Color.black.opacity(0.55),
+                            Color.black.opacity(0.45),
+                            Color.black.opacity(0.70)
                         ],
                         startPoint: .top,
                         endPoint: .bottom

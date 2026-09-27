@@ -107,23 +107,23 @@ public struct LyricsKaraokeView: View {
 
     private func font(for distance: Int, active: Bool) -> Font {
         if active {
-            return .system(size: 28, weight: .bold, design: .rounded)
+            return .system(size: 27, weight: .bold, design: .serif)
         }
         switch distance {
         case 1:
-            return .system(size: 20, weight: .semibold, design: .rounded)
+            return .system(size: 20, weight: .semibold, design: .serif)
         case 2:
-            return .system(size: 17, weight: .medium, design: .rounded)
+            return .system(size: 17, weight: .medium, design: .serif)
         default:
-            return .system(size: 15, weight: .regular, design: .rounded)
+            return .system(size: 15, weight: .regular, design: .serif)
         }
     }
 
     private func foreground(for distance: Int, active: Bool) -> Color {
         if active { return Color.white }
         switch distance {
-        case 1: return Color.white.opacity(0.52)
-        case 2: return Color.white.opacity(0.30)
+        case 1: return Color.white.opacity(0.58)
+        case 2: return Color.white.opacity(0.32)
         default: return Color.white.opacity(0.16)
         }
     }

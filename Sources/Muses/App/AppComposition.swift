@@ -29,40 +29,39 @@ struct AppComposition {
     let nowPlayingManager: NowPlayingManager
     let youTubeMusicSession: YouTubeMusicAccountSession
     let homeProviderHasWebEnhancement: Bool
+    let audioSessionCoordinator: AudioSessionCoordinator
 
     /// Registers feature-flag / WebHome defaults (first-run only; never overwrites user choices).
     static func registerPreferenceDefaults() {
         UserDefaults.standard.register(defaults: FeatureFlagDefaults.enabledByDefault as [String: Any])
         UserDefaults.standard.register(defaults: WebHomePreferenceDefaults.values)
         UserDefaults.standard.register(defaults: [
-            PrefKey.homeRecommendationMode: HomeRecommendationMode.muses.rawValue,
+            PrefKey.homeRecommendationMode: HomeRecommendationMode.youtubeMusic.rawValue,
             PrefKey.lyricsIntelligence: true
         ])
     }
 
     /// Builds the iOS production graph. Empty `playback.state.track` is intentional — no sample track.
-    static func make(modelContainer: ModelContainer, configureAudioSession: Bool = true) -> AppComposition {
+    static func make(
+        modelContainer: ModelContainer,
+        configureAudioSession: Bool = true,
+        engine: (any PlayerEngine)? = nil
+    ) -> AppComposition {
         registerPreferenceDefaults()
 
-        if configureAudioSession {
-            #if os(iOS)
-            do {
-                let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playback, mode: .default, options: [])
-                try session.setActive(true)
-            } catch {
-                print("Failed to initialize AVAudioSession: \(error)")
-            }
-            #endif
-        }
-
-        let engine = YouTubeStreamEngine()
+        let engine = engine ?? YouTubeStreamEngine()
         let queue = QueueService()
-        queue.modelContext = ModelContext(modelContainer)
+        queue.modelContext = modelContainer.mainContext
         queue.restore()
 
         let library = LibraryService(modelContainer: modelContainer)
         let playback = PlaybackService(engine: engine, queue: queue, library: library)
+
+        let audioSessionCoordinator = AudioSessionCoordinator(
+            playbackService: playback,
+            engine: engine,
+            configureAudioSession: configureAudioSession
+        )
 
         let playlist = PlaylistService(modelContainer: modelContainer)
         let inbox = InboxService(modelContainer: modelContainer, eventBus: playback.eventBus)
@@ -138,13 +137,36 @@ struct AppComposition {
             youTubePlaylistSync: youTubePlaylistSync,
             nowPlayingManager: nowPlayingManager,
             youTubeMusicSession: youTubeMusicSession,
-            homeProviderHasWebEnhancement: homeProvider.hasWebEnhancement
+            homeProviderHasWebEnhancement: homeProvider.hasWebEnhancement,
+            audioSessionCoordinator: audioSessionCoordinator
         )
     }
 
-    /// In-memory graph for unit tests (skips AVAudioSession).
-    static func makeForTesting() throws -> AppComposition {
+    /// In-memory graph for unit tests (skips AVAudioSession and hardware audio engine).
+    static func makeForTesting(engine: (any PlayerEngine)? = nil) throws -> AppComposition {
         let container = try makeModelContainer(inMemory: true)
-        return make(modelContainer: container, configureAudioSession: false)
+        return make(modelContainer: container, configureAudioSession: false, engine: engine ?? NullPlayerEngine())
     }
+}
+
+/// Lightweight null player engine for test and headless environments.
+@MainActor
+final class NullPlayerEngine: PlayerEngine {
+    let state = PlayerState()
+    var onCompletion: (@MainActor () -> Void)?
+    func load(_ track: TrackSnapshot) async throws {
+        state.buffering = false
+        state.isPlaying = true
+    }
+    func prepare(_ track: TrackSnapshot) async {}
+    func playPrepared() -> Bool { false }
+    func play() { state.isPlaying = true }
+    func pause() { state.isPlaying = false }
+    func toggle() { state.isPlaying.toggle() }
+    func seek(to time: Double) { state.position = time }
+    func setVolume(_ v: Float) {}
+    func setEQ(_ bands: [EQBand]) {}
+    var isEQAvailable: Bool { true }
+    func installSpectrumTap(_ handler: @escaping (SpectrumFrame) -> Void) {}
+    func removeSpectrumTap() {}
 }
