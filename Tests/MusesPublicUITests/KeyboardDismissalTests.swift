@@ -3,6 +3,7 @@ import XCTest
 final class KeyboardDismissalTests: XCTestCase {
     func testOutsideTapDismissesHomeAndSearchKeyboard() {
         let app = XCUIApplication()
+        app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launch()
         let link = app.textFields["public.link"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))

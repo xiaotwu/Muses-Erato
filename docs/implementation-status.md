@@ -34,8 +34,17 @@ Reference: https://developers.google.com/youtube/terms/developer-policies#i-addi
 ## Active work
 
 - Local playlists, favorites, queue editing and top-level Clear Up Next are integrated. Notes and time bookmarks are being implemented in a separate worktree.
-- Official playlist/channel browsing, account paging and API metadata retention are being implemented in a separate worktree.
+- Official playlist/channel browsing, account paging, bundle identity headers and API metadata retention are integrated. Ten hosted app tests passed after integration. A signed Debug build was installed and launched on the paired iPhone; the new catalog flows still need device acceptance.
+- Compact Library categories, macOS-style hero cards, icon actions and per-list clear/delete controls are being implemented in the catalog task's next branch.
 - A physical fixture of the inherited 19-model SwiftData store and read-only migration preparation are integrated. Activation, rollback and deletion recovery are being developed in a separate worktree. Until verified, the public app stops at a recovery screen when it detects legacy store files.
+
+## Privacy and release preparation
+
+- GitHub Issues is the owner-selected public support channel and is enabled. Settings now provides support/provider policy/permissions icon links.
+- The bundled, versioned policy and pre-feature agreement gate are implemented. The app session is constructed after agreement, avoiding account refresh and artwork requests before consent. Simulator UI testing verified the disabled continue state, one-tap agreement, feature access afterwards and persistence across relaunch. Debug fixture libraries can bypass this gate; the bypass is excluded from Release. The new gate has not yet been installed/accepted on the physical phone.
+- Repository-managed privacy HTML is prepared by `scripts/build-privacy-site.py`; it has not been published. Final deletion behavior, Google embedded processing/App Privacy answers, domain/consent verification and owner/platform contacts must be reconciled before publication.
+- OAuth token-store load/delete failures now still attempt private-cache removal and report a storage failure rather than falsely claiming successful deletion. Four OAuth tests pass including failure injection.
+- Cloud restriction acceptance failed: correct, wrong and missing iOS identity headers all returned HTTP 200. The owner has been asked to restrict the project key; the key value is not recorded. This is a release gate, not a reason to disable ongoing engineering.
 
 ## Release decision
 

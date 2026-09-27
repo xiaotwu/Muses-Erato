@@ -30,6 +30,7 @@ require(not info.get("NSSupportsLiveActivities"), "no Live Activities declaratio
 require("CarPlay" not in str(info.get("UIApplicationSceneManifest", {})), "no CarPlay scene")
 require(not (app / "PlugIns").exists(), "no widget or other extension")
 require(not (app / "Watch").exists(), "no Watch app")
+require((app / "PublicPrivacyPolicy.md").is_file(), "user-facing privacy policy is bundled")
 privacy_path = app / "PrivacyInfo.xcprivacy"
 require(privacy_path.is_file(), "privacy accessed-API manifest is bundled")
 privacy = plistlib.loads(privacy_path.read_bytes())

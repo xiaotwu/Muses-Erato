@@ -11,14 +11,17 @@ import MusesIOSOAuth
 /// The App Store composition root. The inherited services are deliberately not constructed here.
 @MainActor
 struct PublicYouTubeApp: App {
-    @State private var session = PublicYouTubeSession()
-
     var body: some Scene {
         WindowGroup {
-            PublicRootView(session: session)
+            PublicPrivacyGate { PublicConsentedAppView() }
                 .preferredColorScheme(.dark)
         }
     }
+}
+
+private struct PublicConsentedAppView: View {
+    @State private var session = PublicYouTubeSession()
+    var body: some View { PublicRootView(session: session) }
 }
 
 @main

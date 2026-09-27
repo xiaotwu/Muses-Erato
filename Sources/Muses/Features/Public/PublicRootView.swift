@@ -553,6 +553,10 @@ struct PublicRootView: View {
         List {
             Section("Support & privacy") {
                 PublicServiceLinks()
+                NavigationLink { PublicPrivacyView() } label: {
+                    Label("Muses privacy policy", systemImage: "hand.raised.square")
+                }
+                .labelStyle(.iconOnly)
             }
             Section("Playback") {
                 Text("YouTube videos play in the visible official player. Playback pauses when you close it.")
