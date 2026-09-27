@@ -21,6 +21,27 @@ struct PublicYouTubeApp: App {
     }
 }
 
+@main
+struct PublicAppLauncher {
+    static func main() {
+        #if DEBUG
+        // Hosted XCTest needs a minimal SwiftUI scene while its bundle starts.
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil {
+            PublicTestHostApp.main()
+            return
+        }
+        #endif
+        PublicYouTubeApp.main()
+    }
+}
+
+#if DEBUG
+private struct PublicTestHostApp: App {
+    var body: some Scene { WindowGroup { Text("Running Tests") } }
+}
+#endif
+
 @MainActor @Observable
 final class PublicYouTubeSession {
     private var v1Container: ModelContainer?
@@ -183,7 +204,7 @@ final class PublicYouTubeSession {
         }
         var title = "YouTube video \(video.rawValue)"
         if let catalog, let result = try? await catalog.videos([video.rawValue]),
-           let item = result.items.first { $0.id == video.rawValue } {
+           let item = result.items.first(where: { $0.id == video.rawValue }) {
             title = item.title
         }
         open(video, title: title)
