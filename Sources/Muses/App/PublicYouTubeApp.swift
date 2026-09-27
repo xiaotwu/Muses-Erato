@@ -62,6 +62,7 @@ final class PublicYouTubeSession {
     private var adapter: YouTubeIFrameAdapter?
     private var adapterGeneration: UInt64 = 0
     private var catalog: YouTubeDataCatalog?
+    private var hasPublicAPIKey = false
     private var oauth: OAuthClient?
     private var oauthConfiguration: OAuthConfiguration?
     private var authorizationSession: IOSAuthorizationSession?
@@ -91,6 +92,7 @@ final class PublicYouTubeSession {
             }
             let key = Bundle.main.object(forInfoDictionaryKey: "MusesYouTubeAPIKey") as? String
             let apiKey = key.flatMap { !$0.isEmpty && !$0.hasPrefix("$(") ? $0 : nil }
+            hasPublicAPIKey = apiKey != nil
             let client = Bundle.main.object(forInfoDictionaryKey: "MusesGoogleIOSClientID") as? String
             let scheme = Bundle.main.object(forInfoDictionaryKey: "MusesGoogleRedirectScheme") as? String
             if let client, let scheme, !scheme.hasPrefix("$("),
@@ -129,7 +131,7 @@ final class PublicYouTubeSession {
         playedIDs.compactMap { id in tracks.first { $0.id == id } }
     }
     var favorites: [MusesDomain.Track] { tracks.filter(\.liked) }
-    var apiConfigured: Bool { catalog != nil }
+    var apiConfigured: Bool { catalog != nil && (hasPublicAPIKey || signedIn) }
     var oauthConfigured: Bool { oauth != nil }
     var hasNext: Bool { !queue.snapshot.upcoming.isEmpty }
     var isPlayerVisible: Bool { adapter != nil }
@@ -143,8 +145,8 @@ final class PublicYouTubeSession {
                 return MusesCatalog.CatalogItem(kind: .video, id: id.rawValue, title: track.title,
                     channelID: nil, thumbnailURL: nil, source: "local")
             }
-        guard let catalog else {
-            searchError = "Online search needs a configured YouTube Data API key. Paste a YouTube video link to play without one."
+        guard let catalog, apiConfigured else {
+            searchError = "Online search needs a YouTube Data API key or a Google sign in. Paste a YouTube video link to play without one."
             return
         }
         searching = true

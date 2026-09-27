@@ -222,7 +222,7 @@ struct PublicRootView: View {
                 )
                 if !session.apiConfigured {
                     PublicNotice(
-                        message: "Online discovery needs the app's YouTube Data API configuration. Known links and saved videos still work.",
+                        message: "Online discovery needs a YouTube Data API key or a Google sign in. Known links and saved videos still work.",
                         symbol: "wifi.slash"
                     )
                 }
@@ -299,7 +299,7 @@ struct PublicRootView: View {
                 }
                 if !session.apiConfigured {
                     PublicNotice(
-                        message: "Online search requires an app YouTube Data API key. Saved videos and known links remain available.",
+                        message: "Online search needs a YouTube Data API key or a Google sign in. Saved videos and known links remain available.",
                         symbol: "wifi.slash"
                     )
                 }

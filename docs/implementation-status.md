@@ -18,7 +18,7 @@ This file records verified evidence, not completion claims. The original checkou
 
 - A paired iPhone 16,1 accepted the signed Debug app under `com.xiaotwu.muses.erato` using Apple team `9URWGD9Q86`.
 - The iOS OAuth plist supplied by the user matches the bundle ID and supplies a registered reverse-client-ID URL scheme. The user confirmed Google sign-in succeeded on device. The plist contains no YouTube Data API key.
-- The app can now use OAuth for public read endpoints when no API key is configured. Package tests cover authorization headers, cache clearing and absence of a key in the request URL. Live signed-in search and video playback still need device confirmation.
+- The app can now use OAuth for public read endpoints when no API key is configured. Package tests cover authorization headers, cache clearing and absence of a key in the request URL. The user confirmed live signed-in search returned correct results on the physical iPhone. Video playback still needs device confirmation.
 - No key or token is committed to the repository. The local OAuth `.xcconfig` is outside the checkout under `/tmp`.
 
 ## Active work
