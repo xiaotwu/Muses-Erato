@@ -1,0 +1,89 @@
+# P6 App Store release readiness and evidence packet
+
+**Snapshot:** 2026-09-27, `670d893` (`codex/erato-integration-base`), before P4 integration. **Decision:** **NO GO** for public TestFlight external review or App Store submission. This is a review worksheet, not an Apple/Google approval. Re-run every check against the exact archived build SHA; P4 may change these findings.
+
+## Release decision and owners
+
+Use this sequence: P4 integrates a public YouTube-only target → P6 audits its built artifact → owner supplies Google/Apple assets → device operator records physical tests → release owner completes TestFlight and App Store Connect → submit for review. A simulator build, package test, or Ad Hoc IPA never closes a physical-device or policy gate. Any failed **Must** row blocks submission. Record evidence in the packet below, including failures.
+
+| Gate | Owner | Current evidence | Required closeout |
+| --- | --- | --- | --- |
+| **Must: public playback graph** | P4 | `AppComposition.swift:52` still injects `YouTubeStreamEngine`; `NowPlayingView.swift:137` opens `YouTubeVideoOverlay` as a secondary sheet. P1 adapter exists under `Sources/Muses/Platform/iOS/YouTubeIFrame` but is not in `project.yml`. | Archived binary uses the visible official IFrame as the only YouTube playback path. Known link → Play → Next → leave screen tested on phone and tablet. No native URL, audio extraction, mirror, hidden player, or background fallback is reachable. |
+| **Must: player integrity and identity** | P4 + device operator | P1 code retains controls and pauses on background, but `loadHTMLString(..., baseURL: https://www.youtube.com/)` has no captured request showing `Referer`; no real playback evidence. | Record visible dimensions ≥200×200 and readable controls at smallest supported size; capture network/request evidence for the required `Referer` or documented equivalent, plus no error 153. Exercise errors 100, 101/150 and offline with an “Open in YouTube” action. Never log OAuth tokens in captures. |
+| **Must: official catalog/account** | P4 | P3 `MusesCatalog`/`MusesIOSOAuth` packages have fake HTTP tests; `project.yml` still includes only `MusesCore`. Main app still uses Innertube/bridge search and desktop-era `GoogleOAuthSession`. | Public UI routes through documented Data API and native OAuth only. Provenance and partial pages are visible. Live guest/search/account tests and data deletion pass. |
+| **Must: unsupported system features** | P4 | `Info.plist` declares `UIBackgroundModes=audio` and CarPlay scene; `Muses.entitlements` declares `com.apple.developer.carplay-audio`. `NowPlayingManager` registers remote transport. Widgets/Watch targets remain in the app graph. | Public YouTube-only archive has no background audio or CarPlay audio entitlement/scene and no Watch/widget remote play path that can start or continue hidden YouTube audio. Audit built plist, entitlements and embedded extensions, not just source. |
+| **Must: privacy and copy** | P4 + release owner | No account-wide deletion action or public privacy policy URL was found in current app Settings; README claims background playback, EQ/quality badges and offline snapshots. | In-app authorized-data removal; public privacy policy and accurate App Privacy answers; remove claims/controls unsupported for YouTube. Review title, icon and screenshots for brand/source clarity. |
+| **Must: signing and archive** | release owner | Bundle IDs are provisional source values; no signing team/profile or archive evidence supplied. | App Store distribution archive and exported `.ipa` with matching team, bundle IDs, profiles, App Group if retained, and only approved entitlements. Record `codesign` output and `xcrun altool`/Transporter upload result where applicable. |
+| **Must: reviewer access** | release owner | No review account, known embeddable/unembeddable fixtures, screenshots or metadata supplied. | Working test account if sign-in gates features; review notes cover guest flow, login, playback limits, deletion and test URLs. Real screenshots from supported devices; TestFlight and App Review metadata complete. |
+
+## YouTube and Apple requirement-to-implementation map
+
+| Requirement and primary source | Current mapping | Evidence to accept |
+| --- | --- | --- |
+| [IFrame API](https://developers.google.com/youtube/iframe_api_reference): visible player viewport ≥200×200, enough space for controls. [Required minimum functionality](https://developers.google.com/youtube/terms/required-minimum-functionality): embedded client identification via `HTTP Referer`; preserve player appearance and branding. | P1 `YouTubeIFrameAdapter.swift` has `controls:1`, `playsinline:1` and typed event gate; production player remains `YouTubeStreamEngine`. Base URL alone does not prove a request header. | Device video/screenshot with measured viewport and controls, and redacted request diagnostics showing identification; test error 153. Verify across rotation, Dynamic Type and split view. |
+| [Developer policies](https://developers.google.com/youtube/terms/developer-policies): use documented services, preserve player integrity; do not download/cache audiovisual content or separate audio/video without required permission. [Apple review 5.2.2–5.2.3](https://developer.apple.com/app-store/review/guidelines/): third-party service/content rights and media saving require applicable permission. | `YouTubePlaybackResolver.swift` resolves Innertube, Piped and Invidious audio URLs; `YouTubeStreamEngine.swift` and `StreamURLCache.swift` consume/cache direct URLs; browse/search/import still use private/yt-dlp routes. These are public-archive blockers, even if P1 compiles. | Build dependency review and runtime network trace of core flows: only IFrame playback and official Data API. Explicit permission document would require a separate architectural decision; do not infer it from API access. |
+| [Developer policies](https://developers.google.com/youtube/terms/developer-policies): API data refresh/deletion and valid authorization; [policy guide](https://developers.google.com/youtube/terms/developer-policies-guide): deletion requests within 30 days. | P3 private response cache is in memory with five-minute default/one-hour ceiling; OAuth client can revoke/delete. P4 has not supplied `PrivateAccountData` or an in-app action. Legacy imported metadata/SwiftData retention needs classification. | Inventory fields and owners (Google API data vs user-created local notes/history), TTL/refresh proof for stored API data, invalid-refresh purge, local delete and revoke tests, user-visible explanation that local deletion does not delete Google account/content. Record failed remote revoke behavior. |
+| [Google native OAuth](https://developers.google.com/identity/protocols/oauth2/native-app): registered iOS client and redirect, external browser flow and PKCE. | P3 accepts `youtube.readonly`, uses `ASWebAuthenticationSession`, S256 PKCE/state and ThisDeviceOnly Keychain. `Info.plist` has `muses-erato` scheme, but P3 tests use a different example redirect; exact Cloud config is unknown. | Google Cloud client type=iOS, bundle ID and redirect scheme/path exactly match built plist and `OAuthConfiguration`; consent screen/verification status and test users; physical callback, refresh, account switch, revoke and denied consent. No client secret in bundle. |
+| [YouTube branding](https://developers.google.com/youtube/terms/branding-guidelines) and [Apple review 5.2](https://developer.apple.com/app-store/review/guidelines/). | Name “Muses” avoids YouTube in title. Current screenshots/marketing have not been reviewed. | Inspect final app icon, name, subtitle, screenshots and labels; use attribution without implying official Google/YouTube affiliation; keep player logo and links intact. |
+| [Apple privacy](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy) and [review guidelines 5.1](https://developer.apple.com/app-store/review/guidelines/). | No published privacy policy or App Privacy declaration in repository evidence. WebKit/Google and any analytics must be included in the actual data-flow inventory. | Live privacy policy URL, in-app access, retention/deletion/contact text, App Privacy responses including third-party collection, screenshots of settings and Connect answers. Do not preselect “no data collected” without measuring actual flows. |
+
+### Privacy inventory to fill before App Privacy answers
+
+For each row record **source, purpose, destination, on-device/server, linked to user, retention, deletion trigger, policy section**: OAuth access/refresh tokens; YouTube account identifiers and authorized playlist/subscription data; public video/channel metadata and thumbnails; user-created library, queue, history, notes and import mappings; diagnostics/crashes/analytics (if shipped); IFrame WebKit/YouTube requests and cookies; shared App Group/widget/Watch snapshots. Identify any ATT-triggering cross-app tracking from the final dependency graph; do not assert its absence from this snapshot. Validate iOS privacy manifests and third-party SDK signatures against the final archive if SDKs are added. Avoid storing credentials, auth codes, full private responses or sensitive URLs in evidence logs.
+
+## Google Cloud configuration and capacity worksheet
+
+No live project or quota has been inspected. P3's optional `RequestBudget` is **per device** and cannot police a shared Cloud quota. [Google's current overview](https://developers.google.com/youtube/v3/getting-started) states defaults of 100 `search.list` calls/day, 100 `videos.insert` calls/day and 10,000 units/day across other endpoints; actual allocation is in the Cloud console. [Quota calculator](https://developers.google.com/youtube/v3/determine_quota_cost) assigns each request, including an invalid request, a cost; pages are separate requests.
+
+| Input to record from owner/telemetry | Value / evidence |
+| --- | --- |
+| Cloud project ID, enabled YouTube Data API v3, API key restriction (API and acceptable iOS app restriction), key rotation owner | **Missing** |
+| iOS OAuth client ID, registered bundle ID and redirect, consent screen publication/verification, approved `youtube.readonly` scope, test users | **Missing** |
+| Actual daily search and other quotas, reset time, 7/30-day usage charts, 403 quota rate, extension/audit status | **Missing** |
+| Expected launch DAU/peak DAU, searches per DAU, pages per search, authorized account sync pages, playlist opens, retry rate, cache hit rate | **Missing** |
+
+Compute **daily search calls** = peak DAU × submitted searches/person × pages/search × (1 − effective cache/coalescing share) × retry factor. Compute **other units** = Σ(endpoint calls × cost × peak DAU), including pagination and retries. Keep headroom for launch spikes; if either estimate exceeds actual quota, reduce demand or seek an official extension before launch. Example using defaults: 20 DAU × 1 search × 5 pages = **100 search calls/day**, consuming the entire default search bucket, even before retries. Guest key and OAuth calls count against the same associated project; a device cap is only a safeguard. Do not multiply projects or solicit user developer keys to evade quota. Prove 403 quota UX, partial results, retry behavior and no private-API fallback.
+
+## App Store Connect, signing and review packet
+
+1. **Identity/build:** developer team, App ID, bundle IDs for app and any retained extensions, App Group entitlement and profiles; deployment target/device families; archive SHA, version/build, export method, signing certificate and `codesign -d --entitlements :-` output. Inspect built `Info.plist` for background modes, URL schemes, CarPlay scene and usage descriptions. Record export compliance answers for actual cryptography use. Do not include a CarPlay entitlement unless the capability is approved and supported by a licensed source; this public YouTube-only path should omit it.
+2. **Product page:** app name, subtitle, description, keywords, category, age rating/content declarations, support URL, privacy policy URL, copyright, countries/availability and pricing. Copy must describe visible YouTube video and official Data API capabilities; remove unsupported “audio only,” background, lossless/Hi-Res/Dolby, offline, EQ and CarPlay claims. Obtain actual localized screenshots from the final build: at least one per required device family and locale, using [Apple's current screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/). Do not imply all third-party content is playable; use permitted fixture content.
+3. **TestFlight:** supply beta description, features to test and feedback email; upload a signed build; invite internal testers first. External testers may require [TestFlight App Review](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/); approval there does not establish public App Store approval. Record build status and crashes, then fix findings before submission.
+4. **App Review:** provide stable review login/test user if needed, account state, exact steps for guest search, a known embeddable video, unavailable/embed-disabled examples, consent, revoke and local deletion. Add review notes explaining YouTube IFrame and what the app does with account data, plus any rights/permission documents relevant to third-party content. Ensure reviewer access works without private developer credentials. Complete [submission metadata](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-app) and retain submission ID/status.
+
+## Physical-device acceptance matrix
+
+For each case log **build SHA + version, device model, OS, locale, account fixture, video ID, network, expected/observed, screenshot/video/log path, operator/date, pass/fail**. Use at least one smallest supported iPhone, one current iPhone and one iPad; add landscape, iPad split view and accessibility sizing. Simulator results are separate.
+
+| Case | Pass condition |
+| --- | --- |
+| Guest: known link → play → pause/seek/Next → dismiss | Video and controls stay visible while audible; next video and queue state match; dismiss stops sound; no native stream call. |
+| Lifecycle: home/lock, app switch, reopen, route change, interruption | No hidden/background YouTube audio or automatic resumption; one audible player at a time; no stale JS event changes current track. |
+| Player errors: 100, 101/150, 153, network loss/recovery | Specific recoverable message; 101/150 offers YouTube open; no stream/mirror fallback. |
+| Account: consent denied, sign in, refresh, switch, revoke, delete, offline | Least scope, correct account data, stale data removed, tokens absent from logs; remote revoke failure is explained. |
+| Catalog: local-first search, pagination, missing/deleted items, quota 403/429/5xx | Explicit partial/stale states and bounded retry; no false YouTube Music personalized-home claim. |
+| UX: small phone, iPad split view, rotation, Dynamic Type, VoiceOver, Reduce Motion, dark/light | Player ≥200×200 and usable controls; metadata and actions accessible; no player-covering overlay. |
+| Upgrade/reset: existing SwiftData fixture → new store; clear data; relaunch | P2 migration retains all user-owned fields or exposes recovery; delete removes the intended local data and caches. |
+| Power/network: Wi-Fi and cellular, poor network, thermal/memory run | No runaway polling, stuck audio, major memory leak or repeated quota-consuming retries; record measured results. |
+
+## Evidence packet template
+
+Create a private release folder outside Git for credentials and raw captures. Commit only redacted summaries. Suggested index:
+
+```text
+release-evidence/<build-sha>/
+  00-build-signing.md       archive/export, bundle IDs, plist, entitlements, extensions
+  01-policy-map.md          each Must row, owner, source, outcome, link to proof
+  02-device-matrix.csv      one row per device/case, including failures
+  03-network-quota.md       redacted IFrame identity, official API endpoints, Cloud quota screenshots
+  04-privacy.md             data inventory, policy URL, App Privacy, deletion recordings
+  05-store-review.md        metadata, screenshots, review notes, TestFlight/App Review status
+```
+
+Each proof must identify the **same final build**. Mark `unverified` for missing logs, credentials, captures or external decisions; never fill a pass by inference from source. Re-run the gate if binary, policy, Cloud project, scope or metadata changes.
+
+## Immediate work vs external blockers
+
+**Engineering can resolve now:** P4 replace production playback and catalog graph; remove unsupported system capabilities and copy; wire P3 OAuth/callback and `PrivateAccountData`; add deletion UX and privacy data inventory; produce archive inspection and app/device test scripts; fix any IFrame identification/visibility defect found on devices. P6 can then audit the exact artifact and prepare review notes/screenshots.
+
+**Owner/device information genuinely missing:** physical iPhone/iPad and operator; Google Cloud project access or redacted quota/credential settings, iOS OAuth client, appropriately restricted API key, consent/test-user state, test account and safe video fixtures; Apple Developer team/App Store Connect access, signing profiles/capabilities, privacy/support URLs, copyright/metadata owner, reviewers and third-party rights documents if any. Do not put API keys, tokens, passwords, certificates or raw private responses in Git.
