@@ -1,0 +1,34 @@
+{
+  "sourceCommit": "dd6fabb89368dd791800352e5ee006166fd88c73",
+  "modelSourceSHA256": {
+    "Sources/Muses/Domain/YouTubePlaylistSync.swift": "ebd53938b2b4543c1face878fb9c1a077d6c1d60ca0b59e2e51fa1b8549f998e",
+    "Sources/Muses/Domain/YouTubeCatalog.swift": "81a630c5674ca78c856a8db2e77cf5e0d656c1fdd965bad1b86b62ab2c20534e",
+    "Sources/Muses/Domain/FocusSession.swift": "9d66c3b922b299d7fe9e49d8b86e3217a018aa953abe064d9bb9abc079d3726b",
+    "Sources/Muses/Domain/Track.swift": "03f0444810156e4ea49369b67b99cc6949dd2e0fa3ecec8aa94ecb87f6dc8075",
+    "Sources/Muses/Domain/YouTubeImport.swift": "97d768f057121d3002a6020633a2133082aec663ce2fefce58d56f0c31cdc53c",
+    "Sources/Muses/Domain/YouTubeImportItem.swift": "b115a7f10686073249216bc286273bb08153835b46d56a8e11b37aceca18b864",
+    "Sources/Muses/Domain/PlaylistItem.swift": "edc2e715154d0ff290daacc6502711708f8f22dbf48d5f79be67b9f9aafc16f3",
+    "Sources/Muses/Domain/NotesModels.swift": "504319630ab202c7ee8656dc57db7bbdb44550599f781fbdb3ab4bdd268ade5c",
+    "Sources/Muses/Domain/ListeningEvent.swift": "c42d1098228728bc8afaf6c92f9e2bce7b340f7a3f24b7612fbb21e70664dbc5",
+    "Sources/Muses/Domain/QueueState.swift": "334e2d2ed2144858a29e1222e26e452499c377f167daf590e2f643f541caf1d9",
+    "Sources/Muses/Domain/EQPreset.swift": "86d4c411f46454e876e1a761c8922562c70069f3bc5de7ad7143329a0004870d",
+    "Sources/Muses/Domain/Playlist.swift": "56b5eec99d76d36ef5d9d2559908f5aa1e24f7dca679919aed684efc2df908a3",
+    "Sources/Muses/Domain/ListeningSession.swift": "bfd9ddb74feb342cb9489dd2d53377850672d2da6a8359f1a6e82948757c0874",
+    "Sources/Muses/Domain/InboxItem.swift": "57dfe7a45b4c6b9e2d711217cb3ada0dfd399d5536b85c6bddd45fc06ec561a9",
+    "Sources/Muses/Domain/AutomationRule.swift": "bfdc00f090377e2115dacdcd2a5a81bdec245f9c32859ff8bd6e0b74173c4206",
+    "Sources/Muses/Persistence/MusesSchema.swift": "304797d07e3d1487b04963011466d96066fa20d60401e2b6aad8f98a1f5e0ed3"
+  },
+  "fixtureSHA256": {
+    "original.store": "5bcbc41d0388f5057d16800ad2037cd136d863639c8f94452c0a37bf01b52739",
+    "original.store-wal": "89ad9ea089e1bbd6c0a55028818645a936d60fc80d9828913ba0ad7f57fda65b",
+    "original.store-shm": "7a8ee3afcb864b0ae6079ab7a58fd51a3aa1afc1f3f6c1ae9916500ceda9e909",
+    "settings.plist.bin": "3c8c977ee6500dfd26a2ff5a66eefbf970ff53342d1481e9c63914949ee751ec",
+    "manifest.json": "08a9eaf591f966ba4a0da4ffcdc8abc7792f7cfb29d0f80cf0c6798632cd59d7"
+  },
+  "writer": "PhysicalLegacyFixture, original MusesSchema.current in module Muses, no model copies",
+  "toolchain": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx27.0.0",
+  "limitations": [
+    "Generated with inherited sources, not a previously shipped application executable.",
+    "SHM is retained as evidence; tests only open a disposable copy."
+  ]
+}

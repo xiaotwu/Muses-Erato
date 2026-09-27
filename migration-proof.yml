@@ -1,0 +1,70 @@
+name: MusesLegacyMigrationProof
+options:
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    GENERATE_INFOPLIST_FILE: YES
+    CODE_SIGNING_ALLOWED: NO
+packages:
+  MusesPersistence:
+    path: Packages/MusesPersistence
+targets:
+  Muses:
+    type: framework
+    platform: iOS
+    sources:
+      - path: Sources/Muses/Domain/Track.swift
+      - path: Sources/Muses/Domain/QueueState.swift
+      - path: Sources/Muses/Domain/Playlist.swift
+      - path: Sources/Muses/Domain/PlaylistItem.swift
+      - path: Sources/Muses/Domain/YouTubeImport.swift
+      - path: Sources/Muses/Domain/YouTubeImportItem.swift
+      - path: Sources/Muses/Domain/NotesModels.swift
+      - path: Sources/Muses/Domain/ListeningEvent.swift
+      - path: Sources/Muses/Domain/ListeningSession.swift
+      - path: Sources/Muses/Domain/InboxItem.swift
+      - path: Sources/Muses/Domain/EQPreset.swift
+      - path: Sources/Muses/Domain/AutomationRule.swift
+      - path: Sources/Muses/Domain/FocusSession.swift
+      - path: Sources/Muses/Domain/YouTubeCatalog.swift
+      - path: Sources/Muses/Domain/YouTubePlaylistSync.swift
+      - path: Sources/Muses/Domain/Enums.swift
+      - path: Sources/Muses/Domain/QueueItem.swift
+      - path: Sources/Muses/Domain/QueueGroup.swift
+      - path: Sources/Muses/Domain/ListeningContext.swift
+      - path: Sources/Muses/Domain/EQBand.swift
+      - path: Sources/Muses/Domain/RecapRange.swift
+      - path: Sources/Muses/Domain/Pagination.swift
+      - path: Sources/Muses/Domain/UserPreferences.swift
+      - path: Sources/Muses/App/L10n.swift
+      - path: Sources/Muses/Persistence/MusesSchema.swift
+      - path: Sources/Muses/Persistence/LegacyMigration
+    dependencies:
+      - package: MusesPersistence
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.migration-proof
+  LegacyMigrationTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/LegacyMigrationTests
+        excludes: [Fixtures]
+      - path: Tests/LegacyMigrationTests/Fixtures
+        type: group
+        buildPhase: resources
+    dependencies:
+      - target: Muses
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.migration-proof.tests
+schemes:
+  MusesLegacyMigrationProof:
+    build:
+      targets:
+        Muses: all
+    test:
+      targets:
+        - LegacyMigrationTests

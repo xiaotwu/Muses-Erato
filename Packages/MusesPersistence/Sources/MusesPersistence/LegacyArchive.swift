@@ -117,6 +117,16 @@ public struct LegacyModelArchive: Codable, Sendable {
     public init(id: UUID, fields: Data, fieldNames: Set<String>) {
         self.id = id; self.fields = fields; self.fieldNames = fieldNames
     }
+
+    // A Set's iteration order changes between processes. The migration receipt must
+    // remain stable when a new reader captures the same physical source on retry.
+    private enum CodingKeys: String, CodingKey { case id, fields, fieldNames }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(fields, forKey: .fields)
+        try container.encode(fieldNames.sorted(), forKey: .fieldNames)
+    }
 }
 
 public enum LegacyModelKind: String, CaseIterable, Codable, Sendable {

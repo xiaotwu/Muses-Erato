@@ -45,4 +45,30 @@ final class LegacySnapshotTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: copy.path))
         XCTAssertEqual(try Data(contentsOf: source), Data("not a database".utf8))
     }
+    func testExistingDestinationSidecarIsPreserved() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("source.sqlite")
+        let copy = directory.appendingPathComponent("copy.sqlite")
+        try Data().write(to: source)
+        let sidecar = URL(fileURLWithPath: copy.path + "-wal")
+        let evidence = Data("orphaned user data".utf8)
+        try evidence.write(to: sidecar)
+        XCTAssertThrowsError(try LegacyStoreSnapshotter.snapshot(sourceURL: source, destinationURL: copy)) { error in
+            XCTAssertEqual(error as? LegacySnapshotError, .destinationExists)
+        }
+        XCTAssertEqual(try Data(contentsOf: sidecar), evidence)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copy.path))
+    }
+
+    func testArchiveFieldInventoryEncodingIsCanonical() throws {
+        let fields: Set<String> = ["z", "b", "a"]
+        let archive = LegacyModelArchive(id: UUID(), fields: Data(), fieldNames: fields)
+        let data = try JSONEncoder().encode(archive)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["fieldNames"] as? [String], ["a", "b", "z"])
+        XCTAssertEqual(try JSONDecoder().decode(LegacyModelArchive.self, from: data).fieldNames, fields)
+    }
+
 }
