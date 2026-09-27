@@ -865,7 +865,7 @@ private struct PublicPlayerView: View {
             if let track = session.currentTrack {
                 PublicAddToPlaylistMenu(session: session, track: track)
             }
-            Text("Playback pauses when this screen closes.")
+            Text("YouTube playback pauses when this screen closes or Muses enters the background.")
                 .font(.footnote)
                 .foregroundStyle(PublicStyle.muted)
         }
