@@ -4,14 +4,17 @@ final class PublicSmokeTests: XCTestCase {
     func testNewInstallNavigationAndVisiblePlayerRoute() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
+        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
+        app.buttons["public.openLinkEntry"].tap()
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText("dQw4w9WgXcQ")
         app.buttons["public.open"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["public.playbackState"].exists)
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
         if app.tabBars.buttons["Library"].exists { app.tabBars.buttons["Library"].tap() }
         else { app.buttons["Library"].firstMatch.tap() }
         XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
@@ -44,6 +47,8 @@ final class PublicSmokeTests: XCTestCase {
     }
     private func openVideo(_ id: String, app: XCUIApplication) {
         app.launch()
+        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
+        app.buttons["public.openLinkEntry"].tap()
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText(id)
@@ -53,19 +58,23 @@ final class PublicSmokeTests: XCTestCase {
     private func playlists(_ app: XCUIApplication) {
         app.tabBars.buttons["Library"].tap()
         selectCategory("Playlists", app: app)
+        app.buttons["library.add"].tap()
         reveal(app.buttons["public.createPlaylist"], in: app)
     }
     func testClearUpNextFromLibraryTopAndPlayer() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         openVideo("dQw4w9WgXcQ", app: app)
         let clear = app.buttons["public.clearUpNext"]
         reveal(clear, in: app)
         XCTAssertFalse(clear.isEnabled)
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
         app.tabBars.buttons["Library"].tap()
+        app.buttons["library.presentation.List"].tap()
         let video = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.'")).firstMatch
         reveal(video, in: app); video.tap()
+        app.buttons["video.actions"].tap()
         reveal(app.buttons["Add to queue"], in: app); app.buttons["Add to queue"].tap()
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["public.queue"].tap()
@@ -80,17 +89,19 @@ final class PublicSmokeTests: XCTestCase {
         app.buttons["public.queue"].tap()
         XCTAssertFalse(app.buttons["Clear Up Next"].isEnabled)
         app.buttons["Open Queue"].tap()
-        XCTAssertTrue(app.staticTexts["Current video"].exists)
+        XCTAssertTrue(app.staticTexts["Now playing"].exists)
         XCTAssertTrue(app.staticTexts["YouTube video dQw4w9WgXcQ"].exists)
     }
     func testEmptyLibraryAndPlaylistCreation() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
-        XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
         if app.tabBars.buttons["Library"].exists { app.tabBars.buttons["Library"].tap() }
         else { app.buttons["Library"].firstMatch.tap() }
         selectCategory("Playlists", app: app)
+        app.buttons["library.add"].tap()
         reveal(app.buttons["public.createPlaylist"], in: app)
         app.buttons["public.createPlaylist"].tap()
         app.alerts.textFields.firstMatch.typeText("Empty playlist")
@@ -106,13 +117,14 @@ final class PublicSmokeTests: XCTestCase {
     func testLocalPlaylistFavoriteQueueEditingAndRelaunch() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         openVideo("dQw4w9WgXcQ", app: app)
         app.buttons["Favorite"].tap()
         XCTAssertTrue(app.buttons["Remove favorite"].exists)
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
         app.terminate()
         openVideo("M7lc1UVf-VE", app: app)
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
         playlists(app)
         XCTAssertTrue(app.staticTexts["No local playlists"].exists)
         app.buttons["public.createPlaylist"].tap()
@@ -132,6 +144,7 @@ final class PublicSmokeTests: XCTestCase {
         XCTAssertEqual(handles.count, 2)
         if handles.count == 2 { handles.element(boundBy: 1).press(forDuration: 0.5, thenDragTo: handles.element(boundBy: 0)) }
         app.buttons["Done"].tap()
+        app.buttons["playlist.actions"].tap()
         app.buttons["Rename playlist"].tap()
         let field = app.alerts.textFields.firstMatch
         field.tap()
@@ -154,6 +167,7 @@ final class PublicSmokeTests: XCTestCase {
         videoRow.swipeLeft()
         app.buttons["Delete"].tap()
         XCTAssertTrue(app.staticTexts["Videos · 1"].exists)
+        app.buttons["playlist.actions"].tap()
         app.buttons["Delete playlist"].tap()
         app.sheets.buttons["Delete playlist"].tap()
         XCTAssertTrue(app.staticTexts["No local playlists"].waitForExistence(timeout: 5))
@@ -182,6 +196,7 @@ final class PublicSmokeTests: XCTestCase {
         app.launch()
         app.tabBars.buttons["Library"].tap()
         selectCategory("Favorites", app: app)
+        app.buttons["library.presentation.List"].tap()
         let saved = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
         reveal(saved, in: app)
         saved.tap()

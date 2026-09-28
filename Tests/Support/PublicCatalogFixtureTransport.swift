@@ -27,7 +27,7 @@ actor PublicCatalogFixtureTransport: HTTPTransport {
                 let status: [String: Bool] = id == "MFKabcdefgh"
                     ? ["madeForKids": true, "embeddable": true]
                     : ["madeForKids": false, "embeddable": true]
-                let data = try JSONSerialization.data(withJSONObject: ["items": [["id": id, "snippet": ["title": "Fixture video"], "status": status]]])
+                let data = try JSONSerialization.data(withJSONObject: ["items": [["id": id, "snippet": ["title": "YouTube video \(id)"], "status": status]]])
                 return HTTPResponse(status: 200, body: data)
             }
             body = #"{"items":[]}"#

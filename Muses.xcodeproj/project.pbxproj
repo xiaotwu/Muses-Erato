@@ -68,6 +68,7 @@
 		BF3F53ECA098B096C3072A35 /* MusesCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = D0A0D1FFD092F222494DCD28 /* MusesCatalog */; };
 		BFCC5DEFF60E9F6E9F791302 /* InboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB8BAF1CB7C8CBEBAE510B6 /* InboxItem.swift */; };
 		C06E0F8F90F3620BA87527AC /* PublicUpgradeStartupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D53A63375B4624892B545 /* PublicUpgradeStartupTests.swift */; };
+		C07251929183ECCDCC493955 /* PublicSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED18D0D8170EB8B8F9ED7D28 /* PublicSettingsViews.swift */; };
 		C91FF4AF24CEC67B2B4B31C6 /* PublicPrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01E3BAAD3984658150A9E6D2 /* PublicPrivacyView.swift */; };
 		D55F627F6076E07B05FD85C1 /* LegacyStoreReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2B64ABE3D786015914AD9A /* LegacyStoreReader.swift */; };
 		D91F6183613114400108C756 /* MusesDomain in Frameworks */ = {isa = PBXBuildFile; productRef = ABBF5AD31D71AF087880D502 /* MusesDomain */; };
@@ -164,6 +165,7 @@
 		E27064ED6B06E5E99F0815F8 /* NotesModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesModels.swift; sourceTree = "<group>"; };
 		E335EA81A28FBFD4731F05F3 /* QueueState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueState.swift; sourceTree = "<group>"; };
 		E9029839B4A7936B66EF4E34 /* PlaylistItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistItem.swift; sourceTree = "<group>"; };
+		ED18D0D8170EB8B8F9ED7D28 /* PublicSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicSettingsViews.swift; sourceTree = "<group>"; };
 		EF70E1E45E8B4C46014602B9 /* ListeningSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningSession.swift; sourceTree = "<group>"; };
 		F0C5F631496ED3835C3DBFFB /* MusesSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusesSchema.swift; sourceTree = "<group>"; };
 		F8B462D88E6E22787C5B9E38 /* MusesDomain */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesDomain; path = Packages/MusesDomain; sourceTree = SOURCE_ROOT; };
@@ -244,6 +246,7 @@
 				01E3BAAD3984658150A9E6D2 /* PublicPrivacyView.swift */,
 				027F187DCE7E94BA6D2C5B03 /* PublicRootView.swift */,
 				6B726EBFDB43E586F77DAD14 /* PublicServiceLinks.swift */,
+				ED18D0D8170EB8B8F9ED7D28 /* PublicSettingsViews.swift */,
 			);
 			name = Public;
 			path = Sources/Muses/Features/Public;
@@ -536,6 +539,7 @@
 				C91FF4AF24CEC67B2B4B31C6 /* PublicPrivacyView.swift in Sources */,
 				27019D7DA05EF8F43D7C1096 /* PublicRootView.swift in Sources */,
 				93776AD20FB9DC7C96936378 /* PublicServiceLinks.swift in Sources */,
+				C07251929183ECCDCC493955 /* PublicSettingsViews.swift in Sources */,
 				3C6D1046A049A3AD9EBF7903 /* PublicStoreLocation.swift in Sources */,
 				AD9A205C0AE3A66C6E8296F9 /* PublicStoreRouter.swift in Sources */,
 				4EDB33612B874029CF89E5E8 /* PublicWebsiteDataDeletion.swift in Sources */,

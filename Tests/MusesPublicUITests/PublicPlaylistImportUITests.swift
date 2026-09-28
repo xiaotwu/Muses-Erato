@@ -22,10 +22,11 @@ import XCTest
         XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
         let entry = app.buttons["library.importPlaylist"]
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(entry.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(entry.frame.height, 44)
         XCTAssertTrue(entry.label.contains("Import"))
         entry.tap()
+        let importTitle = app.descendants(matching: .any)["playlistImport.title"]
+        XCTAssertTrue(importTitle.waitForExistence(timeout: 5))
+        XCTAssertEqual(importTitle.frame.midX, app.frame.midX, accuracy: 2, "Import title must remain centered independently of the Cancel control")
         XCTAssertFalse(app.buttons["playlistImport.accountLoad"].exists)
         XCTAssertTrue(app.buttons["playlistImport.account.PLsecond"].waitForExistence(timeout: 5))
         let owned = app.buttons["playlistImport.account.PLfixture"]

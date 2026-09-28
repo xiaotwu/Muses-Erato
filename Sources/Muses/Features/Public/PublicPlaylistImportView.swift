@@ -8,6 +8,8 @@ struct PublicPlaylistImportView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var availableWidth: CGFloat = 0
+    private enum ImportSource: Hashable { case account, link }
+    @State private var source: ImportSource = .account
     @State private var link = ""
     @State private var name = ""
     @State private var selected: String?
@@ -48,6 +50,11 @@ struct PublicPlaylistImportView: View {
                         }
                     }
                 } else {
+                    Picker("Import source", selection: $source) {
+                        Text("Account playlists").tag(ImportSource.account)
+                        Text("Playlist link").tag(ImportSource.link)
+                    }.pickerStyle(.segmented).accessibilityIdentifier("playlistImport.source")
+                    if source == .account {
                     Section("Account Playlists") {
                         if session.signedIn {
                             if ownedLoading { ProgressView("Loading playlists… \(owned.items.count) found") }
@@ -61,7 +68,7 @@ struct PublicPlaylistImportView: View {
                                     .accessibilityIdentifier("playlistImport.account.\(item.id)")
                             }
                             if owned.complete && owned.items.isEmpty {
-                                Text("No owned playlists were returned. Try a playlist share link below.")
+                                Text("No owned playlists were returned. Try Playlist link.")
                             }
                             if let ownedError {
                                 Text("Showing \(owned.items.count) playlists; this list is incomplete. \(ownedError)")
@@ -77,6 +84,7 @@ struct PublicPlaylistImportView: View {
                             if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
                         }
                     }
+                    } else {
                     Section("Playlist Link") {
                         VStack(alignment: .leading, spacing: 8) {
                             TextField("YouTube Music playlist link", text: $link)
@@ -91,6 +99,7 @@ struct PublicPlaylistImportView: View {
                             }.accessibilityIdentifier("playlistImport.readLink")
                         }
                         Text("Private playlists require the owning account. Some automatic mixes are unavailable.").font(.footnote)
+                    }
                     }
                 }
                 if busy { ProgressView("Reading…") }
@@ -110,6 +119,7 @@ struct PublicPlaylistImportView: View {
                     .font(.headline)
                     .frame(maxWidth: max(0, availableWidth - 144))
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("playlistImport.title")
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button { work?.cancel(); ownedWork?.cancel(); dismiss() } label: {

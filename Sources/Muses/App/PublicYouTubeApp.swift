@@ -414,7 +414,7 @@ final class PublicYouTubeSession {
         }
     }
 
-    func signOut() async {
+    func signOut(revokeAccess: Bool = true) async {
         guard !deletingLocalData, !signingOut else { return }
         signingOut = true
         defer { signingOut = false }
@@ -429,15 +429,18 @@ final class PublicYouTubeSession {
         do { try expireCatalogMetadata(force: true) } catch { failureMessage = "Metadata could not be removed: \(error.localizedDescription)" }
         accountCleanupPending = true
         do {
-            try await oauth.revokeAndDelete()
+            if revokeAccess { try await oauth.revokeAndDelete() }
+            else { try await oauth.deleteLocalAccount() }
             accountCleanupPending = false
         }
         catch OAuthFailure.storage {
             failureMessage = "Account cleanup could not finish on this device. Retry when the device is unlocked and review Google account access."
         }
         catch {
-            accountCleanupPending = false
-            failureMessage = "Local account data was removed. Google revocation may have failed; review access in your Google account settings."
+            accountCleanupPending = !revokeAccess
+            failureMessage = revokeAccess
+                ? "Local account data was removed. Google revocation may have failed; review access in your Google account settings."
+                : "Local account cleanup could not finish. Unlock this device and retry."
         }
         signedIn = false
         resetAccountCatalog()

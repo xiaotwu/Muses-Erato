@@ -9,14 +9,14 @@ final class PublicPrivacyUITests: XCTestCase {
         let proceed = app.buttons["privacy.continue"]
         XCTAssertTrue(proceed.waitForExistence(timeout: 10))
         XCTAssertFalse(proceed.isEnabled)
-        XCTAssertFalse(app.textFields["public.link"].exists)
+        XCTAssertFalse(app.buttons["public.openLinkEntry"].exists)
         app.buttons["privacy.agreement"].tap()
         XCTAssertTrue(proceed.isEnabled)
         proceed.tap()
-        XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
         app.terminate()
         app.launch()
-        XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
         XCTAssertFalse(proceed.exists)
     }
 }

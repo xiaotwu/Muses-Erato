@@ -10,6 +10,9 @@ import XCTest
     }
     private func detail(_ app: XCUIApplication) {
         app.tabBars.buttons["Library"].tap()
+        let list = app.buttons["library.presentation.List"]
+        XCTAssertTrue(list.waitForExistence(timeout: 5))
+        list.tap()
         let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
         reveal(row, in: app)
         row.tap()
@@ -29,6 +32,7 @@ import XCTest
     func testNotebookCRUDRelaunchAndVisibleBookmarkRoute() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
         let entry = app.buttons["public.openLinkEntry"]
         XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()

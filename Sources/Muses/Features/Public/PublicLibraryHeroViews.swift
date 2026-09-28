@@ -14,11 +14,14 @@ struct PublicLibraryCategories: View {
                         Button {
                             session.selectedCategory = category
                         } label: {
-                            Label(category.rawValue, systemImage: category.symbol)
-                                .font(.subheadline.weight(.semibold))
-                                .padding(.horizontal, 16).frame(minHeight: 44)
-                                .background(session.selectedCategory == category ? Color.accentColor.opacity(0.22) : Color(uiColor: .secondarySystemBackground), in: Capsule())
-                                .overlay { Capsule().stroke(session.selectedCategory == category ? Color.accentColor : .clear) }
+                            Text(category.rawValue)
+                                .font(.subheadline.weight(session.selectedCategory == category ? .semibold : .regular))
+                                .foregroundStyle(session.selectedCategory == category ? Color.accentColor : Color.primary)
+                                .padding(.horizontal, 6).frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                                .overlay(alignment: .bottom) {
+                                    if session.selectedCategory == category { Rectangle().fill(Color.accentColor).frame(height: 2) }
+                                }
                         }
                         .buttonStyle(.plain).id(category)
                         .accessibilityAddTraits(session.selectedCategory == category ? .isSelected : [])
@@ -57,10 +60,6 @@ struct PublicLibraryHeroShelf: View {
     private var displayed: [MusesDomain.Track] {
         category == .songs ? PublicCollectionScope.songs(tracks: tracks, playlists: session.playlists) : tracks
     }
-    private var countLabel: some View {
-        Text("\(displayed.count) \(category == .songs ? "songs" : "videos")")
-            .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-    }
     private var presentationControl: some View {
         let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 2))
         return layout {
@@ -78,10 +77,7 @@ struct PublicLibraryHeroShelf: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { countLabel; Spacer(minLength: 8); presentationControl }
-                VStack(alignment: .leading, spacing: 4) { countLabel; presentationControl }
-            }
+            presentationControl
             if displayed.isEmpty {
                 ContentUnavailableView("No songs in playlists", systemImage: "music.note.list", description: Text("Add videos to a local playlist to see them here."))
             } else if presentation == .cards {
