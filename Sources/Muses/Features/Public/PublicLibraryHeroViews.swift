@@ -36,111 +36,138 @@ struct PublicLibraryCategories: View {
     }
 }
 
-enum PublicLibraryPresentation: String, CaseIterable { case artwork = "Artwork", details = "Details" }
+enum PublicLibraryPresentation: String, CaseIterable { case cards = "Cards", list = "List" }
+
+/// Songs are the saved local-playlist union, matching the macOS Songs collection.
+/// Unrelated saved videos must never be swept up by the Songs clear action.
+enum PublicCollectionScope {
+    static func songs(tracks: [MusesDomain.Track], playlists: [LocalPlaylist]) -> [MusesDomain.Track] {
+        let byID = Dictionary(uniqueKeysWithValues: tracks.map { ($0.id, $0) })
+        var seen = Set<TrackID>()
+        return playlists.flatMap(\.trackIDs).filter { seen.insert($0).inserted }.compactMap { byID[$0] }
+    }
+}
 
 struct PublicLibraryHeroShelf: View {
     let session: PublicYouTubeSession
     let tracks: [MusesDomain.Track]
     var category: LibraryCategory = .videos
-    @Environment(\.dynamicTypeSize) private var typeSize
-    @State private var presentation: PublicLibraryPresentation = .artwork
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                if category == .songs {
-                    Text("Saved YouTube videos · song classification unavailable").font(.footnote).foregroundStyle(.secondary)
-                }
-                Spacer()
-                Menu {
-                    Picker("Card presentation", selection: $presentation) {
-                        Label("Artwork", systemImage: "rectangle.fill.on.rectangle.fill").tag(PublicLibraryPresentation.artwork)
-                        Label("Details", systemImage: "list.bullet.rectangle").tag(PublicLibraryPresentation.details)
-                    }
-                } label: {
-                    Label("Card presentation", systemImage: presentation == .artwork ? "rectangle.fill.on.rectangle.fill" : "list.bullet.rectangle")
-                        .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
-                }.accessibilityIdentifier("library.presentation")
+    @State private var presentation: PublicLibraryPresentation = .cards
+    private var displayed: [MusesDomain.Track] {
+        category == .songs ? PublicCollectionScope.songs(tracks: tracks, playlists: session.playlists) : tracks
+    }
+    private var countLabel: some View {
+        Text("\(displayed.count) \(category == .songs ? "songs" : "videos")")
+            .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+    }
+    private var presentationControl: some View {
+        HStack(spacing: 2) {
+            ForEach(PublicLibraryPresentation.allCases, id: \.self) { mode in
+                Button { presentation = mode } label: {
+                    Label(mode.rawValue, systemImage: mode == .cards ? "rectangle.stack" : "list.bullet")
+                        .font(.subheadline.weight(.semibold)).padding(.horizontal, 10).frame(minHeight: 44)
+                        .background(presentation == mode ? Color(uiColor: .tertiarySystemBackground) : .clear, in: Capsule())
+                }.buttonStyle(.plain)
+                    .accessibilityAddTraits(presentation == mode ? .isSelected : [])
+                    .accessibilityIdentifier("library.presentation.\(mode.rawValue)")
             }
-            LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : [GridItem(.adaptive(minimum: 280), spacing: 16)], spacing: 16) {
-                ForEach(tracks) { track in
-                    PublicLibraryHeroCard(session: session, track: track, category: category, presentation: presentation)
+        }.padding(3).background(Color(uiColor: .secondarySystemBackground), in: Capsule())
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { countLabel; Spacer(minLength: 8); presentationControl }
+                VStack(alignment: .leading, spacing: 4) { countLabel; presentationControl }
+            }
+            if displayed.isEmpty {
+                ContentUnavailableView("No songs in playlists", systemImage: "music.note.list", description: Text("Add videos to a local playlist to see them here."))
+            } else if presentation == .cards {
+                PublicCollectionDeck(session: session, tracks: displayed, category: category)
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(displayed) { track in
+                        PublicCollectionRow(session: session, track: track, category: category)
+                        Divider().padding(.leading, 62)
+                    }
                 }
             }
         }
     }
 }
 
-private struct PublicLibraryHeroCard: View {
+struct PublicCollectionRow: View {
     let session: PublicYouTubeSession
     let track: MusesDomain.Track
     let category: LibraryCategory
-    let presentation: PublicLibraryPresentation
-    @State private var removing = false
-    @State private var deleting = false
-    private var videoID: VideoID? { if case .youtubeVideo(let id) = track.source { id } else { nil } }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Label("YouTube video", systemImage: "play.rectangle").font(.caption.weight(.semibold))
-                Spacer()
-                Menu {
-                    if category == .favorites {
-                        Button("Remove favorite", systemImage: "heart.slash", role: .destructive) { removing = true }
-                    }
-                    if category == .history {
-                        Button("Remove history item", systemImage: "clock.badge.xmark", role: .destructive) { removing = true }
-                    }
-                    Button("Delete saved video", systemImage: "trash", role: .destructive) { deleting = true }
-                } label: {
-                    Label("Actions for \(track.title)", systemImage: "ellipsis").labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
-                }.accessibilityIdentifier("library.actions.\(track.id.rawValue)")
-            }
-            if presentation == .artwork { Spacer(minLength: 90) }
-            NavigationLink { PublicVideoDetail(session: session, trackID: track.id) } label: {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(track.title).font(.system(.title2, design: .serif, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-                    Text(track.artist).font(.subheadline).foregroundStyle(.secondary)
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private var navigation: some View {
+        NavigationLink { PublicVideoDetail(session: session, trackID: track.id) } label: {
+            HStack(spacing: 10) {
+                PublicHeroArtwork(videoID: track.publicVideoID?.rawValue).frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(track.title).font(.body.weight(.medium)).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                    Text(track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                 }.frame(maxWidth: .infinity, alignment: .leading)
-            }.buttonStyle(.plain)
-                .accessibilityIdentifier("library.detail.\(track.id.rawValue)")
-            if presentation == .details {
-                Text("Official embedded video").font(.caption)
-                if let duration = track.durationMilliseconds { Text(Duration.milliseconds(duration).formatted(.time(pattern: .minuteSecond))).font(.caption).monospacedDigit() }
-                Text("Codec and resolution are selected by YouTube.").font(.caption).foregroundStyle(.secondary)
+            }.contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityIdentifier("library.detail.\(track.id.rawValue)")
+    }
+    private var actions: some View {
+        HStack(spacing: 0) {
+            Button { if let video = track.publicVideoID { session.open(video, title: track.title) } } label: {
+                Label("Play \(track.title)", systemImage: "play.fill").labelStyle(.iconOnly).frame(width: 44, height: 44)
+            }.disabled(track.publicVideoID == nil).accessibilityIdentifier("library.play.\(track.id.rawValue)")
+            Button { session.enqueueTrack(track) } label: {
+                Label("Add \(track.title) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44)
             }
-            HStack {
-                if track.liked { Image(systemName: "heart.fill").accessibilityLabel("Favorite") }
-                Spacer()
-                Button { session.enqueueTrack(track) } label: { Label("Add to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44) }
-                if let id = videoID {
-                    Button { session.open(id, title: track.title) } label: {
-                        Label("Open visible player", systemImage: "play.fill").labelStyle(.iconOnly)
-                            .frame(minWidth: 58, minHeight: 44).background(.white.opacity(0.16), in: Capsule())
-                    }.accessibilityIdentifier("library.play.\(track.id.rawValue)")
-                }
-            }
-        }
-        .padding(20)
-        .foregroundStyle(presentation == .artwork ? Color.white : Color.primary)
-        .background {
-            if presentation == .artwork { PublicHeroArtwork(videoID: videoID?.rawValue) }
-            else { Color(uiColor: .secondarySystemBackground) }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .overlay { RoundedRectangle(cornerRadius: 20).stroke(.white.opacity(0.12)) }
-        .confirmationDialog(category == .favorites ? "Remove this favorite?" : "Remove this video's local history?", isPresented: $removing, titleVisibility: .visible) {
-            Button("Remove", role: .destructive) {
-                if category == .favorites { session.removeFavorite(track.id) }
-                else { session.removeHistoryItem(track.id) }
-            }
-        } message: { Text("The saved video and YouTube account stay unchanged.") }
-        .confirmationDialog("Delete saved video?", isPresented: $deleting, titleVisibility: .visible) {
-            Button("Delete saved video", role: .destructive) { session.deleteSavedTrack(track.id) }
-        } message: { Text("Removes this device's favorite, history, queue, playlist references, notes and bookmarks. YouTube is unchanged.") }
+            PublicTrackActions(session: session, track: track, category: category)
+        }.buttonStyle(.plain)
+    }
+    var body: some View {
+        Group {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 2) { navigation; actions }
+            } else { HStack(spacing: 4) { navigation; actions } }
+        }.padding(.vertical, 6)
     }
 }
 
-private struct PublicHeroArtwork: View {
+struct PublicTrackActions: View {
+    let session: PublicYouTubeSession
+    let track: MusesDomain.Track
+    let category: LibraryCategory
+    @State private var removing = false
+    @State private var deleting = false
+    var body: some View {
+        Menu {
+            NavigationLink { PublicVideoDetail(session: session, trackID: track.id) } label: { Label("Video details", systemImage: "info.circle") }
+            if category == .favorites {
+                Button("Remove favorite", systemImage: "heart.slash", role: .destructive) { removing = true }
+            }
+            if category == .history {
+                Button("Remove history item", systemImage: "clock.badge.xmark", role: .destructive) { removing = true }
+            }
+            Button("Delete saved video", systemImage: "trash", role: .destructive) { deleting = true }
+        } label: {
+            Label("Actions for \(track.title)", systemImage: "ellipsis").labelStyle(.iconOnly).frame(width: 44, height: 44)
+        }.accessibilityIdentifier("library.actions.\(track.id.rawValue)")
+            .confirmationDialog(category == .favorites ? "Remove this favorite?" : "Remove this video's local history?", isPresented: $removing, titleVisibility: .visible) {
+                Button("Remove", role: .destructive) {
+                    if category == .favorites { session.removeFavorite(track.id) }
+                    else { session.removeHistoryItem(track.id) }
+                }
+            }
+            .confirmationDialog("Delete saved video?", isPresented: $deleting, titleVisibility: .visible) {
+                Button("Delete saved video", role: .destructive) { session.deleteSavedTrack(track.id) }
+            } message: { Text("Removes this device’s favorite, history, queue, playlist references, notes and bookmarks. YouTube is unchanged.") }
+    }
+}
+
+extension MusesDomain.Track {
+    var publicVideoID: VideoID? { if case .youtubeVideo(let id) = source { id } else { nil } }
+}
+
+struct PublicHeroArtwork: View {
     let videoID: String?
     var body: some View {
         GeometryReader { geometry in
@@ -163,7 +190,8 @@ struct PublicLibraryClearButton: View {
     @State private var confirming = false
     private var count: Int {
         switch category {
-        case .videos, .songs: session.tracks.count
+        case .videos: session.tracks.count
+        case .songs: PublicCollectionScope.songs(tracks: session.tracks, playlists: session.playlists).count
         case .favorites: session.favorites.count
         case .playlists: session.playlists.count
         case .history: session.history.count
@@ -172,7 +200,8 @@ struct PublicLibraryClearButton: View {
     }
     private var scope: String {
         switch category {
-        case .videos, .songs: "saved videos, favorites, history, queue, playlist references, notes and bookmarks"
+        case .videos: "saved videos, favorites, history, queue, playlist references, notes and bookmarks"
+        case .songs: "only saved videos in your local playlists, and their favorites, history, queue entries, notes and bookmarks"
         case .favorites: "favorites only"
         case .playlists: "local playlists only"
         case .history: "local listening history only"
@@ -181,13 +210,17 @@ struct PublicLibraryClearButton: View {
     }
     var body: some View {
         Button { confirming = true } label: {
-            Label("Clear \(category == .songs ? "saved videos" : category.rawValue.lowercased())", systemImage: "trash")
+            Label("Clear \(category.rawValue.lowercased())", systemImage: "trash")
                 .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
         }
         .disabled(count == 0)
         .accessibilityIdentifier("library.clear.\(category.rawValue)")
         .confirmationDialog("Clear \(count) local items?", isPresented: $confirming, titleVisibility: .visible) {
-            Button("Clear local items", role: .destructive) { session.clearLibraryItems(category) }
+            Button("Clear local items", role: .destructive) {
+                if category == .songs {
+                    session.deleteSavedTracks(Set(PublicCollectionScope.songs(tracks: session.tracks, playlists: session.playlists).map(\.id)))
+                } else { session.clearLibraryItems(category) }
+            }
         } message: { Text("Removes \(scope) from this device. YouTube is unchanged.") }
     }
 }
