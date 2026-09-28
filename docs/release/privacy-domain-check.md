@@ -1,0 +1,70 @@
+# Privacy URL, domain and OAuth release checks
+
+Reviewed 2026-09-27 against `a78e14b21c5004fc3d815f63428cd17c5d7c7255`. Official sources were consulted read-only. No private consoles/accounts or key values were accessed; no Cloud/ASC settings, repository visibility, Pages configuration, website state or publishing status were changed. This document complements [privacy-inventory.md](privacy-inventory.md) and does **not** complete P6.
+
+## Current repository evidence
+
+- [PublicServiceLinks.swift](../../Sources/Muses/Features/Public/PublicServiceLinks.swift) points public support to GitHub Issues. Existing [publication notes](github-publication.md) report Issues enabled and Discussions disabled; this review did not independently inspect remote settings.
+- [build-privacy-site.py](../../scripts/build-privacy-site.py) renders the bundled policy to `docs/site/privacy.html` plus `.nojekyll`; it contains no publication step. It does not generate an app homepage, app terms page or ownership-verification token. The script was read, not executed in this review.
+- `https://xiaotwu.github.io/Muses-Erato/privacy.html` is a **candidate**, not a verified live URL. No HTTP/deployment check of that site was performed. Local generated HTML and a successful build are not proof that a public policy URL exists.
+- Policy version `2026-09-27.1` contains deletion promises that require the pending worker's implementation and acceptance evidence. Publication must follow that reconciliation.
+
+## URL suitability and ownership
+
+Google requires app identity/functionality on a public homepage, linked privacy information consistent with consent configuration, and verified ownership of the relevant top private domains. This includes branding homepage/privacy/terms domains, not merely a native client's callback scheme. Verification uses a Search Console owner associated with the Cloud project as Owner or Editor. See [Google brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification).
+
+| Candidate | Assessment and missing evidence |
+| --- | --- |
+| Repository `github.com/xiaotwu/Muses-Erato/blob/.../PublicPrivacyPolicy.md` | Useful source/provenance link. A repository owner does not own `github.com` or control its domain verification. A repository path is not an authorized domain. Do not use a blob page as the claimed production OAuth verified-domain solution. Public readability alone does not satisfy these Google requirements. |
+| `xiaotwu.github.io/Muses-Erato/privacy.html` | Potential hosting route, **conditional** on deployment, suitable homepage/terms, correct Search Console scope and Google's acceptance. The [Public Suffix List](https://publicsuffix.org/list/public_suffix_list.dat) lists `github.io`; applying Google's top-private-domain rule makes `xiaotwu.github.io` the candidate authorized domain, not `github.io` and not `/Muses-Erato`. This is a reasoned candidate, not evidence of console acceptance or completed verification. |
+| Owner-controlled custom domain served by GitHub Pages | Alternative with direct DNS control and clearer domain-wide ownership evidence. Still requires actual deployment, Google Search Console proof, authorized-domain registration and verification. Owning/configuring a domain alone does not approve OAuth branding or scopes. |
+
+Search Console distinguishes Domain properties (DNS verification) from URL-prefix properties (HTML file/tag or other supported proof). A project-path prefix verifies only that scope; do not infer control of an entire host from `/Muses-Erato/`. For a `github.io` route, the owner should establish control and verification at the relevant host root, using a supported proof and the project-associated Google account, then confirm Google Auth Platform accepts that ownership for the authorized domain. Merely editing repository Markdown cannot insert a verification token into GitHub's own root or HTML head. See [Search Console ownership methods](https://support.google.com/webmasters/answer/9008080?hl=en) and [property scopes](https://support.google.com/webmasters/answer/34592?hl=en).
+
+If using a custom domain, GitHub's [Pages domain verification](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/verifying-your-custom-domain-for-github-pages) uses its own DNS challenge to protect the Pages assignment. This is separate from Google's ownership proof; retain both records as required. No DNS record was created or queried by this review.
+
+The current Google [Branding help](https://support.google.com/cloud/answer/15549049?hl=en) says external production apps need homepage, privacy and terms links; the brand-verification guide describes terms more permissively in places. Prepare all three rather than relying on that wording difference. An app terms page can reference required YouTube terms; Google's or YouTube's domain cannot stand in for the app owner's verified domain. Privacy belongs on the homepage's domain and must match the consent-screen URL.
+
+The adapter's `https://com.xiaotwu.muses.erato` origin is a bundle-derived player identity in [YouTubeIFrameAdapter.swift](../../Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameAdapter.swift). It is not evidence that the developer owns a publicly hosted domain. The iOS OAuth client uses a custom callback scheme; do not invent a web OAuth client/redirect as a workaround for branding ownership requirements.
+
+Apple requires a public [Privacy Policy URL](https://developer.apple.com/help/app-store-connect/reference/app-information/app-privacy). Google's domain rules and Apple's URL field are separate checks. This review does not establish that Apple will approve a blob URL, a not-yet-published Pages URL, or the current policy's unverified implementation promises.
+
+## Contacts: Issues support does not eliminate platform email fields
+
+| Field | Visibility and owner action |
+| --- | --- |
+| App public support URL | Keep the chosen GitHub Issues route, with monitored responses and public-data warning. No Discussions enablement or new public email channel is inferred. |
+| Google **User support email** | Consent-screen user-facing address; owner selects an eligible monitored Google-account address or managed Google Group. It is not a URL and cannot be replaced by Issues. Treat this email as public to authorizing users. |
+| Google **Developer contact information** | Platform notification/verification correspondence addresses. Owner enters current monitored addresses in the private console; do not commit them to the repo or post them in Issues. This field is distinct from the consent-screen support address. |
+| Apple **App Review contact** | Private review name, phone and email; not displayed on the App Store through these review fields. Owner supplies directly in ASC, with review instructions/access details as needed. |
+
+Google explains the two email roles and eligibility in [Branding help](https://support.google.com/cloud/answer/15549049?hl=en). Apple lists the private review fields in [App Store review details](https://developer.apple.com/documentation/appstoreconnectapi/app-store-review-details). Other regional developer/trader disclosures are separate; “private review contact” is not a promise that every platform contact field is private.
+
+## `youtube.readonly`, test users and public production
+
+[OAuth.swift](../../Platform/iOS/OAuth/Sources/MusesIOSOAuth/OAuth.swift) enforces `https://www.googleapis.com/auth/youtube.readonly`, PKCE/state, and offline access. [Google's scope reference](https://developers.google.com/identity/protocols/oauth2/scopes#youtube) describes viewing a YouTube account and directs sensitivity classification to the Cloud consent configuration. Read-only does not mean non-sensitive, and this is not the basic-profile-only sign-in exemption. Treat public scope verification as a release gate; owner must record the exact scope's Data Access classification and approval rather than infer either “exempt” or “restricted/security assessment required” from its name.
+
+| Google state | Consequence |
+| --- | --- |
+| External / Testing | Up to 100 listed test users; consent and offline refresh grants normally expire after seven days. `youtube.readonly` is outside the basic `openid`/email/profile exception. Test access is not unrestricted public availability. |
+| External / In production, unapproved sensitive scopes | Publishing audience is not scope approval. Unverified warnings and the separate lifetime new-user cap (normally 100) can still apply. It cannot be reset by rotating test users. |
+| Approved production scopes/branding | Retain exact approved scopes and live branding evidence; account-level Workspace/Advanced Protection restrictions can still prevent individual users from authorizing. |
+| Internal / personal-use exceptions | Organization-only or limited personal/test use cannot substantiate the planned general-public App Store release. |
+
+The first three rows follow [Manage App Audience](https://support.google.com/cloud/answer/15549945?hl=en); exceptions are explained in [Google verification exceptions](https://support.google.com/cloud/answer/13464323?hl=en). Successful sign-in by the owner or a listed test user proves neither general availability nor verification.
+
+Google's [sensitive-scope verification procedure](https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification) calls for scope justification and a demonstration of the English consent flow and the features using those scopes. Prepare evidence for read-only channel, playlist and subscription views, including why public API access alone is insufficient. The owner handles verification correspondence and submits review access information privately. Do not provide real personal-account credentials in repository docs. Apple [review guidance](https://developer.apple.com/app-store/review/) also requires reviewers to be able to exercise sign-in-dependent features; the Testing allowlist is not a reliable public-review plan.
+
+## Owner external actions and release gates
+
+These are explicit remaining actions, not actions performed by this audit. The current instruction does not authorize publishing or private-console changes.
+
+1. **P6-DATA / P6-RETENTION / P6-ARCHIVE — integration prerequisite.** Merge and accept durable wipe, WebKit/cache cleanup, failure/restart retry and metadata retention work against [the inventory](privacy-inventory.md). Formally resolve immutable archive provenance, copied API metadata, recovery lifetime and the newly requested per-item Library deletion semantics without ad-hoc source/digest/rollback changes. Reconcile bundled and generated policy language before public hosting. Preserve evidence at the final release commit.
+2. **P6-DOMAIN — choose/control hosting.** Owner chooses Pages host or custom domain; prepare a real app homepage, matching policy and app terms on that domain. Set up supported Search Console ownership with the associated Cloud account. Obtain console confirmation of the authorized top private domain. Record redacted ownership/acceptance evidence; never claim repository ownership proves domain ownership.
+3. **P6-PUBLISH — publish only after approval.** Owner authorizes the reviewed deployment and completes Pages/DNS configuration. Check actual HTTPS URLs anonymously, final redirect destinations, page identity, link consistency and policy version. Retain timestamped results. No site availability or publication claim is made here.
+4. **P6-CONTACT — fill platform fields.** Owner supplies the monitored consent-screen support email, private Google developer-contact addresses, and private Apple review contact fields directly in their consoles. Selecting Issues as public support does not waive these fields. Do not ask for or store these private values in public artifacts.
+5. **P6-OAUTH — verify live production configuration.** Owner confirms correct iOS client/bundle/callback, External audience, exact scope classification and necessary verification. Complete branding and scope approval, and the relevant publish actions; saved draft/“ready” status is not necessarily live branding. Record approved scope set and redacted live status. Exercise authorization and token refresh with a permitted independent test account representative of public access, not only the owner's Testing grant.
+6. **P6-KEY — fix failed restriction acceptance.** [Implementation status](../implementation-status.md) reports correct, wrong and missing **iOS identity headers** all returned HTTP 200; these are not tests of three different API-key values. The owner has already been asked to configure restrictions. Owner applies the intended iOS bundle restriction and YouTube Data API restriction, then reruns redacted positive/negative tests: expected identity succeeds; wrong/missing identity is rejected; unrelated API use is disallowed. A successful API response or the client emitting a header does not prove Cloud enforcement. See [Google API-key restrictions](https://docs.cloud.google.com/api-keys/docs/add-restrictions-api-keys). Headers are not cryptographic app attestation; don't claim they make an embedded key secret.
+7. **P6-PRIVACY / ASC — finalize the release declarations.** Resolve Google embedded/ad data collection, linkage and ATT behavior using the inventory. Owner enters accurate App Privacy answers and the verified policy/support URLs in ASC, supplies private reviewer details and confirms the final archived manifest/build. Do not choose “Data Not Collected” or “no tracking” solely because there is no developer backend.
+
+An evidence record should contain build/commit, policy version, URL/verification status, approved scopes, test date and redacted outcome. Keys, tokens, personal accounts, private emails and verification correspondence do not belong in that public record. All gates above remain open unless separate final evidence explicitly closes them; this documentation is not a production-consent, App Store, or P6 completion certificate.
