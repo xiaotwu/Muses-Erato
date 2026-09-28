@@ -52,6 +52,7 @@ struct PublicLibraryHeroShelf: View {
     let session: PublicYouTubeSession
     let tracks: [MusesDomain.Track]
     var category: LibraryCategory = .videos
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var presentation: PublicLibraryPresentation = .cards
     private var displayed: [MusesDomain.Track] {
         category == .songs ? PublicCollectionScope.songs(tracks: tracks, playlists: session.playlists) : tracks
@@ -61,7 +62,8 @@ struct PublicLibraryHeroShelf: View {
             .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
     }
     private var presentationControl: some View {
-        HStack(spacing: 2) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 2))
+        return layout {
             ForEach(PublicLibraryPresentation.allCases, id: \.self) { mode in
                 Button { presentation = mode } label: {
                     Label(mode.rawValue, systemImage: mode == .cards ? "rectangle.stack" : "list.bullet")
@@ -71,7 +73,8 @@ struct PublicLibraryHeroShelf: View {
                     .accessibilityAddTraits(presentation == mode ? .isSelected : [])
                     .accessibilityIdentifier("library.presentation.\(mode.rawValue)")
             }
-        }.padding(3).background(Color(uiColor: .secondarySystemBackground), in: Capsule())
+        }.fixedSize(horizontal: true, vertical: false)
+            .padding(3).background(Color(uiColor: .secondarySystemBackground), in: Capsule())
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -115,10 +118,10 @@ struct PublicCollectionRow: View {
     private var actions: some View {
         HStack(spacing: 0) {
             Button { if let video = track.publicVideoID { session.open(video, title: track.title) } } label: {
-                Label("Play \(track.title)", systemImage: "play.fill").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
+                Label("Play \(track.title)", systemImage: "play.fill").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle())
             }.disabled(track.publicVideoID == nil).accessibilityIdentifier("library.play.\(track.id.rawValue)")
             Button { session.enqueueTrack(track) } label: {
-                Label("Add \(track.title) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
+                Label("Add \(track.title) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle())
             }
             PublicTrackActions(session: session, track: track, category: category)
         }.buttonStyle(.plain)
@@ -149,7 +152,7 @@ struct PublicTrackActions: View {
             }
             Button("Delete saved video", systemImage: "trash", role: .destructive) { deleting = true }
         } label: {
-            Label("Actions for \(track.title)", systemImage: "ellipsis").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
+            Label("Actions for \(track.title)", systemImage: "ellipsis").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle())
         }.accessibilityIdentifier("library.actions.\(track.id.rawValue)")
             .confirmationDialog(category == .favorites ? "Remove this favorite?" : "Remove this video's local history?", isPresented: $removing, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {
@@ -211,7 +214,7 @@ struct PublicLibraryClearButton: View {
     var body: some View {
         Button { confirming = true } label: {
             Label("Clear \(category.rawValue.lowercased())", systemImage: "trash")
-                .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
+                .labelStyle(.iconOnly).font(.system(size: 18)).frame(minWidth: 44, minHeight: 44)
         }
         .disabled(count == 0)
         .accessibilityIdentifier("library.clear.\(category.rawValue)")
@@ -238,7 +241,7 @@ struct PublicLocalPlaylistHero: View {
             HStack {
                 Label("Local playlist", systemImage: "music.note.list").font(.caption)
                 Spacer()
-                Button { deleting = true } label: { Label("Delete \(playlist.name)", systemImage: "trash").labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44) }
+                Button { deleting = true } label: { Label("Delete \(playlist.name)", systemImage: "trash").labelStyle(.iconOnly).font(.system(size: 18)).frame(minWidth: 44, minHeight: 44) }
             }
             Spacer(minLength: 60)
             NavigationLink { PublicPlaylistDetail(session: session, playlistID: playlist.id) } label: {
@@ -250,7 +253,7 @@ struct PublicLocalPlaylistHero: View {
                 .accessibilityIdentifier("playlist.open.\(playlist.id)")
             HStack {
                 Spacer()
-                Button { session.enqueuePlaylist(playlist.id) } label: { Label("Add playlist to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44) }
+                Button { session.enqueuePlaylist(playlist.id) } label: { Label("Add playlist to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).font(.system(size: 18)).frame(minWidth: 44, minHeight: 44) }
                     .disabled(playlist.trackIDs.isEmpty)
             }
         }.padding(20).foregroundStyle(.white)
@@ -268,7 +271,7 @@ struct PublicPlaylistClearButton: View {
     @State private var clearing = false
     var body: some View {
         Button("Clear playlist videos", systemImage: "trash") { clearing = true }
-            .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
+            .labelStyle(.iconOnly).font(.system(size: 18)).frame(minWidth: 44, minHeight: 44)
             .disabled(playlist.entryCount == 0)
             .accessibilityIdentifier("playlist.clear")
             .confirmationDialog("Clear this local playlist?", isPresented: $clearing, titleVisibility: .visible) {

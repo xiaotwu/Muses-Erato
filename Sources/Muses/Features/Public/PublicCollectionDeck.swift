@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import MusesDomain
 
 /// Constant-size view window: even 5,000 items create at most five artwork cards.
@@ -21,6 +22,7 @@ struct PublicCollectionDeck: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var focus = 0
+    @State private var lastDragAt = Date.distantPast
     @State private var availableWidth: CGFloat = 320
     private var cardWidth: CGFloat { min(260, max(150, availableWidth * 0.62)) }
     private var footerHeight: CGFloat { typeSize.isAccessibilitySize ? 150 : 76 }
@@ -44,6 +46,7 @@ struct PublicCollectionDeck: View {
         let offsetY = CGFloat(abs(distance)) * 13 + 12
         let identifier = selected ? "library.play." + track.id.rawValue : "collection.adjacent.\(distance)"
         return Button {
+            guard Date().timeIntervalSince(lastDragAt) > 0.2 else { return }
             if selected {
                 if let video = track.publicVideoID { session.open(video, title: track.title) }
             } else { move(distance) }
@@ -77,27 +80,31 @@ struct PublicCollectionDeck: View {
                         }
                     }.frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
                         .contentShape(Rectangle())
-                        .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { move(PublicDeckProjection.swipeStep($0.translation)) })
+                        .gesture(PublicDeckPan(onBegin: { lastDragAt = Date() }, onEnd: { translation in
+                            lastDragAt = Date()
+                            move(PublicDeckProjection.swipeStep(translation))
+                        }))
                 }
                 .frame(height: stageHeight)
+                .contentShape(Rectangle())
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
                 .clipped()
                 HStack(spacing: 4) {
-                    Button { move(-1) } label: { Label("Previous card", systemImage: "chevron.left").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
+                    Button { move(-1) } label: { Label("Previous card", systemImage: "chevron.left").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .disabled(index == 0).accessibilityIdentifier("collection.previous")
                     Text("\(index + 1) / \(tracks.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                        .frame(minWidth: 62).accessibilityIdentifier("collection.position")
-                    Button { move(1) } label: { Label("Next card", systemImage: "chevron.right").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
+                        .lineLimit(1).minimumScaleFactor(0.5).frame(minWidth: 62, maxWidth: 100).accessibilityIdentifier("collection.position")
+                    Button { move(1) } label: { Label("Next card", systemImage: "chevron.right").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .disabled(index == tracks.count - 1).accessibilityIdentifier("collection.next")
                     Spacer(minLength: 0)
                     NavigationLink { PublicVideoDetail(session: session, trackID: tracks[index].id) } label: {
-                        Label("Video details", systemImage: "info.circle").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
+                        Label("Video details", systemImage: "info.circle").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle())
                     }.accessibilityIdentifier("library.detail.\(tracks[index].id.rawValue)")
                     Button { session.enqueueTrack(tracks[index]) } label: {
-                        Label("Add to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
+                        Label("Add to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle())
                     }
                     PublicTrackActions(session: session, track: tracks[index], category: category)
-                }.buttonStyle(.plain)
+                }.buttonStyle(.plain).zIndex(20)
             }.onChange(of: tracks.count) { _, _ in focus = index }
         }
     }
@@ -128,7 +135,7 @@ struct PublicDeckArtworkCard: View {
                     if track?.liked == true { Image(systemName: "heart.fill").font(.caption).accessibilityLabel("Favorite") }
                     Spacer(minLength: 0)
                     Image(systemName: track == nil ? "exclamationmark" : (focused ? "play.fill" : "viewfinder"))
-                        .font(.caption.weight(.semibold)).frame(width: 28, height: 28)
+                        .font(.system(size: 13, weight: .semibold)).frame(width: 28, height: 28)
                         .background(.black.opacity(0.6), in: Circle())
                         .overlay { Circle().stroke(.white.opacity(0.35)) }
                 }.padding(.top, 2)
@@ -191,10 +198,10 @@ struct PublicPlaylistBlock: View {
                         }.scrollTargetLayout().padding(.vertical, 6)
                     }.scrollPosition(id: $focusedEntry, anchor: .leading).scrollIndicators(.hidden).accessibilityIdentifier("playlist.entries.\(playlist.id)")
                     HStack(spacing: 0) {
-                        Button { browse(-1, proxy: proxy) } label: { Label("Previous entries in \(playlist.name)", systemImage: "chevron.left").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
+                        Button { browse(-1, proxy: proxy) } label: { Label("Previous entries in \(playlist.name)", systemImage: "chevron.left").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle()) }
                             .disabled(entries.isEmpty || (focusedEntry ?? 0) == 0)
                         Spacer()
-                        Button { browse(1, proxy: proxy) } label: { Label("Next entries in \(playlist.name)", systemImage: "chevron.right").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
+                        Button { browse(1, proxy: proxy) } label: { Label("Next entries in \(playlist.name)", systemImage: "chevron.right").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle()) }
                             .disabled(entries.isEmpty || (focusedEntry ?? 0) >= entries.count - 1)
                     }.buttonStyle(.plain)
                 }
@@ -220,21 +227,50 @@ struct PublicPlaylistBlock: View {
     private var actions: some View {
         HStack(spacing: 0) {
             Button { if let index = firstPlayable { session.playPlaylist(playlist.id, startingAtOccurrenceIndex: index) } } label: {
-                Label("Play \(playlist.name)", systemImage: "play.fill").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
+                Label("Play \(playlist.name)", systemImage: "play.fill").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle())
             }.disabled(firstPlayable == nil)
             Button { session.enqueuePlaylist(playlist.id) } label: {
-                Label("Add \(playlist.name) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
+                Label("Add \(playlist.name) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle())
             }.disabled(firstPlayable == nil)
             Menu {
                 NavigationLink { PublicPlaylistDetail(session: session, playlistID: playlist.id) } label: { Label("Open details or rename", systemImage: "pencil") }
                 Button("Clear playlist", systemImage: "rectangle.stack.badge.minus", role: .destructive) { clearing = true }
                     .disabled(playlist.entryCount == 0)
                 Button("Delete playlist", systemImage: "trash", role: .destructive) { deleting = true }
-            } label: { Label("Actions for \(playlist.name)", systemImage: "ellipsis").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
+            } label: { Label("Actions for \(playlist.name)", systemImage: "ellipsis").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle()) }
         }.buttonStyle(.plain)
     }
     private func browse(_ step: Int, proxy: ScrollViewProxy) {
         let next = min(max(0, (focusedEntry ?? 0) + step), max(0, entries.count - 1))
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { focusedEntry = next; proxy.scrollTo(next, anchor: .leading) }
+    }
+}
+
+/// Decide the axis before recognition so a vertical drag remains the page scroll's gesture.
+private struct PublicDeckPan: UIGestureRecognizerRepresentable {
+    var onBegin: () -> Void
+    var onEnd: (CGSize) -> Void
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let pan = UIPanGestureRecognizer()
+        pan.delegate = context.coordinator
+        pan.maximumNumberOfTouches = 1
+        return pan
+    }
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        switch recognizer.state {
+        case .began, .changed: onBegin()
+        case .ended:
+            let value = recognizer.translation(in: recognizer.view)
+            onEnd(CGSize(width: value.x, height: value.y))
+        default: break
+        }
+    }
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return false }
+            let velocity = pan.velocity(in: pan.view)
+            return abs(velocity.x) > abs(velocity.y) * 1.4
+        }
     }
 }
