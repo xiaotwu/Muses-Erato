@@ -169,7 +169,7 @@ final class PublicSmokeTests: XCTestCase {
         app.terminate()
         app.launch()
         playlists(app)
-        let night = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Night")).firstMatch
+        let night = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS %@", "Night")).firstMatch
         reveal(night, in: app)
         night.tap()
         XCTAssertTrue(app.staticTexts["2 videos · On this device"].exists)
