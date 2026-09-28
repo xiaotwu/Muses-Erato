@@ -23,7 +23,7 @@ struct PublicLibraryCategories: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
-                    ForEach(LibraryCategory.allCases.filter { $0 != .subscriptions }) { category in
+                    ForEach(LibraryCategory.allCases.filter { ![.artists, .albums, .subscriptions].contains($0) }) { category in
                         Button {
                             withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) { session.selectedCategory = category }
                         } label: {

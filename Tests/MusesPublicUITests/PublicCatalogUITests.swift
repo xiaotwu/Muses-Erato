@@ -114,7 +114,7 @@ import XCTest
 
 
 extension PublicCatalogUITests {
-    func testHomeRecommendationsNicknameAndInlineAccountCollections() { checkHomeAndAccount(largeText: false) }
+    func testHomeRecentAndYouTubeNicknameAndInlineAccountCollections() { checkHomeAndAccount(largeText: false) }
     func testLargeTextHomeAndAccountRemainUsable() { checkHomeAndAccount(largeText: true) }
     private func checkHomeAndAccount(largeText: Bool) {
         let app = launch()
@@ -123,12 +123,14 @@ extension PublicCatalogUITests {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
             app.launch()
         }
-        let recommendation = app.buttons["home.music.video:abcdefghijk"]
-        XCTAssertTrue(recommendation.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Your recommendations"].exists)
+        XCTAssertTrue(app.staticTexts["Recently Played"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Public recommendations"].exists)
+        XCTAssertFalse(app.staticTexts["Your recommendations"].exists)
+        XCTAssertFalse(app.buttons["home.music.video:abcdefghijk"].exists)
+        XCTAssertTrue(app.links["home.youtubeMusic"].exists || app.buttons["home.youtubeMusic"].exists)
         XCTAssertTrue(app.staticTexts["On YouTube"].exists)
         let homeImage = XCTAttachment(screenshot: app.screenshot())
-        homeImage.name = largeText ? "Home large text" : "Home featured discovery"; homeImage.lifetime = .keepAlways; add(homeImage)
+        homeImage.name = largeText ? "Home large text" : "Home recent listening and YouTube playlists"; homeImage.lifetime = .keepAlways; add(homeImage)
         app.buttons["Settings"].firstMatch.tap()
         let nickname = app.staticTexts["account.nickname"].firstMatch
         XCTAssertTrue(nickname.waitForExistence(timeout: 5))

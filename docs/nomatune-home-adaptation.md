@@ -44,3 +44,8 @@ Final evidence:
 - Exact personalized recommendations still depend on the first-party endpoint accepting the account session; the interface preserves the public fallback notice and does not claim public content is personalized. Device UX preference and actual account-specific results require user review.
 
 Deployment evidence: `/tmp/erato-home-install-build.log` passed for the final signed Debug app. It was installed on the connected iPhone without uninstalling or clearing user data. `/tmp/erato-home-caption-final.xcresult` passed the final compact-source-header Home/account UI check after visitor-scope isolation and radio/mix website routing. `/tmp/erato-home-release-build.log` passed the public Release gate. User review of the final Home layout and account-specific recommendations remains pending.
+
+
+## Superseded Home presentation (2026-09-28)
+
+The user subsequently chose to remove recommendation content because account personalization is not reliable with the current OAuth session. The live 2+3-shelf pagination result above demonstrated anonymous/public browse only. Home now uses Recently Played and On YouTube account playlists, with a YouTube Music website entry. The recommendation model is no longer instantiated by Home and no browse request is triggered by Home load/refresh. Artists and Albums placeholder categories are removed from the public category rail. Original playlist hero decks and playback adapters are unchanged.

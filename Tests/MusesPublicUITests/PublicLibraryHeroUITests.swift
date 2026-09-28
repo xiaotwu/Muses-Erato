@@ -76,8 +76,8 @@ import XCTest
     }
     func testHorizontalCategoriesAndEmptyClearDisabled() {
         let app = app(); library(app)
-        category("Artists", app: app)
-        XCTAssertTrue(app.staticTexts["Artists are not available"].exists)
+        XCTAssertFalse(app.buttons["library.category.Artists"].exists)
+        XCTAssertFalse(app.buttons["library.category.Albums"].exists)
         category("History", app: app)
         XCTAssertFalse(app.buttons["library.clear.History"].isEnabled)
         category("Songs", app: app)

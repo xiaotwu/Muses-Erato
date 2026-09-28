@@ -53,7 +53,6 @@ struct PublicRootView: View {
     @FocusState private var linkFocused: Bool
     @FocusState private var searchFocused: Bool
     @State private var query = ""
-    @State private var musicHome = PublicMusicHomeModel()
     @State private var confirmingSync = false
     @State private var libraryPresentation: PublicLibraryPresentation = .cards
 
@@ -167,33 +166,18 @@ struct PublicRootView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
                 if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
-                PublicHomeMoodRail { phrase in
-                    query = phrase; selection = .search
-                    Task { await session.search(phrase) }
+                PublicHomeLibraryContent(session: session) {
+                    session.selectedCategory = .history; selection = .library
                 }
-                PublicMusicHomeShelves(session: session, model: musicHome, featuredOnly: true)
-                if session.currentTrack != nil || !session.libraryTracks.isEmpty {
-                    PublicHomeLibraryContent(session: session) {
-                        session.selectedCategory = .history; selection = .library
-                    }
-                }
-                if !session.playlists.isEmpty || session.signedIn { PublicHomePlaylistShelves(session: session) }
-                if musicHome.sections.count > 1 || musicHome.nextPage != nil {
-                    PublicMusicHomeShelves(session: session, model: musicHome, featuredOnly: false)
-                }
-                if !session.apiConfigured {
-                    PublicNotice(message: "Online discovery is unavailable. Saved videos and YouTube links still work.", symbol: "wifi.slash")
-                }
+                PublicHomePlaylistShelves(session: session)
             }
             .frame(maxWidth: 900, alignment: .leading)
             .padding(.horizontal, PublicStyle.inset).padding(.vertical, 12)
             .frame(maxWidth: .infinity)
         }
         .background(PublicStyle.background)
-        .task(id: session.musicHomeScope) { await musicHome.load(session: session) }
-        .task(id: session.signedIn) { if session.signedIn { await session.loadAccountCollections() } }
+        .task(id: session.musicHomeScope) { if session.signedIn { await session.loadAccountCollections() } }
         .refreshable {
-            await musicHome.load(session: session, refresh: true)
             if session.signedIn { await session.loadAccountCollections() }
         }
         .navigationDestination(item: $session.catalogRoute) { route in PublicCatalogDetail(session: session, route: route) }

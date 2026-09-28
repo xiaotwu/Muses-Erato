@@ -116,3 +116,16 @@ See native-audio-and-confirmation-acceptance.md for startup/transition fixes and
 Cards/List uses icons within its existing selected capsule and moves into the count/clear row. One bound presentation state controls all eligible Library collection views. Playlist hero cards and deck gestures remain intact.
 
 Home adapts NomaTune's layered music browsing hierarchy with SwiftUI-native styling: mood search shortcuts, featured cloud artwork, continue listening, deduplicated quick picks, recent tracks and horizontal local/account playlist shelves. Additional first-party recommendation pages preserve visitor context and account-generation guards. See docs/nomatune-home-adaptation.md for source review, exact behavior and acceptance evidence. No Android playback engine or new extractor is introduced in this Home layout round.
+
+
+### Home simplification and unavailable categories (2026-09-28, latest user decision)
+
+Supersedes the NomaTune-inspired recommendation layout above. Remove Artists and Albums from the public Library category rail: these entries only displayed unavailable placeholders. Domain categories remain intact for persistence and other compositions. Playlist hero decks and the count-row Cards/List controls are unchanged.
+
+Home now contains two sections: **Recently Played** (actual local playlist-member listening history, portrait hero artwork, direct playback, See all to Library History) and **On YouTube** (all automatically loaded account playlists in a horizontal rail, original names, in-app playlist navigation). Signed-out, empty, loading and retry states remain explicit. A labeled YouTube Music website link preserves the path to the user's web homepage.
+
+Remove mood searches, cloud recommendation shelves, Keep listening, Quick picks and duplicate local playlist shelves from Home. Home no longer instantiates or loads the recommendation model, and pull-to-refresh no longer calls the first-party recommendation browse endpoint. The previous service/parser remain research components, not active Home content. Current Google OAuth does not reliably establish a YouTube Music web session; an authenticated attempt with public fallback is insufficient to promise personalized Home recommendations.
+
+Verification evidence and deployment are recorded after the targeted UI gate.
+
+Verification: `/tmp/erato-home-simplified-tests.xcresult` passed four focused UI tests (normal Home/account, maximum accessibility text Home/account, removal of unavailable categories and empty clear state, direct Home/history playback plus count-row selector alignment). Screenshot inspection exposed an accessibility-size heading/link squeeze; headers now stack vertically at accessibility sizes. `/tmp/erato-home-simplified-large-final.xcresult` passed the final large-text retest and its screenshot was visually inspected. `/tmp/erato-home-simplified-device-final.log` passed the signed Debug device build. The updated app was installed without uninstalling or clearing user data. This is UI/deployment evidence, not background/lock-screen or P6 release acceptance.
