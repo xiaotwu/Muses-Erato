@@ -14,6 +14,14 @@ This file records verified evidence, not completion claims. The original checkou
 | P4 | Public app shell, iPhone/iPad navigation, local history/favorites and visible player route | iPhone simulator app/UI tests pass; iPad layout visually inspected; signed app installed and launched on iPhone | Merged hero/notebook/catalog device acceptance and broader accessibility audit |
 | P6 | Public source allowlist and signed Release archive static audit | Latest merged Release archive passes endpoint/capability/entitlement checks; it uses development provisioning | Final-version distribution export, privacy/review packet, TestFlight and App Review |
 
+## Current UI delivery (2026-09-27)
+
+The compact Library rebuild is installed and launched on the physical iPhone. Songs now shows the union of playlist membership, with a macOS-style fan deck and compact list; all playlists appear as vertical blocks of lazy horizontal hero occurrences. Related actions share rows; ambiguous import, account, support and policy actions have visible labels. The interface retains one native page title.
+
+Account playlists and selected playlist entries load every page automatically, with cancellation/error/limit handling. Source names refresh in memory and default to the original name; actual custom names retain user-input provenance. Songs and playlist playback establish full previous/current/remaining collection context while preserving explicit Up Next. Clearing Songs targets only playlist membership.
+
+Integrated phone and tablet import/swipe/list/restart flows, the maximum text-size flow, collection playback/scoping tests and repaired keyboard dismissal passed. The owner confirmed functional behavior on the physical iPhone; further layout refinement is deferred for a later discussion. Details and intermediate failures are in [library-ui-validation.md](library-ui-validation.md); this does not close P6 or declare public App Store readiness.
+
 ## Local device evidence
 
 - A paired iPhone 16,1 accepted the signed Debug app under `com.xiaotwu.muses.erato` using Apple team `9URWGD9Q86`.

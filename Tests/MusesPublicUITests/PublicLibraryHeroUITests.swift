@@ -24,14 +24,14 @@ import XCTest
         reveal(rail, app: app)
         let button = app.buttons["library.category.\(name)"]
         for _ in 0..<5 {
-            if button.isHittable && button.frame.minX >= rail.frame.minX && button.frame.maxX <= rail.frame.maxX {
+            if button.isHittable {
                 button.tap()
                 if button.isSelected { return }
             }
             rail.swipeRight(velocity: .slow)
         }
         for _ in 0..<8 {
-            if button.isHittable && button.frame.minX >= rail.frame.minX && button.frame.maxX <= rail.frame.maxX {
+            if button.isHittable {
                 button.tap()
                 if button.isSelected { return }
             }
