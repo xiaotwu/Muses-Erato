@@ -21,8 +21,8 @@ import XCTest
         XCTAssertGreaterThanOrEqual(entry.frame.height, 44)
         XCTAssertEqual(entry.label, "Import YouTube Music or account playlist")
         entry.tap()
-        XCTAssertTrue(app.buttons["playlistImport.accountLoad"].exists)
-        app.buttons["playlistImport.accountLoad"].tap()
+        XCTAssertFalse(app.buttons["playlistImport.accountLoad"].exists)
+        XCTAssertTrue(app.buttons["playlistImport.account.PLsecond"].waitForExistence(timeout: 5))
         let owned = app.buttons["playlistImport.account.PLfixture"]
         XCTAssertTrue(owned.waitForExistence(timeout: 5)); owned.tap()
         XCTAssertTrue(app.buttons["playlistImport.save"].waitForExistence(timeout: 5))

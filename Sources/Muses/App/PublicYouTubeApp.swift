@@ -969,3 +969,16 @@ extension PublicYouTubeSession {
         }
     }
 }
+
+extension PublicYouTubeSession {
+    func readOwnedPlaylistPage(token: String?) async throws -> MusesCatalog.CatalogPage {
+        guard signedIn, !deletingLocalData, let catalog else { throw APIError.unauthorized }
+        let epoch = accountEpoch
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
+        let page = try await catalog.myPlaylists(pageToken: token)
+        try Task.checkCancellation()
+        guard epoch == accountEpoch, signedIn, !deletingLocalData else { throw CancellationError() }
+        return page
+    }
+}

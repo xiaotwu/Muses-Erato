@@ -31,3 +31,11 @@ That later integration commit introduces `saveUserNamedPlaylist` and explicit-in
 Final verification: `/tmp/erato-auto-final.log`: four hosted tests and one iPad UI test passed. Domain package: nine tests passed (`/tmp/erato-auto-domain.log`).
 
 Release simulator build and public artifact static audit passed (`/tmp/erato-auto-release.log`, `/tmp/erato-auto-audit.log`). The companion evidence-guard patch passed `git apply --check` against `04e8211`; it must be applied in that integration branch and its successor tests rerun there.
+
+## Automatic owned-playlist selection list
+
+Opening the import sheet while signed in, or completing sign-in while it is open, now starts reading every owned-playlist page automatically. No account-load arrow is presented. A separate cancellable task tracks this read so sign-in completion cannot incorrectly enable controls during it. The memory-only reader retains a failed cursor for retry, rejects repeated cursors/duplicate resource snapshots, and caps itself at 100 pages. Failure or quota exhaustion stops the loop and labels retained selection rows explicitly as an incomplete list. At the page ceiling, users can select a returned row or supply a missing playlist's share link; there is no retry loop past the ceiling. Cancellation and account-epoch checks discard in-flight responses. Signing out resets the owned list and any authorized selection.
+
+The updated UI assertion waits for the **second page's** owned playlist to appear without tapping a load button, then selects a playlist and saves its original name after automatic item pagination. Catalog package: 26 tests passed (`/tmp/erato-owned-catalog.log`), including two-page automatic selection-list read, resumable failure, cycle/limit handling and cancellation.
+
+Owned-list follow-up iPad validation passed: four hosted tests and the revised UI test (`/tmp/erato-owned-ios.log`). The UI test confirms that the second owned-list page is already available with no accountLoad control, and then completes original-name import/restart verification. Real OAuth sign-in transition itself remains a physical-device/account check; the tested sheet launch uses the explicitly signed-in fixture environment.

@@ -15,6 +15,10 @@ struct PublicPlaylistImportView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var work: Task<Void, Never>?
+    @State private var owned = OwnedPlaylistReader()
+    @State private var ownedLoading = false
+    @State private var ownedError: String?
+    @State private var ownedWork: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -47,19 +51,22 @@ struct PublicPlaylistImportView: View {
                     Section("From your YouTube account") {
                         Text("Playlists owned by your signed-in account. Some YouTube Music collections may not be available here.").font(.footnote)
                         if session.signedIn {
-                            ForEach(session.accountPlaylistPages.items, id: \.rowID) { item in
+                            if ownedLoading { ProgressView("Loading playlists… \(owned.items.count) found") }
+                            ForEach(owned.items, id: \.rowID) { item in
                                 Button(item.title) { select(item.id, authorized: true) }
                                     .accessibilityIdentifier("playlistImport.account.\(item.id)")
                             }
-                            if !session.accountPlaylistPages.loaded || session.accountPlaylistPages.nextPageToken != nil {
-                                importButton(session.accountPlaylistPages.loaded ? "Load more account playlists" : "Load account playlists", icon: "arrow.down.circle") {
-                                    run { await session.loadAccountPlaylists() }
-                                }.accessibilityIdentifier("playlistImport.accountLoad")
-                            }
-                            if session.accountPlaylistPages.loaded && session.accountPlaylistPages.items.isEmpty {
+                            if owned.complete && owned.items.isEmpty {
                                 Text("No owned playlists were returned. Try a playlist share link below.")
                             }
-                            if let message = session.accountPlaylistPages.error { Text(message).foregroundStyle(.red) }
+                            if let ownedError {
+                                Text("Showing \(owned.items.count) playlists; this list is incomplete. \(ownedError)")
+                                    .foregroundStyle(.red).accessibilityIdentifier("playlistImport.accountError")
+                                if owned.pagesRead < 100 {
+                                    importButton("Retry loading account playlists", icon: "arrow.clockwise") { loadOwned() }
+                                        .accessibilityIdentifier("playlistImport.accountRetry")
+                                }
+                            }
                         } else {
                             importButton("Sign in to choose account playlists", icon: "person.crop.circle.badge.plus") { run { await session.signIn() } }
                                 .accessibilityIdentifier("playlistImport.signIn")
@@ -83,11 +90,21 @@ struct PublicPlaylistImportView: View {
                 if let error { Text(error).foregroundStyle(.red).accessibilityIdentifier("playlistImport.error") }
                 Text("No account playlists are changed. Nothing is saved until every page has loaded and you confirm import. You can delete the local playlist from Library.").font(.footnote)
             }
-            .disabled(busy)
+            .disabled(busy || ownedLoading)
             .navigationTitle("Import playlist")
-            .toolbar { Button("Cancel", systemImage: "xmark") { work?.cancel(); dismiss() }.labelStyle(.iconOnly) }
+            .toolbar { Button("Cancel", systemImage: "xmark") { work?.cancel(); ownedWork?.cancel(); dismiss() }.labelStyle(.iconOnly) }
         }
-        .onDisappear { work?.cancel() }
+        .task(id: session.signedIn) {
+            if session.signedIn {
+                if !owned.complete { loadOwned() }
+            } else {
+                ownedWork?.cancel(); owned = .init(); ownedError = nil; ownedLoading = false
+                if authorized {
+                    work?.cancel(); reader = .init(); selected = nil; name = ""; busy = false
+                }
+            }
+        }
+        .onDisappear { work?.cancel(); ownedWork?.cancel() }
     }
     private func importButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -114,6 +131,25 @@ struct PublicPlaylistImportView: View {
         default: detail = "The playlist could not be read completely. It may be unsupported by the official API. Choose another playlist or restart the import."
         }
         return "Nothing imported. " + detail
+    }
+    private func loadOwned() {
+        guard !ownedLoading else { return }
+        ownedLoading = true; ownedError = nil
+        let current = owned
+        ownedWork = Task {
+            defer { if owned === current { ownedLoading = false } }
+            do {
+                try await current.readAll { token in try await session.readOwnedPlaylistPage(token: token) }
+            } catch is CancellationError { }
+            catch {
+                guard owned === current else { return }
+                if case PlaylistImportReadError.limit = error {
+                    ownedError = "The 100-page limit was reached. Use a share link for a playlist not shown."
+                } else {
+                    ownedError = "Loading stopped. Retry when available, or use a playlist share link. " + importError(error)
+                }
+            }
+        }
     }
     private func loadAll() {
         guard let selected else { return }

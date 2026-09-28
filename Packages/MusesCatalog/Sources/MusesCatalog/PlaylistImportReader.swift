@@ -28,3 +28,31 @@ import Observation
     }
 }
 public enum PlaylistImportReadError: Error { case limit }
+
+/// Account selection results are memory-only. Partial results remain explicitly incomplete.
+@MainActor @Observable public final class OwnedPlaylistReader {
+    public private(set) var items: [CatalogItem] = []
+    public private(set) var complete = false
+    public private(set) var pagesRead = 0
+    public private(set) var nextPageToken: String?
+    private var seenTokens = Set<String>()
+    public init() {}
+    public func readAll(fetch: (String?) async throws -> CatalogPage) async throws {
+        while !complete {
+            try Task.checkCancellation()
+            guard pagesRead < 100 else { throw PlaylistImportReadError.limit }
+            let page = try await fetch(nextPageToken)
+            try Task.checkCancellation()
+            guard page.items.allSatisfy({ $0.kind == .playlist }),
+                  page.nextPageToken.map({ !$0.isEmpty && !seenTokens.contains($0) }) ?? true else { throw PlaylistImportError.incomplete }
+            let existing = Set(items.map(\.id))
+            let incoming = page.items.map(\.id)
+            guard Set(incoming).count == incoming.count, existing.isDisjoint(with: incoming) else { throw PlaylistImportError.incomplete }
+            items += page.items
+            nextPageToken = page.nextPageToken
+            if let token = nextPageToken { seenTokens.insert(token) }
+            pagesRead += 1
+            complete = nextPageToken == nil
+        }
+    }
+}
