@@ -176,6 +176,7 @@ public struct ArchiveRemovalJournal: Codable, Sendable {
     }
     func requireOriginalArchiveRestoreAllowed() throws {
         // Presence blocks even malformed/unknown-version payloads; never fall back to old originals.
-        guard try record(kind: .migration, id: "archive-successor-v1") == nil else { throw ArchiveLifecycleError.restoreBlocked }
+        guard try record(kind: .migration, id: "archive-successor-v1") == nil,
+              try record(kind: .migration, id: "runnable-successor-v1") == nil else { throw ArchiveLifecycleError.restoreBlocked }
     }
 }

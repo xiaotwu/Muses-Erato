@@ -91,7 +91,7 @@ enum PublicStoreRouter {
                     where UUID(uuidString: url.lastPathComponent) != nil && url.lastPathComponent != deletion.routeID.uuidString {
                     try fm.removeItem(at: url)
                 }
-                for name in ["active.json", "pending.json"] {
+                for name in ["active.json", "pending.json", "successor-active.json", "successor-pending.json"] {
                     let url = root.appendingPathComponent(name)
                     if fm.fileExists(atPath: url.path) { try fm.removeItem(at: url) }
                 }
@@ -140,6 +140,7 @@ enum PublicStoreRouter {
             return try resolveDeletion(deletedURL, legacyURL: legacyURL, destinationURL: destinationURL,
                 defaults: defaults, domainName: domainName, checkpoint: checkpoint)
         }
+        if let successor = try PublicArchiveSuccessorRouter.selectedIfPresent(destinationURL: destinationURL) { return successor }
         let activeURL = root.appendingPathComponent("active.json")
         let pendingURL = root.appendingPathComponent("pending.json")
         if fm.fileExists(atPath: activeURL.path) {
@@ -239,7 +240,7 @@ enum PublicStoreRouter {
         try sync(url)
         try sync(url.deletingLastPathComponent())
     }
-    private static func sync(_ url: URL) throws {
+    static func sync(_ url: URL) throws {
         let fd = open(url.path, O_RDONLY)
         guard fd >= 0 else { throw PersistenceError.corruptRecord("sync open \(url.lastPathComponent)") }
         defer { close(fd) }

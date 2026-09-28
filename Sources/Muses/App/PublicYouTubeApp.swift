@@ -105,6 +105,7 @@ final class PublicYouTubeSession {
     private let deleteWebsiteData: () async throws -> Void
     var showMigrationArchive = false
     private(set) var hasMigrationArchive = false
+    private(set) var successorIdentity: SuccessorIdentity?
 
     init(storeURL: URL? = nil, catalogOverride: YouTubeDataCatalog? = nil, defaults: UserDefaults = .standard,
          domainName: String = Bundle.main.bundleIdentifier ?? "com.xiaotwu.muses.erato",
@@ -201,6 +202,7 @@ final class PublicYouTubeSession {
         playedIDs = snapshot.history.sorted { $0.date > $1.date }.map(\.trackID)
         playlists = snapshot.playlists
         queue = try PlaybackQueue(snapshot: snapshot.queue)
+        successorIdentity = try repo.get(SuccessorIdentity.self, kind: .migration, id: "runnable-successor-v1")
         hasMigrationArchive = try repo.get(LegacyMigrationReceipt.self, kind: .migration, id: "legacy-complete-v1") != nil
         if let current = queue.snapshot.current {
             state = PlaybackSnapshot(state: .paused, source: current.source,
@@ -501,11 +503,12 @@ final class PublicYouTubeSession {
     }
 
     @discardableResult
-    func createPlaylist(_ name: String, trackIDs: [TrackID] = []) -> Bool {
+    func createPlaylist(_ name: String, trackIDs: [TrackID] = [], nameIsExplicitUserInput: Bool = false) -> Bool {
         do {
             guard let repository else { return false }
             let playlist = try LocalPlaylist(name: name, trackIDs: trackIDs)
-            try repository.savePlaylist(playlist)
+            if nameIsExplicitUserInput { try repository.saveUserNamedPlaylist(playlist) }
+            else { try repository.savePlaylist(playlist) }
             playlists.append(playlist)
             failureMessage = nil
             return true
@@ -513,12 +516,13 @@ final class PublicYouTubeSession {
     }
 
     @discardableResult
-    func editPlaylist(_ id: UUID, change: (inout LocalPlaylist) throws -> Void) -> Bool {
+    func editPlaylist(_ id: UUID, nameIsExplicitUserInput: Bool = false, change: (inout LocalPlaylist) throws -> Void) -> Bool {
         guard let index = playlists.firstIndex(where: { $0.id == id }), let repository else { return false }
         do {
             var value = playlists[index]
             try change(&value)
-            try repository.savePlaylist(value)
+            if nameIsExplicitUserInput { try repository.saveUserNamedPlaylist(value) }
+            else { try repository.savePlaylist(value) }
             playlists[index] = value
             failureMessage = nil
             return true
@@ -723,6 +727,7 @@ final class PublicYouTubeSession {
         bookmarkCueMilliseconds = nil
         resetAccountCatalog()
         hasMigrationArchive = false
+        successorIdentity = nil
         showMigrationArchive = false
         playlists = []
         recordedEntryID = nil

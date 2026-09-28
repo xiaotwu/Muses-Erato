@@ -61,6 +61,7 @@ extension SwiftDataSnapshotRepository {
     /// Early P2 bridge. This omits fields and must not be used for a production upgrade.
     @available(*, deprecated, message: "Use importLegacyComplete after reading the full old schema")
     public func importLegacy(_ bundle: LegacyUserTruthBundle) throws {
+        try requireOriginalArchiveRestoreAllowed()
         if try record(kind: .migration, id: "legacy-v1") != nil { return }
         try writeLegacy(try preparedLegacyValues(bundle), marker: "legacy-v1")
     }
@@ -68,6 +69,7 @@ extension SwiftDataSnapshotRepository {
     /// Import a complete archive in one SwiftData transaction. The caller must read an isolated
     /// copy of the old store and retain the original store files for rollback.
     public func importLegacyComplete(_ bundle: LegacyCompleteBundle, beforeCommit: (() throws -> Void)? = nil) throws {
+        try requireOriginalArchiveRestoreAllowed()
         let expected: Set<String> = ["Track", "QueueState", "EQPreset", "YouTubeImport",
             "YouTubeImportItem", "Playlist", "PlaylistItem", "ListeningEvent",
             "ListeningSession", "InboxItem", "TrackNote", "TrackBookmark",

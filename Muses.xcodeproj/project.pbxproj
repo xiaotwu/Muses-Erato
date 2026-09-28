@@ -26,6 +26,7 @@
 		34A146771707ACDA7A68AE3D /* PhysicalLegacyFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DCBCD2B6481049097FCA6C3 /* PhysicalLegacyFixture.swift */; };
 		34E50508B48198760118F400 /* Playlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3110C2C5E0C83478DD2E99AE /* Playlist.swift */; };
 		369176A6927E4A79D63A2938 /* PublicPlaylistImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E182EDE9E903E576F9F79E2A /* PublicPlaylistImportTests.swift */; };
+		3A0D00F3C26616A6B32B661E /* PublicArchiveSuccessorRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8259EFD89DC01F25711DADD5 /* PublicArchiveSuccessorRouter.swift */; };
 		3C6D1046A049A3AD9EBF7903 /* PublicStoreLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D8A3E3A2F0AB70964281DF /* PublicStoreLocation.swift */; };
 		3CA9C72BA6514C9F43931BD0 /* PublicSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88CC19B6BBEFF7A59783565 /* PublicSmokeTests.swift */; };
 		48E5884910C6DC3E956F633D /* PublicPrivacyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */; };
@@ -125,6 +126,7 @@
 		7BB1178ABA9490F6FE5A7AAD /* FocusSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSession.swift; sourceTree = "<group>"; };
 		7FB16787D5F235E6D540866C /* PublicCredentialDeletion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicCredentialDeletion.swift; sourceTree = "<group>"; };
 		80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicCatalogViews.swift; sourceTree = "<group>"; };
+		8259EFD89DC01F25711DADD5 /* PublicArchiveSuccessorRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicArchiveSuccessorRouter.swift; sourceTree = "<group>"; };
 		82777FC97A993D3021AAF724 /* PublicNotebookTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicNotebookTests.swift; sourceTree = "<group>"; };
 		839ACBFCE9A534E949045F07 /* AutomationRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationRule.swift; sourceTree = "<group>"; };
 		83B5D24C9B8D526375D04ADF /* PublicPlaylistImportUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicPlaylistImportUITests.swift; sourceTree = "<group>"; };
@@ -277,6 +279,7 @@
 			children = (
 				BF3FC9E082C3F686C08BF0A7 /* LegacyMigrationPreparation.swift */,
 				9B2B64ABE3D786015914AD9A /* LegacyStoreReader.swift */,
+				8259EFD89DC01F25711DADD5 /* PublicArchiveSuccessorRouter.swift */,
 				879303FA0599D586397A415B /* PublicStoreRouter.swift */,
 			);
 			name = LegacyMigration;
@@ -516,6 +519,7 @@
 				032A7158B998CC62B0A8564D /* Pagination.swift in Sources */,
 				34E50508B48198760118F400 /* Playlist.swift in Sources */,
 				628EB76BCE37CD0AF7C54CD8 /* PlaylistItem.swift in Sources */,
+				3A0D00F3C26616A6B32B661E /* PublicArchiveSuccessorRouter.swift in Sources */,
 				1C27C5D773A2CDC521C36A06 /* PublicCatalogFixtureTransport.swift in Sources */,
 				54F7E4C136C06E1CC21E8C4E /* PublicCatalogViews.swift in Sources */,
 				F0BF6BEE1C7B1F9FA77BCB28 /* PublicCredentialDeletion.swift in Sources */,

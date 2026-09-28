@@ -2,10 +2,57 @@ import XCTest
 import SwiftData
 import WebKit
 import MusesPersistence
+import MusesDomain
 @testable import Muses
 
 @MainActor
 final class PublicUpgradeStartupTests: XCTestCase {
+    func testGenericPlaylistNamesDoNotAttestUserInput() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("playlist-provenance-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let session = PublicYouTubeSession(storeURL: root.appendingPathComponent("new.sqlite"), deleteCredentials: {})
+        XCTAssertTrue(session.createPlaylist("Automatically supplied remote name"))
+        let id = try XCTUnwrap(session.playlists.first?.id)
+        let repo = try XCTUnwrap(session.repository)
+        let key = "user-playlist-name-v1:" + id.uuidString
+        XCTAssertNil(try repo.get(String.self, kind: .migration, id: key))
+        XCTAssertTrue(session.editPlaylist(id) { try $0.rename("Another automatic name") })
+        XCTAssertNil(try repo.get(String.self, kind: .migration, id: key))
+        XCTAssertTrue(session.editPlaylist(id, nameIsExplicitUserInput: true) { try $0.rename("My handwritten name") })
+        XCTAssertNotNil(try repo.get(String.self, kind: .migration, id: key))
+    }
+
+    func testSuccessorLoadsAndEditsThroughPublicSessionWithoutRevivingDeletedNotes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-successor-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let fixture = try PhysicalLegacyFixture(url: root.appendingPathComponent("muses-youtube-native.sqlite"))
+        defer { fixture.closePinAndSettings() }
+        let destination = root.appendingPathComponent("muses-public-v1.sqlite")
+        let parent = PublicYouTubeSession(storeURL: destination, defaults: fixture.defaults, domainName: fixture.domain, deleteCredentials: {})
+        let id = try XCTUnwrap(parent.playlists.first?.id)
+        XCTAssertTrue(parent.editPlaylist(id, nameIsExplicitUserInput: true) { try $0.rename("Handwritten public name") })
+        let trackID = try MusesDomain.TrackID(fixture.trackID.uuidString)
+        let repository = try XCTUnwrap(parent.repository)
+        let note = try XCTUnwrap(repository.videoNotes(trackID: trackID).first)
+        let changed = note.edited(content: "Current public note")
+        try repository.saveVideoNote(changed)
+        _ = try PublicArchiveSuccessorRouter.prepareAndActivate(legacyURL: fixture.url, destinationURL: destination,
+            defaults: fixture.defaults, domainName: fixture.domain)
+        let session = PublicYouTubeSession(storeURL: destination, defaults: fixture.defaults, domainName: fixture.domain, deleteCredentials: {})
+        XCTAssertNil(session.recoveryMessage)
+        XCTAssertNotNil(session.successorIdentity)
+        XCTAssertEqual(session.playlists.first?.name, "Handwritten public name")
+        XCTAssertEqual(try session.repository?.videoNotes(trackID: trackID), [changed])
+        session.enqueuePlaylist(id)
+        XCTAssertEqual(session.queue.snapshot.upcoming.suffix(2).map(\.trackID), [trackID, trackID])
+        try session.repository?.deleteVideoNote(id: note.id, trackID: trackID)
+        session.restoreOriginalPlaylist(id)
+        XCTAssertNotNil(session.failureMessage)
+        let restarted = PublicYouTubeSession(storeURL: destination, defaults: fixture.defaults, domainName: fixture.domain, deleteCredentials: {})
+        XCTAssertNil(restarted.recoveryMessage)
+        XCTAssertTrue(try XCTUnwrap(restarted.repository).videoNotes(trackID: trackID).isEmpty)
+    }
+
     func testPhysicalLegacyStartupRelaunchAndExplicitDeletion() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("app-upgrade-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

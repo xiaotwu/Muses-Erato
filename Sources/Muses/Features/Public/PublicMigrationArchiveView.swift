@@ -10,13 +10,13 @@ struct PublicMigrationArchivePresentation: ViewModifier {
             .safeAreaInset(edge: .top, spacing: 0) {
                 if session.hasMigrationArchive || session.recoveryMessage != nil {
                     Button { session.showMigrationArchive = true } label: {
-                        Label(session.hasMigrationArchive ? "Recovered library · Original records" : "Library recovery options", systemImage: "archivebox")
+                        Label(session.successorIdentity != nil ? "Reviewed library · Retained originals" : (session.hasMigrationArchive ? "Recovered library · Original records" : "Library recovery options"), systemImage: "archivebox")
                             .font(.footnote).frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
                     }
                     .labelStyle(.iconOnly)
                     .frame(minHeight: 44)
                     .background(.regularMaterial)
-                    .accessibilityLabel(session.hasMigrationArchive ? "Recovered library and original records" : "Library recovery options")
+                    .accessibilityLabel(session.successorIdentity != nil ? "Reviewed library and retained originals" : (session.hasMigrationArchive ? "Recovered library and original records" : "Library recovery options"))
                     .accessibilityIdentifier("migrationArchive")
                 }
             }
@@ -47,10 +47,18 @@ private struct PublicMigrationArchiveView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Text("Your original records remain available here. Repeated playlist entries play in their original order; the library editor groups repeated videos. Unavailable entries stay in this archive.")
-                    Text("History for videos no longer in your library remains in original records. Reordering a playlist groups repeated entries; its original order stays recoverable here.")
-                    Text("Old settings and account consent were preserved, but were not applied to this version.")
+                if let successor = session.successorIdentity {
+                    Section("Reviewed library") {
+                        Text("Your notes, bookmarks and playlist entries are in this library. Original files and recovery copies are still retained separately; they have not been deleted.")
+                        Text("Earlier records cannot replace your current edits. Some playlist names need review and appear as “Recovered playlist”.")
+                        NavigationLink("Preservation record") { recordText((try? JSONEncoder().encode(successor)) ?? Data()) }
+                    }
+                } else {
+                    Section {
+                        Text("Your original records remain available here. Repeated playlist entries retain their own positions and can be edited individually. Unavailable entries are preserved.")
+                        Text("History for videos no longer in your library remains in original records. Editing your current library does not change these original copies.")
+                        Text("Old settings and account consent were preserved, but were not applied to this version.")
+                    }
                 }
                 if let archive {
                     Section("Original playlists") {
@@ -98,11 +106,11 @@ private struct PublicMigrationArchiveView: View {
                 }
                 if let error { Text(error).foregroundStyle(.red) }
             }
-            .navigationTitle("Original library")
+            .navigationTitle(session.successorIdentity == nil ? "Original library" : "Library preservation")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button { dismiss() } label: { PublicIconActionLabel(title: "Done", symbol: "xmark") }.labelStyle(.iconOnly) } }
             .task {
                 do {
-                    guard let repo = session.repository else { return }
+                    guard session.successorIdentity == nil, let repo = session.repository else { return }
                     archive = try repo.legacyArchive()
                     playlists = try repo.originalPlaylists()
                     document = ArchiveDocument(data: try JSONEncoder().encode(archive))

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "reviewBase": "c754fff",
+  "contract": "c754fff:notes-service-editor-contract-v1",
+  "reviewedSourceSHA256": {
+    "Sources/Muses/Domain/NotesModels.swift": "504319630ab202c7ee8656dc57db7bbdb44550599f781fbdb3ab4bdd268ade5c",
+    "Sources/Muses/Services/Notes/NotesService.swift": "a8558fce8f3da234f6a972f1197af657c9ac7269d5d95c5e09e3b0af833ac472",
+    "Sources/Muses/Features/Notes/NotesSheets.swift": "f29843c9153a906ac2f9b478336d720d5c4428278763edc8048e258d3f90b884",
+    "Sources/Muses/Domain/Playlist.swift": "56b5eec99d76d36ef5d9d2559908f5aa1e24f7dca679919aed684efc2df908a3",
+    "Sources/Muses/Services/Playlist/PlaylistService.swift": "647378d0ddb85eea908bfcab7e165e137a71f986ce24af77133ab693bb6d45e6",
+    "Sources/Muses/Services/YouTube/YouTubePlaylistSyncService.swift": "c72adebd52b0c7ab28d5e38b112392e75f5c0a6eee96612669ab41120e991097"
+  },
+  "provenUserInputs": {
+    "TrackNote": [
+      "content"
+    ],
+    "TrackBookmark": [
+      "title",
+      "note"
+    ]
+  },
+  "localStructuralFields": {
+    "TrackNote": [
+      "id",
+      "trackId",
+      "createdAt",
+      "updatedAt"
+    ],
+    "TrackBookmark": [
+      "id",
+      "trackId",
+      "timestampMs",
+      "createdAt"
+    ],
+    "Playlist": [
+      "id",
+      "createdAt",
+      "pinned"
+    ],
+    "PlaylistItem": [
+      "id",
+      "order",
+      "playlist",
+      "track"
+    ]
+  },
+  "unknown": [
+    "Playlist.name without explicit edit lineage: restoreAsCopy copies snapshot.title",
+    "Track display metadata without explicit .user origin",
+    "QueueState raw JSON, revisions, sync snapshots, settings"
+  ],
+  "currentNameEvidence": "Explicit nameIsExplicitUserInput input -> saveUserNamedPlaylist atomic name SHA256 + payload. Generic createPlaylist/editPlaylist default false; automatic API import does not attest user origin."
+}
