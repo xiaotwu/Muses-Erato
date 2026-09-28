@@ -21,3 +21,7 @@ Required candidate repair/verification: validate context generation and cancella
 Server visitor context is received in responseContext and transmitted as client.visitorData on subsequent browse; page continuation is also returned and resent. Cookie rejection and no disk persistence do not mean no provider-issued context or identifier exchange. Final provider data/identifier/linkage/retention assessment and policy/App Privacy review must include this actual flow; no ATT conclusion follows solely from these fields. Bundle policy is unchanged (2026-09-28.2) in this commit. The [cef269d draft](../cef269d/README.md) matches policy text but requires reconciliation with final visitor-context behavior before publication.
 
 Music Home remains the undocumented youtubei/v1 path. Prior public audit failure and endpoint/account authorization gates remain open; a new Release build is not a passing audit/distribution result. Native physical/background and user-failing-track acceptance, retained-data/recovery, Google/domain verification and final release gates remain open. No merge, publication, upload or P6 GO occurred.
+
+## Later candidate supersedes active Home caller
+
+Candidate eb1a9c5 removes the recommendation model from Home. The request-side finding is dormant for that route; retained service code has not been repaired. Before reuse require the guard/test above. See [latest simplified Home review](../eb1a9c5/README.md); old active-processing descriptions apply to fd7935c only.
