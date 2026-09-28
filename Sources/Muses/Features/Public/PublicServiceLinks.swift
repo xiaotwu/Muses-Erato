@@ -2,8 +2,11 @@ import SwiftUI
 
 /// Public support and provider controls remain accessible without exposing account data.
 struct PublicServiceLinks: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), alignment: .leading)], alignment: .leading, spacing: 8) { links }
+        LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize
+            ? [GridItem(.flexible(), alignment: .leading)]
+            : [GridItem(.adaptive(minimum: 145), alignment: .leading)], alignment: .leading, spacing: 8) { links }
             .buttonStyle(.borderless)
     }
 

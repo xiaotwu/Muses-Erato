@@ -7,40 +7,68 @@ struct PublicCatalogRow: View {
     let session: PublicYouTubeSession
     let item: MusesCatalog.CatalogItem
     var authorized = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         Group {
             if item.kind == .video, let id = try? VideoID(item.id) {
-                VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
                     Button { session.open(id, title: item.title, metadataFetchedAt: item.fetchedAt) } label: { label }
                         .buttonStyle(.plain)
-                    HStack {
-                        Button { session.enqueue(id, title: item.title, metadataFetchedAt: item.fetchedAt) } label: { PublicIconActionLabel(title: "Add to queue", symbol: "text.badge.plus") }
+                    Menu {
+                        Button { session.enqueue(id, title: item.title, metadataFetchedAt: item.fetchedAt) } label: {
+                            Label("Add to queue", systemImage: "text.badge.plus")
+                        }
                         if let channel = item.channelID {
                             NavigationLink { PublicCatalogDetail(session: session, route: .channel(channel)) } label: {
-                                Label("Channel", systemImage: "person.crop.rectangle").labelStyle(.iconOnly).frame(width: 44, height: 44)
+                                Label("View channel", systemImage: "person.crop.rectangle")
                             }
+                            .accessibilityLabel("Channel")
                         }
-                    }.font(.caption)
+                    } label: {
+                        PublicIconActionLabel(title: "More actions for \(item.title)", symbol: "ellipsis")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("catalog.actions.\(item.rowID)")
+                    .tint(.primary)
                 }
             } else {
                 NavigationLink {
                     PublicCatalogDetail(session: session, route: item.kind == .playlist ? .playlist(item.id) : .channel(item.id), authorized: authorized)
                 } label: { label }
             }
-        }.padding(.vertical, 8)
+        }
+        .padding(.vertical, 4)
     }
+
     private var label: some View {
-        HStack {
-            if let url = item.thumbnailURL {
-                AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: { Color.secondary.opacity(0.15) }
-                    .frame(width: 72, height: 48).clipped().accessibilityHidden(true)
-            }
-            VStack(alignment: .leading) {
-                Text(item.title).lineLimit(3)
-                Text(item.source == "local" ? "On this device" : "YouTube · \(item.kind.rawValue)")
+        HStack(alignment: .top, spacing: 12) {
+            if !dynamicTypeSize.isAccessibilitySize { artwork }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(item.source == "local" ? "Saved video" : "YouTube · \(item.kind.rawValue)")
                     .font(.caption).foregroundStyle(.secondary)
             }
-        }.frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var artwork: some View {
+        AsyncImage(url: item.thumbnailURL) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Rectangle().fill(.quaternary)
+                .overlay { Image(systemName: item.kind == .channel ? "person.crop.rectangle" : "play.rectangle").foregroundStyle(.secondary) }
+        }
+        .frame(width: 72, height: 48)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityHidden(true)
     }
 }
 
@@ -88,10 +116,10 @@ struct PublicCatalogDetail: View {
     private var item: MusesCatalog.CatalogItem? { metadata.items.first }
     var body: some View {
         List {
-            Section("YouTube details") {
+            Section {
                 if let item {
-                    Text(item.title).font(.title2)
-                    if let description = item.description, !description.isEmpty { Text(description).font(.subheadline) }
+                    Text(item.title).font(.headline)
+                    if let description = item.description, !description.isEmpty { Text(description).font(.subheadline).foregroundStyle(.secondary) }
                     if item.kind == .playlist, let channel = item.channelID {
                         NavigationLink("View channel") { PublicCatalogDetail(session: session, route: .channel(channel)) }
                     }
@@ -126,7 +154,8 @@ struct PublicCatalogDetail: View {
                 }
             }
         }
-        .navigationTitle(item?.kind == .channel ? "Channel" : "YouTube")
+        .navigationTitle(item.map { $0.kind == .channel ? "Channel" : "Playlist" } ?? "YouTube")
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             if !metadata.loaded { await loadDetails() }
             while !Task.isCancelled {
@@ -170,6 +199,7 @@ struct PublicYouTubeAccountCatalog: View {
                 Section("YouTube account") { Text("Sign in from Settings to browse your YouTube profile, playlists and subscriptions.") }
             }
         }.navigationTitle("Account & collections")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             Button { clearing = true } label: { PublicTextActionLabel(title: "Clear account display", symbol: "xmark.circle") }
                 .labelStyle(.iconOnly)

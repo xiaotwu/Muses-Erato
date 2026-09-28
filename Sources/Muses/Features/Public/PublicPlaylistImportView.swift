@@ -6,6 +6,8 @@ import MusesDomain
 struct PublicPlaylistImportView: View {
     let session: PublicYouTubeSession
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var availableWidth: CGFloat = 0
     @State private var link = ""
     @State private var name = ""
     @State private var selected: String?
@@ -34,18 +36,28 @@ struct PublicPlaylistImportView: View {
                             TextField("Playlist name", text: $name)
                                 .accessibilityIdentifier("playlistImport.name")
                         }
-                        ViewThatFits(in: .horizontal) {
-                            HStack { selectedActions(selected) }
-                            VStack(alignment: .leading) { selectedActions(selected) }
+                        PublicActionGroup { selectedActions(selected) }
+                    }
+                    if draft.complete {
+                        Section("Videos · \(draft.items.count)") {
+                            ForEach(draft.items, id: \.rowID) { item in
+                                Text(item.title)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .foregroundStyle(.primary)
+                            }
                         }
                     }
                 } else {
-                    Section("From your YouTube account") {
-                        Text("Owned playlists").font(.caption).foregroundStyle(.secondary)
+                    Section("Account Playlists") {
                         if session.signedIn {
                             if ownedLoading { ProgressView("Loading playlists… \(owned.items.count) found") }
                             ForEach(owned.items, id: \.rowID) { item in
-                                Button(item.title) { select(item.id, authorized: true) }
+                                Button { select(item.id, authorized: true) } label: {
+                                    Text(item.title).foregroundStyle(.primary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                        .contentShape(Rectangle())
+                                }
                                     .accessibilityIdentifier("playlistImport.account.\(item.id)")
                             }
                             if owned.complete && owned.items.isEmpty {
@@ -65,17 +77,18 @@ struct PublicPlaylistImportView: View {
                             if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
                         }
                     }
-                    Section("From a playlist share link") {
-                        HStack {
+                    Section("Playlist Link") {
+                        VStack(alignment: .leading, spacing: 8) {
                             TextField("YouTube Music playlist link", text: $link)
                                 .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                                .frame(minHeight: 44)
                                 .accessibilityIdentifier("playlistImport.link")
                             importButton("Read playlist link", icon: "link") {
-                            guard case .playlist(let id) = YouTubeCatalogLink.parse(link) else {
-                                error = "Paste a playlist share link such as https://music.youtube.com/playlist?list=…"; return
-                            }
-                            select(id, authorized: session.signedIn)
-                        }.accessibilityIdentifier("playlistImport.readLink")
+                                guard case .playlist(let id) = YouTubeCatalogLink.parse(link) else {
+                                    error = "Paste a playlist share link such as https://music.youtube.com/playlist?list=…"; return
+                                }
+                                select(id, authorized: session.signedIn)
+                            }.accessibilityIdentifier("playlistImport.readLink")
                         }
                         Text("Private playlists require the owning account. Some automatic mixes are unavailable.").font(.footnote)
                     }
@@ -85,8 +98,25 @@ struct PublicPlaylistImportView: View {
                 Text("Imports a copy; your YouTube playlists stay unchanged.").font(.footnote).foregroundStyle(.secondary)
             }
             .disabled(busy || ownedLoading)
-            .navigationTitle("Import playlist")
-            .toolbar { Button("Cancel", systemImage: "xmark") { work?.cancel(); ownedWork?.cancel(); dismiss() }.labelStyle(.iconOnly) }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
+            .navigationTitle("Import Playlists")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    ViewThatFits(in: .horizontal) {
+                        if !dynamicTypeSize.isAccessibilitySize { Text("Import Playlists").fixedSize() }
+                        Text("Import").fixedSize()
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: max(0, availableWidth - 144))
+                    .accessibilityAddTraits(.isHeader)
+                }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { work?.cancel(); ownedWork?.cancel(); dismiss() } label: {
+                        PublicIconActionLabel(title: "Cancel", symbol: "xmark")
+                    }
+                }
+            }
         }
         .task(id: session.signedIn) {
             if session.signedIn {
@@ -102,8 +132,7 @@ struct PublicPlaylistImportView: View {
     }
     private func importButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: icon).fixedSize(horizontal: false, vertical: true)
-                .frame(minHeight: 44).contentShape(Rectangle())
+            PublicTextActionLabel(title: title, symbol: icon)
         }.accessibilityLabel(title).buttonStyle(.borderless)
     }
     @ViewBuilder private func selectedActions(_ selected: String) -> some View {

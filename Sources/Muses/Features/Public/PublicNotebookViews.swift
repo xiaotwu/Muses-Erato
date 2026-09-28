@@ -6,37 +6,86 @@ private func notebookTime(_ milliseconds: Double) -> String {
     return "\(seconds / 60):\(String(format: "%02d", seconds % 60))"
 }
 
-/// Embedded directly in video details; notebook state is independent of catalog UI.
+/// Use inside a List; both presentations share the session's notebook model.
 struct PublicNotebookSections: View {
     let session: PublicYouTubeSession
     let trackID: TrackID
+    var body: some View { PublicNotebookBody(session: session, trackID: trackID, inList: true) }
+}
+
+/// ScrollView-ready notebook content for the player; does not introduce another scroll container.
+struct PublicNotebookContent: View {
+    let session: PublicYouTubeSession
+    let trackID: TrackID
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            PublicNotebookBody(session: session, trackID: trackID, inList: false)
+        }
+    }
+}
+
+private struct PublicNotebookBody: View {
+    let session: PublicYouTubeSession
+    let trackID: TrackID
+    let inList: Bool
     private var model: PublicNotebookModel { session.notebook }
     private var page: PublicNotebookModel.Page { model.page(for: trackID) }
     var body: some View {
-        Section("Notes") {
-            if page.notes.isEmpty { Text("No notes yet.").foregroundStyle(.secondary) }
-            ForEach(page.notes) { note in PublicNotebookNoteRow(model: model, note: note) }
-            PublicNotebookActions(model: model, trackID: trackID, kind: .notes)
-        }
-        .task(id: trackID) { model.load(trackID) }
-        Section("Time bookmarks") {
-            if page.bookmarks.isEmpty { Text("No bookmarks yet.").foregroundStyle(.secondary) }
-            ForEach(page.bookmarks) { bookmark in
-                PublicNotebookBookmarkRow(session: session, bookmark: bookmark)
+        Group {
+            group(.notes) {
+                if page.notes.isEmpty { Text("No notes yet.").foregroundStyle(.secondary) }
+                ForEach(page.notes) { note in PublicNotebookNoteRow(model: model, note: note) }
             }
-            PublicNotebookActions(model: model, trackID: trackID, kind: .bookmarks)
-            Text("Bookmarks open the player paused. Press Play to watch.")
-                .font(.footnote).foregroundStyle(.secondary)
-        }
-        if let error = page.error {
-            Section {
-                Text(error).foregroundStyle(.red).accessibilityIdentifier("notebook.error")
-                if !page.loaded {
-                    Button { model.load(trackID) } label: { PublicIconActionLabel(title: "Reload notebook", symbol: "arrow.clockwise") }
-                        .labelStyle(.iconOnly).accessibilityLabel("Reload notebook")
+            .task(id: trackID) { model.load(trackID) }
+            group(.bookmarks) {
+                if page.bookmarks.isEmpty { Text("No bookmarks yet.").foregroundStyle(.secondary) }
+                ForEach(page.bookmarks) { bookmark in
+                    PublicNotebookBookmarkRow(session: session, bookmark: bookmark)
+                }
+                Text("Bookmarks open the player paused. Press Play to watch.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            if let error = page.error {
+                VStack(alignment: .leading) {
+                    Text(error).foregroundStyle(.red).accessibilityIdentifier("notebook.error")
+                    if !page.loaded {
+                        Button { model.load(trackID) } label: { PublicTextActionLabel(title: "Reload notebook", symbol: "arrow.clockwise") }
+                    }
                 }
             }
         }
+    }
+
+    @ViewBuilder private func group<Content: View>(_ kind: NotebookListKind, @ViewBuilder content: () -> Content) -> some View {
+        if inList {
+            Section { content() } header: { heading(kind) }.textCase(nil)
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                heading(kind)
+                content()
+            }
+        }
+    }
+
+    private func heading(_ kind: NotebookListKind) -> some View {
+        PublicNotebookAdaptiveRow {
+            Text(kind == .notes ? "Notes" : "Time bookmarks")
+                .font(.headline).foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            PublicNotebookActions(model: model, trackID: trackID, kind: kind)
+                .font(.subheadline)
+        }
+    }
+}
+
+private struct PublicNotebookAdaptiveRow<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ViewBuilder let content: () -> Content
+    var body: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 8))
+        layout { content() }
     }
 }
 
@@ -46,15 +95,19 @@ private struct PublicNotebookNoteRow: View {
     @State private var editing = false
     @State private var deleting = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(note.content).textSelection(.enabled)
-            Text(note.updatedAt, format: .dateTime.year().month().day()).font(.caption).foregroundStyle(.secondary)
-            HStack {
+        PublicNotebookAdaptiveRow {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(note.content).textSelection(.enabled)
+                Text(note.updatedAt, format: .dateTime.year().month().day()).font(.caption).foregroundStyle(.secondary)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 4) {
                 Button { editing = true } label: { PublicIconActionLabel(title: "Edit note", symbol: "pencil") }
                     .accessibilityLabel("Edit note").accessibilityIdentifier("notebook.editNote.\(note.id)")
-                Spacer()
-                Button(role: .destructive) { deleting = true } label: { PublicIconActionLabel(title: "Delete note", symbol: "trash") }
-                    .accessibilityLabel("Delete note").accessibilityIdentifier("notebook.deleteNote.\(note.id)")
+                Menu {
+                    Button(role: .destructive) { deleting = true } label: { Label("Delete note", systemImage: "trash").labelStyle(.titleAndIcon) }
+                        .accessibilityIdentifier("notebook.deleteNote.\(note.id)")
+                } label: { PublicIconActionLabel(title: "More note actions", symbol: "ellipsis") }
+                .accessibilityIdentifier("notebook.noteActions.\(note.id)")
             }.buttonStyle(.borderless).labelStyle(.iconOnly).controlSize(.large)
         }
         .sheet(isPresented: $editing) { PublicNoteEditor(model: model, trackID: note.trackID, original: note) }
@@ -71,18 +124,23 @@ private struct PublicNotebookBookmarkRow: View {
     @State private var editing = false
     @State private var deleting = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button { session.openBookmark(bookmark) } label: {
-                Label("\(notebookTime(bookmark.timestampMilliseconds)) · \(bookmark.title ?? "Bookmarked moment")", systemImage: "play.rectangle")
-                    .frame(minHeight: 44).contentShape(Rectangle())
-            }.buttonStyle(.borderless).accessibilityIdentifier("notebook.openBookmark.\(bookmark.id)")
-            if let note = bookmark.note, !note.isEmpty { Text(note).foregroundStyle(.secondary) }
-            HStack {
+        PublicNotebookAdaptiveRow {
+            VStack(alignment: .leading, spacing: 4) {
+                Button { session.openBookmark(bookmark) } label: {
+                    Label("\(notebookTime(bookmark.timestampMilliseconds)) · \(bookmark.title ?? "Bookmarked moment")", systemImage: "play.rectangle")
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(minHeight: 44).contentShape(Rectangle())
+                }.buttonStyle(.borderless).accessibilityIdentifier("notebook.openBookmark.\(bookmark.id)")
+                if let note = bookmark.note, !note.isEmpty { Text(note).foregroundStyle(.secondary) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 4) {
                 Button { editing = true } label: { PublicIconActionLabel(title: "Edit bookmark", symbol: "pencil") }
                     .accessibilityLabel("Edit bookmark").accessibilityIdentifier("notebook.editBookmark.\(bookmark.id)")
-                Spacer()
-                Button(role: .destructive) { deleting = true } label: { PublicIconActionLabel(title: "Delete bookmark", symbol: "trash") }
-                    .accessibilityLabel("Delete bookmark").accessibilityIdentifier("notebook.deleteBookmark.\(bookmark.id)")
+                Menu {
+                    Button(role: .destructive) { deleting = true } label: { Label("Delete bookmark", systemImage: "trash").labelStyle(.titleAndIcon) }
+                        .accessibilityIdentifier("notebook.deleteBookmark.\(bookmark.id)")
+                } label: { PublicIconActionLabel(title: "More bookmark actions", symbol: "ellipsis") }
+                .accessibilityIdentifier("notebook.bookmarkActions.\(bookmark.id)")
             }.buttonStyle(.borderless).labelStyle(.iconOnly).controlSize(.large)
         }
         .sheet(isPresented: $editing) {
@@ -110,13 +168,13 @@ private struct PublicNotebookActions: View {
     var body: some View {
         PublicActionGroup {
             Button { adding = true } label: {
-                PublicIconActionLabel(title: isNotes ? "Add note" : "Add time bookmark", symbol: isNotes ? "square.and.pencil" : "bookmark")
+                PublicIconActionLabel(title: isNotes ? "Add note" : "Add time bookmark", symbol: "plus")
             }
                 .disabled(!page.loaded)
                 .accessibilityLabel(isNotes ? "Add note" : "Add time bookmark")
                 .accessibilityIdentifier(isNotes ? "notebook.addNote" : "notebook.addBookmark")
             Button(role: .destructive) { clearing = true } label: {
-                PublicTextActionLabel(title: isNotes ? "Clear notes" : "Clear bookmarks", symbol: "xmark.circle")
+                PublicIconActionLabel(title: isNotes ? "Clear notes" : "Clear bookmarks", symbol: "trash")
             }
                 .disabled(!page.loaded || (isNotes ? page.notes.isEmpty : page.bookmarks.isEmpty))
                 .accessibilityLabel(isNotes ? "Clear notes for this video" : "Clear bookmarks for this video")
@@ -149,7 +207,9 @@ private struct PublicNoteEditor: View {
     let trackID: TrackID
     let original: VideoNote?
     @Environment(\.dismiss) private var dismiss
+    @State private var discarding = false
     @State private var content: String
+    private var hasChanges: Bool { content != (original?.content ?? "") }
     init(model: PublicNotebookModel, trackID: TrackID, original: VideoNote?) {
         self.model = model; self.trackID = trackID; self.original = original
         // An editor intentionally owns a draft until save or cancel.
@@ -164,9 +224,11 @@ private struct PublicNoteEditor: View {
                 }
                 if let error = model.page(for: trackID).error { Text(error).foregroundStyle(.red) }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(original == nil ? "Add note" : "Edit note")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { PublicIconActionLabel(title: "Cancel", symbol: "xmark") }.labelStyle(.iconOnly).accessibilityLabel("Cancel") }
+                ToolbarItem(placement: .cancellationAction) { Button { if hasChanges { discarding = true } else { dismiss() } } label: { PublicIconActionLabel(title: "Cancel", symbol: "xmark") }.labelStyle(.iconOnly).accessibilityLabel("Cancel") }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         if model.saveNote(trackID: trackID, id: original?.id, content: content) { dismiss() }
@@ -174,7 +236,15 @@ private struct PublicNoteEditor: View {
                         .labelStyle(.iconOnly).accessibilityLabel("Save note").accessibilityIdentifier("notebook.saveNote")
                 }
             }
-        }.interactiveDismissDisabled()
+        }
+        .presentationSizing(.form)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(hasChanges)
+        .confirmationDialog("Discard unsaved changes?", isPresented: $discarding, titleVisibility: .visible) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
+        }
     }
 }
 
@@ -184,7 +254,11 @@ private struct PublicBookmarkEditor: View {
     let original: VideoTimeBookmark?
     let initialMilliseconds: Double
     @Environment(\.dismiss) private var dismiss
+    @State private var discarding = false
     @State private var seconds: String
+    private var hasChanges: Bool {
+        seconds != String(initialMilliseconds / 1000) || title != (original?.title ?? "") || note != (original?.note ?? "")
+    }
     @State private var title: String
     @State private var note: String
     init(model: PublicNotebookModel, trackID: TrackID, original: VideoTimeBookmark?, milliseconds: Double) {
@@ -212,9 +286,11 @@ private struct PublicBookmarkEditor: View {
                 }
                 if let error = model.page(for: trackID).error { Text(error).foregroundStyle(.red) }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(original == nil ? "Add bookmark" : "Edit bookmark")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { PublicIconActionLabel(title: "Cancel", symbol: "xmark") }.labelStyle(.iconOnly).accessibilityLabel("Cancel") }
+                ToolbarItem(placement: .cancellationAction) { Button { if hasChanges { discarding = true } else { dismiss() } } label: { PublicIconActionLabel(title: "Cancel", symbol: "xmark") }.labelStyle(.iconOnly).accessibilityLabel("Cancel") }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         guard let milliseconds else { return }
@@ -225,7 +301,15 @@ private struct PublicBookmarkEditor: View {
                     } label: { PublicIconActionLabel(title: "Save", symbol: "checkmark") }.disabled(milliseconds == nil).labelStyle(.iconOnly).accessibilityLabel("Save bookmark").accessibilityIdentifier("notebook.saveBookmark")
                 }
             }
-        }.interactiveDismissDisabled()
+        }
+        .presentationSizing(.form)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .interactiveDismissDisabled(hasChanges)
+        .confirmationDialog("Discard unsaved changes?", isPresented: $discarding, titleVisibility: .visible) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
+        }
     }
 }
 
