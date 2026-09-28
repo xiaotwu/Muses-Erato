@@ -2,7 +2,9 @@ import SwiftUI
 
 enum PublicPrivacyPolicy {
     static let version = "2026-09-27.1"
-    static let acceptanceKey = "muses.privacy.acceptedVersion"
+    // Keep this non-account policy version separate from inherited library settings.
+    // Resetting it during an asynchronous wipe would remove the session's pending-cleanup UI.
+    static let acceptanceKey = "eratoPrivacyAcceptedVersion"
     static var text: String? {
         guard let url = Bundle.main.url(forResource: "PublicPrivacyPolicy", withExtension: "md") else { return nil }
         return try? String(contentsOf: url, encoding: .utf8)

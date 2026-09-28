@@ -44,7 +44,7 @@ Reference: https://developers.google.com/youtube/terms/developer-policies#i-addi
 - The bundled, versioned policy and pre-feature agreement gate are implemented. The app session is constructed after agreement, avoiding account refresh and artwork requests before consent. Simulator UI testing verified the disabled continue state, one-tap agreement, feature access afterwards and persistence across relaunch. Debug fixture libraries can bypass this gate; the bypass is excluded from Release. The new gate has not yet been installed/accepted on the physical phone.
 - Repository-managed privacy HTML is prepared by `scripts/build-privacy-site.py`; it has not been published. Final deletion behavior, Google embedded processing/App Privacy answers, domain/consent verification and owner/platform contacts must be reconciled before publication.
 - OAuth token-store load/delete failures now still attempt private-cache removal and report a storage failure rather than falsely claiming successful deletion. Four OAuth tests pass including failure injection.
-- Cloud restriction acceptance failed: correct, wrong and missing iOS identity headers all returned HTTP 200. The owner has been asked to restrict the project key; the key value is not recorded. This is a release gate, not a reason to disable ongoing engineering.
+- Initial Cloud restriction acceptance failed (all three identity variants returned HTTP 200). After the owner configured restrictions, correct identity returned HTTP 200 and wrong/missing identities returned HTTP 403. The identity restriction negative cases now pass. API allowlist settings and production project quota still need release evidence; the key value is not recorded.
 
 ## Release decision
 

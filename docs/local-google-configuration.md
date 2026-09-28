@@ -45,3 +45,9 @@ the intended negative acceptance cases. The owner was asked to configure applica
 restrictions for `com.xiaotwu.muses.erato` and an API restriction to YouTube Data API v3.
 Retest after Cloud propagation: correct identity must work and wrong/missing identity
 must fail. No key value or request URL is recorded. Three metadata requests were used.
+
+After the owner reported configuring restrictions, three further sample requests returned:
+correct identity HTTP 200 (one item), wrong identity HTTP 403 (`forbidden`), missing identity
+HTTP 403 (`forbidden`). The iOS application identity negative cases now pass. This does
+not independently verify every disallowed API or the Cloud API allowlist/production quota;
+the owner reported restricting the API to YouTube Data API v3. No secrets are included.
