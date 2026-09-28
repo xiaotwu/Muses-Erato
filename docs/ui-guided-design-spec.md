@@ -77,3 +77,11 @@ All page-layout choices above have been selected by the user. The unified UI imp
 - `/tmp/erato-guided-search-playback-tests.xcresult`: 2 tests passed. Covers explicit search pagination, retry retaining existing rows, and the labeled website-playback entry under an unsupported embedded-video restriction. The website was not launched by this test.
 - Across these runs, 10 distinct focused UI tests passed, plus the 20 OAuth package tests. The earlier failed test bundles are retained above; only the named passing cases/bundles establish the recorded results.
 - Next acceptance step: one unified physical-iPhone run when the user is ready. Do not request repeated installation/unlock actions while the agreed simulator-first phase is running.
+
+### Physical-iPhone acceptance started (2026-09-28)
+
+- User reconnected the iPhone and explicitly authorized the unified physical-device run.
+- Rebuilt commit d7ad174 as a signed Debug iOS app using the private local xcconfig; build succeeded. Verified the bundle contains a configured YouTube API key, iOS OAuth client and redirect scheme without exposing their values.
+- Installed successfully on the paired iPhone 15 Pro (00008130-001A30E93E81001C), bundle com.xiaotwu.muses.erato, and launched successfully with devicectl. Installation updated the existing app; the app was not uninstalled.
+- Installation and launch are confirmed. Production login/Channel ID, audible playback/Next/queue clear, account import and cross-page UI/UX acceptance are awaiting the user’s actual-device observations. No physical-device acceptance or background-playback completion is claimed yet.
+- UI feedback is expected to drive further revisions; the simulator pass does not close the user’s design acceptance gate.
