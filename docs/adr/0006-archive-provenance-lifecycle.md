@@ -1,4 +1,4 @@
-# ADR 0005: evidenced archive fields and a versioned cleanup successor
+# ADR 0006: evidenced archive fields and a versioned cleanup successor
 
 Status: non-destructive engineering framework and protocol proposal for review; **P6-ARCHIVE remains open**. Base: integration `ebeedf4`. Date: 2026-09-27.
 
