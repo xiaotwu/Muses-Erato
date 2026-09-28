@@ -33,7 +33,7 @@ Reference: https://developers.google.com/youtube/terms/developer-policies#i-addi
 
 ## Active work
 
-- Local playlists, favorites, queue editing and top-level Clear Up Next are integrated. Notes and time bookmarks are being implemented in a separate worktree.
+- Local playlists, favorites, queue editing, top-level Clear Up Next, notes and time bookmarks are integrated. Thirteen hosted app tests passed after catalog/notebook integration, including timestamp readiness and stale-adapter isolation. Notebook-specific simulator CRUD/clear/relaunch tests passed in its isolated worktree; actual YouTube bookmark capture/cue remains a device gate.
 - Official playlist/channel browsing, account paging, bundle identity headers and API metadata retention are integrated. Ten hosted app tests passed after integration. A signed Debug build was installed and launched on the paired iPhone; the new catalog flows still need device acceptance.
 - Compact Library categories, macOS-style hero cards, icon actions and per-list clear/delete controls are being implemented in the catalog task's next branch.
 - A physical fixture of the inherited 19-model SwiftData store and read-only migration preparation are integrated. Activation, rollback and deletion recovery are being developed in a separate worktree. Until verified, the public app stops at a recovery screen when it detects legacy store files.
