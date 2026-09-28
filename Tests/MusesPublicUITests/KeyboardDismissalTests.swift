@@ -1,23 +1,30 @@
 import XCTest
 
-final class KeyboardDismissalTests: XCTestCase {
+@MainActor final class KeyboardDismissalTests: XCTestCase {
     func testOutsideTapDismissesHomeAndSearchKeyboard() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
         let link = app.textFields["public.link"]
         XCTAssertTrue(link.waitForExistence(timeout: 10))
         link.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
-        app.staticTexts["YOUR LISTENING SPACE"].tap()
+        tapNonInputContent(app.staticTexts["No saved videos"])
         expectNoKeyboard(app)
         app.tabBars.buttons["Search"].tap()
         let search = app.textFields["public.search"]
         XCTAssertTrue(search.waitForExistence(timeout: 3))
         search.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
-        app.staticTexts["public.pageHeading"].tap()
+        tapNonInputContent(app.staticTexts["Results"])
         expectNoKeyboard(app)
+    }
+
+    private func tapNonInputContent(_ content: XCUIElement) {
+        XCTAssertTrue(content.waitForExistence(timeout: 3))
+        XCTAssertTrue(content.isHittable, "Expected visible non-input content above the keyboard")
+        content.tap()
     }
 
     private func expectNoKeyboard(_ app: XCUIApplication) {
