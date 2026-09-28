@@ -386,40 +386,26 @@ struct PublicRootView: View {
 
     private var library: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 25) {
-                PublicPageHeading(
-                    eyebrow: "YOUR COLLECTION",
-                    title: "Library.",
-                    subtitle: "On this device.",
-                    identifier: "public.libraryHeader"
-                )
-
-                PublicLibraryCategories(session: session)
-                HStack {
-                    NavigationLink { PublicQueueView(session: session) } label: {
-                        Label("Queue (\(session.queue.snapshot.upcoming.count) upcoming)", systemImage: "list.bullet")
+            VStack(alignment: .leading, spacing: 16) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) {
+                        libraryTools.fixedSize(horizontal: true, vertical: false)
+                        PublicLibraryCategories(session: session).frame(minWidth: 260)
                     }
-                    .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
-                    .accessibilityIdentifier("public.queue")
-                    Spacer()
-                    Button("Refresh saved metadata", systemImage: "arrow.clockwise") { Task { await session.refreshSavedMetadata() } }
-                        .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
-                        .disabled(!session.apiConfigured || session.refreshingMetadata || session.tracks.isEmpty)
-                        .accessibilityIdentifier("library.refresh")
-                    PublicClearUpNextButton(session: session)
+                    VStack(alignment: .leading, spacing: 8) {
+                        libraryTools
+                        PublicLibraryCategories(session: session)
+                    }
                 }
                 if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
-                HStack {
-                    sectionHeading(session.selectedCategory.rawValue, detail: categoryDetail)
-                    if [.videos, .songs, .favorites, .playlists, .history].contains(session.selectedCategory) {
-                        PublicLibraryClearButton(session: session, category: session.selectedCategory)
-                    }
+                if session.selectedCategory == .playlists, let message = session.playlistNameRefreshMessage {
+                    PublicNotice(message: message, symbol: "exclamationmark.circle")
                 }
                 categoryContent
             }
             .frame(maxWidth: 900, alignment: .leading)
             .padding(.horizontal, PublicStyle.inset)
-            .padding(.vertical, 22)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
         }
         .background(PublicStyle.background)
@@ -433,11 +419,76 @@ struct PublicRootView: View {
         .toolbar { settingsToolbar }
     }
 
+    private struct LibraryQueueControl: View {
+        let session: PublicYouTubeSession
+        @State private var confirming = false
+        var body: some View {
+            Menu {
+                NavigationLink { PublicQueueView(session: session) } label: {
+                    Label("Open Queue", systemImage: "list.bullet")
+                }
+                Button("Clear Up Next", systemImage: "text.badge.minus", role: .destructive) { confirming = true }
+                    .disabled(!session.hasNext)
+            } label: {
+                Label("Queue", systemImage: "list.bullet").frame(minHeight: 44)
+            }
+            .labelStyle(.titleAndIcon)
+            .accessibilityValue("\(session.queue.snapshot.upcoming.count) upcoming")
+            .accessibilityIdentifier("public.queue")
+            .alert("Clear all upcoming videos?", isPresented: $confirming) {
+                Button("Clear Up Next", role: .destructive) { session.clearUpcoming() }
+                Button("Cancel", role: .cancel) {}
+            } message: { Text("Your current video and playback are kept. Only upcoming videos are removed.") }
+        }
+    }
+
+    private var libraryNavigationTools: some View {
+        HStack(spacing: 12) {
+            LibraryQueueControl(session: session)
+            Button { Task { await session.refreshSavedMetadata() } } label: {
+                PublicIconActionLabel(title: "Refresh library details", symbol: "arrow.clockwise")
+            }
+            .disabled(!session.apiConfigured || session.refreshingMetadata || (session.tracks.isEmpty && session.playlists.isEmpty))
+            .accessibilityIdentifier("library.refresh")
+        }
+    }
+
+    @ViewBuilder private var libraryClearControl: some View {
+        if [.videos, .songs, .favorites, .playlists, .history].contains(session.selectedCategory) {
+            HStack(spacing: 2) {
+                Text("Clear \(session.selectedCategory.rawValue.lowercased())")
+                    .font(.caption).foregroundStyle(.secondary).accessibilityHidden(true)
+                PublicLibraryClearButton(session: session, category: session.selectedCategory)
+                    .accessibilityHint(categoryDetail)
+            }
+        }
+    }
+
+    private var libraryTools: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) { libraryNavigationTools; libraryClearControl }
+            } else {
+                HStack(spacing: 12) { libraryNavigationTools; libraryClearControl; Spacer(minLength: 0) }
+            }
+        }
+    }
+
+    private var playlistSongs: [MusesDomain.Track] {
+        let available = Dictionary(uniqueKeysWithValues: session.tracks.map { ($0.id, $0) })
+        var seen = Set<TrackID>()
+        return session.playlists.flatMap(\.trackIDs).compactMap { id in
+            guard seen.insert(id).inserted else { return nil }
+            return available[id]
+        }
+    }
+
     private var categoryDetail: String {
         switch session.selectedCategory {
-        case .videos, .songs: "\(session.tracks.count) saved"
+        case .videos: "\(session.tracks.count) saved videos"
+        case .songs: "\(playlistSongs.count) videos from playlists"
         case .favorites: "\(session.favorites.count) saved"
-        case .playlists: "\(session.playlists.count) on this device"
+        case .playlists: "\(session.playlists.count) local playlists"
         case .history: "\(session.history.count) played"
         case .subscriptions: session.signedIn ? "\(session.subscriptions.count) loaded" : "Sign in required"
         default: "Unavailable in this version"
@@ -447,11 +498,18 @@ struct PublicRootView: View {
     @ViewBuilder
     private var categoryContent: some View {
         switch session.selectedCategory {
-        case .videos, .songs:
+        case .videos:
             if session.tracks.isEmpty {
                 PublicEmptyState(symbol: "play.rectangle", title: "No saved videos", detail: "Open a YouTube link on Home to start your collection.")
             } else {
                 PublicLibraryHeroShelf(session: session, tracks: session.tracks, category: session.selectedCategory)
+            }
+        case .songs:
+            let songs = playlistSongs
+            if songs.isEmpty {
+                PublicEmptyState(symbol: "music.note", title: "No playlist songs", detail: "Import a playlist or add saved videos to a playlist.")
+            } else {
+                PublicLibraryHeroShelf(session: session, tracks: songs, category: .songs)
             }
         case .favorites:
             if session.favorites.isEmpty {
@@ -906,26 +964,17 @@ private struct PublicPlaylistCollection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Button { importing = true } label: {
-                Image(systemName: "square.and.arrow.down").frame(width: 44, height: 44).contentShape(Rectangle())
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 20) { importAction; createAction }
+                    .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 8) { importAction; createAction }
             }
-                .accessibilityLabel("Import YouTube Music or account playlist")
-                .accessibilityIdentifier("library.importPlaylist")
-            Button("Create local playlist", systemImage: "plus") { name = ""; creating = true }
-                .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
-                .accessibilityIdentifier("public.createPlaylist")
-            Text("Stored on this device. These playlists do not change your YouTube account.")
-                .font(.footnote).foregroundStyle(.secondary)
-            if session.playlists.contains(where: { $0.usesRemoteName && $0.remoteNameFetchedAt == nil }) {
-                Text("Original playlist names refresh when online. Account playlists may require sign-in.").font(.footnote).foregroundStyle(.secondary)
-            }
-            if let message = session.playlistNameRefreshMessage { Text(message).font(.footnote).foregroundStyle(.secondary) }
             if session.playlists.isEmpty {
                 PublicEmptyState(symbol: "music.note.list", title: "No local playlists", detail: "Create a playlist, then add videos from your saved collection.")
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 16)], spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: 24) {
                 ForEach(session.playlists) { playlist in
-                    PublicLocalPlaylistHero(session: session, playlist: playlist)
+                    PublicPlaylistBlock(session: session, playlist: playlist)
                 }
             }
         }
@@ -938,6 +987,21 @@ private struct PublicPlaylistCollection: View {
             Button("Cancel", role: .cancel) {}
         }
     }
+
+    private var importAction: some View {
+        Button { importing = true } label: {
+            Label("Import playlists", systemImage: "square.and.arrow.down").frame(minHeight: 44)
+        }
+        .accessibilityLabel("Import YouTube Music or account playlist")
+        .accessibilityIdentifier("library.importPlaylist")
+    }
+    private var createAction: some View {
+        Button { name = ""; creating = true } label: {
+            Label("Create playlist", systemImage: "plus").frame(minHeight: 44)
+        }
+        .accessibilityIdentifier("public.createPlaylist")
+    }
+
 }
 
 struct PublicPlaylistDetail: View {
