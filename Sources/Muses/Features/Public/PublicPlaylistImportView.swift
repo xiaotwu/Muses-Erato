@@ -24,32 +24,24 @@ struct PublicPlaylistImportView: View {
         NavigationStack {
             Form {
                 if let selected {
-                    Section("Read playlist") {
-                        Text(reader.metadata?.title ?? "Loading playlist…").font(.headline)
-                        Text("\(draft.items.count) entries loaded in playlist order. Repeated videos are retained for playback.")
-                        if !draft.complete {
-                            if !busy {
-                                importButton("Retry loading playlist", icon: "arrow.clockwise") { loadAll() }
-                                    .accessibilityIdentifier("playlistImport.retry")
-                            }
-                            Text("Loading automatically, up to 5,000 entries. Cancel stops without saving.").font(.footnote)
-                        } else {
-                            Text("All pages loaded. Playback availability may vary for private, deleted or restricted videos.")
-                            TextField("Playlist name (optional rename)", text: $name)
-                                .accessibilityIdentifier("playlistImport.name")
-                            Text("Optional: choose a different name for this device.").font(.footnote)
-                            importButton("Import \(draft.items.count) entries to this device", icon: "checkmark.circle") {
-                                do { try session.saveImportedPlaylist(name: name, draft: draft, remoteSource: RemotePlaylistSource(playlistID: selected, requiresAuthorization: authorized), originalName: reader.metadata?.title, nameFetchedAt: reader.metadata?.fetchedAt); dismiss() }
-                                catch { self.error = error.localizedDescription }
-                            }
-                            .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            .accessibilityIdentifier("playlistImport.save")
+                    Section {
+                        HStack {
+                            Text(reader.metadata?.title ?? "Loading playlist…").font(.headline)
+                            Spacer()
+                            Text("\(draft.items.count)").monospacedDigit().foregroundStyle(.secondary)
                         }
-                        importButton("Choose another playlist", icon: "arrow.uturn.backward") { self.selected = nil; reader = .init(); error = nil; name = "" }
+                        if draft.complete {
+                            TextField("Playlist name", text: $name)
+                                .accessibilityIdentifier("playlistImport.name")
+                        }
+                        ViewThatFits(in: .horizontal) {
+                            HStack { selectedActions(selected) }
+                            VStack(alignment: .leading) { selectedActions(selected) }
+                        }
                     }
                 } else {
                     Section("From your YouTube account") {
-                        Text("Playlists owned by your signed-in account. Some YouTube Music collections may not be available here.").font(.footnote)
+                        Text("Owned playlists").font(.caption).foregroundStyle(.secondary)
                         if session.signedIn {
                             if ownedLoading { ProgressView("Loading playlists… \(owned.items.count) found") }
                             ForEach(owned.items, id: \.rowID) { item in
@@ -74,21 +66,23 @@ struct PublicPlaylistImportView: View {
                         }
                     }
                     Section("From a playlist share link") {
-                        TextField("YouTube Music or YouTube playlist link", text: $link)
-                            .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                            .accessibilityIdentifier("playlistImport.link")
-                        importButton("Read playlist link", icon: "link") {
+                        HStack {
+                            TextField("YouTube Music playlist link", text: $link)
+                                .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                                .accessibilityIdentifier("playlistImport.link")
+                            importButton("Read playlist link", icon: "link") {
                             guard case .playlist(let id) = YouTubeCatalogLink.parse(link) else {
                                 error = "Paste a playlist share link such as https://music.youtube.com/playlist?list=…"; return
                             }
                             select(id, authorized: session.signedIn)
                         }.accessibilityIdentifier("playlistImport.readLink")
-                        Text("For playlists missing from the account list, paste their share link. Automatic Mixes and music-only collections may not be supported. Private playlists require the owning account.").font(.footnote)
+                        }
+                        Text("Private playlists require the owning account. Some automatic mixes are unavailable.").font(.footnote)
                     }
                 }
                 if busy { ProgressView("Reading…") }
                 if let error { Text(error).foregroundStyle(.red).accessibilityIdentifier("playlistImport.error") }
-                Text("No account playlists are changed. Nothing is saved until every page has loaded and you confirm import. You can delete the local playlist from Library.").font(.footnote)
+                Text("Imports a copy; your YouTube playlists stay unchanged.").font(.footnote).foregroundStyle(.secondary)
             }
             .disabled(busy || ownedLoading)
             .navigationTitle("Import playlist")
@@ -108,8 +102,29 @@ struct PublicPlaylistImportView: View {
     }
     private func importButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).frame(width: 44, height: 44).contentShape(Rectangle())
+            Label(title, systemImage: icon).fixedSize(horizontal: false, vertical: true)
+                .frame(minHeight: 44).contentShape(Rectangle())
         }.accessibilityLabel(title).buttonStyle(.borderless)
+    }
+    @ViewBuilder private func selectedActions(_ selected: String) -> some View {
+        if draft.complete {
+            importButton("Import", icon: "checkmark.circle") {
+                do {
+                    try session.saveImportedPlaylist(name: name, draft: draft,
+                        remoteSource: RemotePlaylistSource(playlistID: selected, requiresAuthorization: authorized),
+                        originalName: reader.metadata?.title, nameFetchedAt: reader.metadata?.fetchedAt)
+                    dismiss()
+                } catch { self.error = error.localizedDescription }
+            }
+            .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("playlistImport.save")
+        } else if !busy {
+            importButton("Retry", icon: "arrow.clockwise") { loadAll() }
+                .accessibilityIdentifier("playlistImport.retry")
+        }
+        importButton("Choose another", icon: "arrow.uturn.backward") {
+            self.selected = nil; reader = .init(); error = nil; name = ""
+        }
     }
     private func select(_ id: String, authorized: Bool) {
         selected = id; self.authorized = authorized; reader = .init(); name = ""; error = nil
