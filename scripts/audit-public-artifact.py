@@ -28,6 +28,8 @@ require(info.get("CFBundlePackageType") == "APPL", "artifact is an app")
 require(not info.get("UIBackgroundModes"), "no background modes")
 require(not info.get("NSSupportsLiveActivities"), "no Live Activities declaration")
 require("CarPlay" not in str(info.get("UIApplicationSceneManifest", {})), "no CarPlay scene")
+require(not info.get("UIApplicationSceneManifest", {}).get("UIApplicationSupportsMultipleScenes", False),
+        "single scene matches the current playback/account/store authority")
 require(not (app / "PlugIns").exists(), "no widget or other extension")
 require(not (app / "Watch").exists(), "no Watch app")
 require((app / "PublicPrivacyPolicy.md").is_file(), "user-facing privacy policy is bundled")

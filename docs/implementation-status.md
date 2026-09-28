@@ -51,6 +51,10 @@ The owner identified a core gap during device acceptance: browsing a playlist is
 - OAuth token-store load/delete failures now still attempt private-cache removal and report a storage failure rather than falsely claiming successful deletion. Four OAuth tests pass including failure injection.
 - Initial Cloud restriction acceptance failed (all three identity variants returned HTTP 200). After the owner configured restrictions, correct identity returned HTTP 200 and wrong/missing identities returned HTTP 403. The identity restriction negative cases now pass. API allowlist settings and production project quota still need release evidence; the key value is not recorded.
 
+## Scene authority
+
+The public composition owns one playback adapter, account cache and store projection per scene. The inherited Info.plist advertised multiple simultaneous scenes without a shared playback/deletion authority. The public build now declares a single scene; iPad adaptive layouts and system multitasking remain supported. Re-enable multiple scenes only after shared store/account invalidation and explicit player ownership are implemented. The artifact audit enforces this declaration. Earlier export hashes above predate this change and must be replaced for final release.
+
 ## Latest archive evidence
 
 - The merged signed Release archive at `/tmp/erato-public-release.xcarchive` built successfully and passed `scripts/audit-public-artifact.py` against its actual app. Expected official endpoints and bundled privacy resources are present; inherited stream routes and obsolete background/extension entitlements are absent.
