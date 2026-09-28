@@ -8,8 +8,8 @@ struct PublicServiceLinks: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) { links }
         }
         .labelStyle(.iconOnly)
-        .buttonStyle(.bordered)
-        .controlSize(.large)
+        .buttonStyle(.borderless)
+        .controlSize(.regular)
     }
 
     @ViewBuilder private var links: some View {
@@ -36,6 +36,41 @@ struct PublicIconActionLabel: View {
         Label(title, systemImage: symbol)
             .labelStyle(.iconOnly)
             .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .accessibilityLabel(title)
+    }
+}
+
+/// Prefer a single action row; keep complete labels when width or text size needs more space.
+struct PublicActionGroup<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8, content: content)
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16, content: content).fixedSize(horizontal: true, vertical: false)
+                    VStack(alignment: .leading, spacing: 8, content: content)
+                }
+            }
+        }
+        .buttonStyle(.borderless)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct PublicTextActionLabel: View {
+    let title: String
+    let symbol: String
+
+    var body: some View {
+        Label(title, systemImage: symbol)
+            .labelStyle(.titleAndIcon)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(minWidth: 44, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
             .accessibilityLabel(title)
     }

@@ -138,22 +138,7 @@ struct PublicRootView: View {
 
     private var home: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 30) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("YOUR LISTENING SPACE")
-                        .font(.caption.weight(.semibold))
-                        .tracking(2.2)
-                        .foregroundStyle(PublicStyle.gold)
-                    Text("A place for what\nyou love.")
-                        .font(.system(.largeTitle, design: .serif, weight: .semibold))
-                        .foregroundStyle(PublicStyle.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Your saved YouTube videos, history and favorites, together in Muses.")
-                        .font(.subheadline)
-                        .foregroundStyle(PublicStyle.muted)
-                }
-                .padding(.top, 18)
-
+            VStack(alignment: .leading, spacing: 20) {
                 linkCard
 
                 if let message = session.failureMessage {
@@ -161,7 +146,7 @@ struct PublicRootView: View {
                 }
 
                 if let current = session.currentTrack {
-                    sectionHeading("Continue", detail: "Opens the visible YouTube player")
+                    sectionHeading("Continue", detail: "")
                     Button {
                         session.showPlayer = true
                     } label: {
@@ -176,12 +161,12 @@ struct PublicRootView: View {
                     videoShelf(session.favorites.prefix(6))
                 }
 
-                sectionHeading("Recently saved", detail: "On this device")
+                sectionHeading("Recently saved", detail: "")
                 if session.tracks.isEmpty {
                     PublicEmptyState(
                         symbol: "square.stack",
-                        title: "Your collection starts here",
-                        detail: "Open a YouTube video above. It will appear here when saved."
+                        title: "No saved videos",
+                        detail: "Open a YouTube link to start your library."
                     )
                 } else {
                     videoShelf(session.tracks.reversed().prefix(8))
@@ -196,41 +181,32 @@ struct PublicRootView: View {
         .navigationDestination(item: $session.catalogRoute) { route in
             PublicCatalogDetail(session: session, route: route)
         }
-        .navigationTitle("Muses")
+        .navigationTitle("Home")
         .scrollDismissesKeyboard(.interactively)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { settingsToolbar }
     }
 
     private var linkCard: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            Label("Open YouTube content", systemImage: "play.rectangle")
-                .font(.headline)
-                .foregroundStyle(PublicStyle.ink)
-            Text("Paste a video, playlist or channel link. Playback stays in the visible official player.")
-                .font(.subheadline)
-                .foregroundStyle(PublicStyle.muted)
-            TextField("Paste YouTube URL or video ID", text: $link)
+        HStack(spacing: 12) {
+            TextField("YouTube link or video ID", text: $link)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .textContentType(.URL)
                 .submitLabel(.go)
                 .focused($linkFocused)
                 .onSubmit(openLink)
-                .padding(12)
-                .background(PublicStyle.background, in: RoundedRectangle(cornerRadius: 12))
+                .frame(minHeight: 44)
                 .accessibilityIdentifier("public.link")
             Button(action: openLink) {
-                Label("Open link", systemImage: "arrow.up.right")
-                    .labelStyle(.iconOnly)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                PublicIconActionLabel(title: "Open link", symbol: "arrow.up.right")
             }
             .buttonStyle(.borderedProminent)
             .disabled(link.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityIdentifier("public.open")
         }
-        .padding(20)
-        .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 22))
+        .padding(12)
+        .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func openLink() {
@@ -241,20 +217,16 @@ struct PublicRootView: View {
     private var discover: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                PublicPageHeading(
-                    eyebrow: "DISCOVER",
-                    title: "Follow your curiosity.",
-                    subtitle: "Explore YouTube videos through a search you choose. Muses does not have a YouTube Music personalized feed."
-                )
                 if !session.apiConfigured {
                     PublicNotice(
-                        message: "Online discovery needs a YouTube Data API key or a Google sign in. Known links and saved videos still work.",
+                        message: "Online discovery is unavailable. Saved videos and YouTube links still work.",
                         symbol: "wifi.slash"
                     )
                 }
-                NavigationLink("Account & YouTube collections") { PublicYouTubeAccountCatalog(session: session) }
-                Text("Open a playlist or channel link on Home to browse without using search quota.").font(.footnote).foregroundStyle(.secondary)
-                sectionHeading("Explore by search", detail: "Search runs only when selected")
+                NavigationLink { PublicYouTubeAccountCatalog(session: session) } label: {
+                    PublicTextActionLabel(title: "Account & YouTube collections", symbol: "person.crop.circle")
+                }
+                sectionHeading("Explore", detail: "")
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 12)], spacing: 12) {
                     discoveryTile("Live sessions", symbol: "music.mic", query: "live music sessions")
                     discoveryTile("New music", symbol: "sparkles.tv", query: "new music videos")
@@ -262,7 +234,7 @@ struct PublicRootView: View {
                     discoveryTile("Conversations", symbol: "mic", query: "music interviews")
                 }
                 if !session.history.isEmpty {
-                    sectionHeading("From your history", detail: "Recently played here")
+                    sectionHeading("Recently played", detail: "")
                     videoShelf(session.history.prefix(6))
                 }
             }
@@ -303,11 +275,6 @@ struct PublicRootView: View {
     private var search: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                PublicPageHeading(
-                    eyebrow: "SEARCH YOUTUBE",
-                    title: "Search.",
-                    subtitle: "Search saved videos or choose YouTube videos, playlists and channels."
-                )
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(PublicStyle.muted)
@@ -317,23 +284,21 @@ struct PublicRootView: View {
                         .focused($searchFocused)
                         .onSubmit(submitSearch)
                         .accessibilityIdentifier("public.search")
+                    Button(action: submitSearch) { PublicIconActionLabel(title: "Search YouTube", symbol: "magnifyingglass") }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
                 }
                 .padding(15)
                 .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
+                PublicActionGroup {
                 Picker("Search type", selection: $session.searchKind) {
                     Text("Videos").tag(MusesCatalog.CatalogItem.Kind.video)
                     Text("Playlists").tag(MusesCatalog.CatalogItem.Kind.playlist)
                     Text("Channels").tag(MusesCatalog.CatalogItem.Kind.channel)
-                }.pickerStyle(.segmented)
-                Text("Each search page uses search quota. More results load only when requested.").font(.footnote).foregroundStyle(.secondary)
-                HStack {
-                    Button("Search YouTube", systemImage: "magnifyingglass", action: submitSearch)
-                    .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
+                }.pickerStyle(.menu).frame(minHeight: 44)
                     Button {
                         query = ""; session.clearSearchResults()
-                    } label: { Label("Clear search results", systemImage: "xmark.circle").labelStyle(.iconOnly).frame(width: 44, height: 44) }
+                    } label: { PublicTextActionLabel(title: "Clear search", symbol: "xmark.circle") }
                     .disabled(query.isEmpty && session.searchItems.isEmpty && !session.searching)
                     .accessibilityIdentifier("public.clearSearch")
                 }
@@ -342,7 +307,7 @@ struct PublicRootView: View {
                 }
                 if !session.apiConfigured {
                     PublicNotice(
-                        message: "Online search needs a YouTube Data API key or a Google sign in. Saved videos and known links remain available.",
+                        message: "Online search is unavailable. Saved videos and YouTube links still work.",
                         symbol: "wifi.slash"
                     )
                 }
@@ -589,40 +554,47 @@ struct PublicRootView: View {
     private var settings: some View {
         List {
             Section("Support & privacy") {
-                PublicServiceLinks()
-                NavigationLink { PublicPrivacyView() } label: {
-                    PublicIconActionLabel(title: "Muses privacy policy", symbol: "hand.raised.square")
+                VStack(alignment: .leading, spacing: 8) {
+                    NavigationLink { PublicPrivacyView() } label: {
+                        PublicTextActionLabel(title: "Privacy policy", symbol: "hand.raised.square")
+                    }
+                    PublicServiceLinks()
                 }
-                .labelStyle(.iconOnly)
-            }
-            Section("Playback") {
-                Text("Playback pauses when you close the player or leave Muses.")
-                Text("Background audio, EQ, spectrum, lock screen controls and CarPlay are unavailable.")
-                    .foregroundStyle(PublicStyle.muted)
-                Text("Your personalized YouTube Music home and albums are not available here.")
-                    .foregroundStyle(PublicStyle.muted)
             }
             Section("YouTube account") {
                 if session.signedIn {
-                    Text("Signed in · Read-only access")
-                    NavigationLink { PublicYouTubeAccountCatalog(session: session) } label: {
-                        PublicIconActionLabel(title: "Account and YouTube collections", symbol: "person.crop.circle")
+                    Text("Signed in · Read-only access").foregroundStyle(.secondary)
+                    PublicActionGroup {
+                        NavigationLink { PublicYouTubeAccountCatalog(session: session) } label: {
+                            PublicTextActionLabel(title: "Collections", symbol: "person.crop.circle")
+                        }.accessibilityLabel("Account & YouTube collections")
+                        Button { Task { await session.signOut() } } label: {
+                            PublicTextActionLabel(title: "Sign out", symbol: "rectangle.portrait.and.arrow.right")
+                        }.accessibilityLabel("Sign out and revoke access")
                     }
-                    Button { Task { await session.signOut() } } label: { PublicIconActionLabel(title: "Sign out and revoke access", symbol: "rectangle.portrait.and.arrow.right") }
                 } else if session.oauthConfigured {
-                    Button { Task { await session.signIn() } } label: { PublicIconActionLabel(title: "Sign in with Google", symbol: "person.crop.circle.badge.plus") }
+                    Button { Task { await session.signIn() } } label: {
+                        PublicTextActionLabel(title: "Sign in with Google", symbol: "person.crop.circle.badge.plus")
+                    }
                 } else {
-                    Text("Google sign-in is unavailable in this version. You can still use your local library.")
-                        .foregroundStyle(PublicStyle.muted)
+                    Text("Google sign-in is unavailable. Your local library still works.").foregroundStyle(.secondary)
                 }
             }
-            Section("Local data") {
-                Button { Task { await session.refreshSavedMetadata() } } label: { PublicIconActionLabel(title: "Refresh saved video details", symbol: "arrow.clockwise") }.disabled(session.refreshingMetadata)
-                Text("YouTube titles refresh for this app session. Your saved selections, favorites and local playlists remain.").font(.footnote)
-                Button(role: .destructive) { confirmDelete = true } label: { PublicIconActionLabel(title: "Delete all local Muses data", symbol: "trash") }
-                Text("Deletes this device’s library, notes, bookmarks, history, account credentials and retained originals. Your YouTube account is unchanged.")
-                    .font(.footnote)
-                    .foregroundStyle(PublicStyle.muted)
+            Section {
+                PublicActionGroup {
+                    Button { Task { await session.refreshSavedMetadata() } } label: {
+                        PublicTextActionLabel(title: "Refresh details", symbol: "arrow.clockwise")
+                    }.disabled(session.refreshingMetadata)
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        PublicTextActionLabel(title: "Delete local data", symbol: "trash")
+                    }
+                }
+            } header: { Text("Local data") } footer: {
+                Text("Deletion includes notes, bookmarks and retained originals. YouTube is unchanged.")
+            }
+            Section("Playback") {
+                Text("Playback pauses when you close the player or leave Muses. Background audio, EQ, spectrum, lock screen controls and CarPlay are unavailable.")
+                    .foregroundStyle(.secondary)
             }
             if let message = session.failureMessage {
                 Section("Notice") { Text(message) }
@@ -1010,6 +982,7 @@ struct PublicPlaylistDetail: View {
     @Environment(\.dismiss) private var dismiss
     @State private var renaming = false
     @State private var deleting = false
+    @State private var clearing = false
     @State private var adding = false
     @State private var name = ""
     private var playlist: LocalPlaylist? { session.playlists.first { $0.id == playlistID } }
@@ -1018,13 +991,16 @@ struct PublicPlaylistDetail: View {
         List {
             if let playlist {
                 Section {
-                    Text("\(playlist.entryCount) videos · On this device")
-                    Button("Add videos", systemImage: "plus") { adding = true }.labelStyle(.iconOnly)
-                    Button("Add playlist to queue", systemImage: "text.badge.plus") { session.enqueuePlaylist(playlistID) }.labelStyle(.iconOnly)
-                        .disabled(playlist.trackIDs.isEmpty)
-                    PublicPlaylistClearButton(session: session, playlist: playlist)
+                    PublicActionGroup {
+                        Button { adding = true } label: { PublicTextActionLabel(title: "Add videos", symbol: "plus") }
+                        Button { session.enqueuePlaylist(playlistID) } label: { PublicIconActionLabel(title: "Add playlist to queue", symbol: "text.badge.plus") }
+                            .disabled(playlist.trackIDs.isEmpty)
+                        Button { clearing = true } label: { PublicTextActionLabel(title: "Clear videos", symbol: "xmark.circle") }
+                            .disabled(playlist.entryCount == 0)
+                            .accessibilityIdentifier("playlist.clear")
+                    }
                 }
-                Section("Videos") {
+                Section("Videos · \(playlist.entryCount)") {
                     if playlist.entryCount == 0 {
                         Text("This playlist is empty. Add videos from your saved collection.").foregroundStyle(.secondary)
                     }
@@ -1068,14 +1044,21 @@ struct PublicPlaylistDetail: View {
                     }
                 }
                 Section {
-                    Button("Rename playlist", systemImage: "pencil") { name = playlist.name; renaming = true }.labelStyle(.iconOnly)
-                    Button("Delete playlist", systemImage: "trash", role: .destructive) { deleting = true }.labelStyle(.iconOnly)
+                    PublicActionGroup {
+                        Button { name = playlist.name; renaming = true } label: { PublicIconActionLabel(title: "Rename playlist", symbol: "pencil") }
+                        Button(role: .destructive) { deleting = true } label: { PublicIconActionLabel(title: "Delete playlist", symbol: "trash") }
+                    }
                 }
             }
             if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
         }
         .navigationTitle(playlist?.name ?? "Playlist")
         .toolbar { EditButton() }
+        .confirmationDialog("Clear this local playlist?", isPresented: $clearing, titleVisibility: .visible) {
+            Button("Clear playlist videos", role: .destructive) {
+                session.editPlaylist(playlistID) { $0.removeAllEntries() }
+            }
+        } message: { Text("Saved videos remain. YouTube is unchanged.") }
         .alert("Rename playlist", isPresented: $renaming) {
             TextField("Playlist name", text: $name)
             Button("Save") { session.editPlaylist(playlistID, nameIsExplicitUserInput: name.trimmingCharacters(in: .whitespacesAndNewlines) != playlist?.name) { try $0.rename(name) } }
@@ -1100,7 +1083,7 @@ struct PublicPlaylistDetail: View {
                     if let message = session.failureMessage { Text(message) }
                 }
                 .navigationTitle("Add saved videos")
-                .toolbar { Button("Done") { adding = false } }
+                .toolbar { Button { adding = false } label: { PublicIconActionLabel(title: "Done", symbol: "xmark") } }
             }
         }
     }
@@ -1140,20 +1123,26 @@ struct PublicVideoDetail: View {
                 Section {
                     Text(track.title).font(.title2)
                     Text(track.artist).foregroundStyle(.secondary)
-                    if case .youtubeVideo(let id) = track.source {
-                        Text(id.rawValue).font(.caption).textSelection(.enabled)
-                        Button("Open visible player", systemImage: "play.rectangle") { session.open(id, title: track.title) }
-                        Link("View on YouTube", destination: URL(string: "https://www.youtube.com/watch?v=\(id.rawValue)")!)
+                    PublicActionGroup {
+                        if case .youtubeVideo(let id) = track.source {
+                            Button { session.open(id, title: track.title) } label: { PublicIconActionLabel(title: "Open visible player", symbol: "play.fill") }
+                            Link(destination: URL(string: "https://www.youtube.com/watch?v=\(id.rawValue)")!) {
+                                PublicTextActionLabel(title: "YouTube", symbol: "arrow.up.right.square")
+                            }
+                        }
+                        Button { session.toggleFavorite(trackID) } label: {
+                            PublicIconActionLabel(title: track.liked ? "Remove favorite" : "Favorite", symbol: track.liked ? "heart.fill" : "heart")
+                        }
                     }
                 }
-                Section("Local library") {
-                    Button(track.liked ? "Remove favorite" : "Favorite", systemImage: track.liked ? "heart.fill" : "heart") {
-                        session.toggleFavorite(trackID)
+                Section {
+                    PublicActionGroup {
+                        PublicAddToPlaylistMenu(session: session, track: track)
+                            .labelStyle(.titleAndIcon).frame(minHeight: 44)
+                        Button { session.enqueueTrack(track, next: true) } label: { PublicIconActionLabel(title: "Play next", symbol: "text.line.first.and.arrowtriangle.forward") }
+                        Button { session.enqueueTrack(track) } label: { PublicIconActionLabel(title: "Add to queue", symbol: "text.badge.plus") }
+                        NavigationLink { PublicQueueView(session: session) } label: { PublicIconActionLabel(title: "View queue", symbol: "list.bullet") }
                     }
-                    PublicAddToPlaylistMenu(session: session, track: track)
-                    Button("Play next", systemImage: "text.line.first.and.arrowtriangle.forward") { session.enqueueTrack(track, next: true) }
-                    Button("Add to queue", systemImage: "text.badge.plus") { session.enqueueTrack(track) }
-                    NavigationLink { PublicQueueView(session: session) } label: { Text("View queue") }
                 }
                 PublicNotebookSections(session: session, trackID: trackID)
             }
@@ -1165,12 +1154,16 @@ struct PublicVideoDetail: View {
 
 private struct PublicQueueView: View {
     let session: PublicYouTubeSession
+    @State private var clearing = false
     var body: some View {
         List {
             if let current = session.currentTrack {
                 Section("Current video") {
-                    Text(current.title)
-                    Button("Open visible player") { session.showPlayer = true }
+                    HStack {
+                        Text(current.title).fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                        Button { session.showPlayer = true } label: { PublicIconActionLabel(title: "Open visible player", symbol: "play.fill") }
+                    }.buttonStyle(.borderless)
                 }
             }
             Section("Up next") {
@@ -1193,17 +1186,24 @@ private struct PublicQueueView: View {
                     }
                 }
             }
-            if !session.queue.snapshot.upcoming.isEmpty {
-                Button("Open next video") {
+            PublicActionGroup {
+                Button {
                     session.next()
                     if session.failureMessage == nil { session.showPlayer = true }
-                }
+                } label: { PublicIconActionLabel(title: "Open next video", symbol: "forward.end.fill") }
+                    .disabled(!session.hasNext)
+                Button { clearing = true } label: { PublicTextActionLabel(title: "Clear Up Next", symbol: "xmark.circle") }
+                    .disabled(!session.hasNext)
+                    .accessibilityIdentifier("public.clearUpNext")
             }
-            PublicClearUpNextButton(session: session)
             if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
         }
         .navigationTitle("Queue")
         .toolbar { EditButton() }
+        .alert("Clear all upcoming videos?", isPresented: $clearing) {
+            Button("Clear Up Next", role: .destructive) { session.clearUpcoming() }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Your current video and playback are kept. Only upcoming videos are removed.") }
     }
 }
 

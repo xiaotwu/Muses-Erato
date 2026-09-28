@@ -13,19 +13,19 @@ struct PublicNotebookSections: View {
     private var model: PublicNotebookModel { session.notebook }
     private var page: PublicNotebookModel.Page { model.page(for: trackID) }
     var body: some View {
-        Section("Notes on this device") {
-            if page.notes.isEmpty { Text("No notes yet. Save your thoughts about this video.").foregroundStyle(.secondary) }
+        Section("Notes") {
+            if page.notes.isEmpty { Text("No notes yet.").foregroundStyle(.secondary) }
             ForEach(page.notes) { note in PublicNotebookNoteRow(model: model, note: note) }
             PublicNotebookActions(model: model, trackID: trackID, kind: .notes)
         }
         .task(id: trackID) { model.load(trackID) }
         Section("Time bookmarks") {
-            if page.bookmarks.isEmpty { Text("No time bookmarks. Save a moment to return to later.").foregroundStyle(.secondary) }
+            if page.bookmarks.isEmpty { Text("No bookmarks yet.").foregroundStyle(.secondary) }
             ForEach(page.bookmarks) { bookmark in
                 PublicNotebookBookmarkRow(session: session, bookmark: bookmark)
             }
             PublicNotebookActions(model: model, trackID: trackID, kind: .bookmarks)
-            Text("Selecting a bookmark opens the visible YouTube player at that time. Press Play to watch.")
+            Text("Bookmarks open the player paused. Press Play to watch.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
         if let error = page.error {
@@ -108,16 +108,15 @@ private struct PublicNotebookActions: View {
     private var page: PublicNotebookModel.Page { model.page(for: trackID) }
     private var clearTitle: String { isNotes ? "Clear notes" : "Clear bookmarks" }
     var body: some View {
-        HStack {
+        PublicActionGroup {
             Button { adding = true } label: {
                 PublicIconActionLabel(title: isNotes ? "Add note" : "Add time bookmark", symbol: isNotes ? "square.and.pencil" : "bookmark")
             }
                 .disabled(!page.loaded)
                 .accessibilityLabel(isNotes ? "Add note" : "Add time bookmark")
                 .accessibilityIdentifier(isNotes ? "notebook.addNote" : "notebook.addBookmark")
-            Spacer()
             Button(role: .destructive) { clearing = true } label: {
-                PublicIconActionLabel(title: isNotes ? "Clear notes for this video" : "Clear bookmarks for this video", symbol: "trash")
+                PublicTextActionLabel(title: isNotes ? "Clear notes" : "Clear bookmarks", symbol: "xmark.circle")
             }
                 .disabled(!page.loaded || (isNotes ? page.notes.isEmpty : page.bookmarks.isEmpty))
                 .accessibilityLabel(isNotes ? "Clear notes for this video" : "Clear bookmarks for this video")

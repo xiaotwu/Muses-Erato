@@ -53,21 +53,23 @@ struct PublicCatalogPaging: View {
         VStack(alignment: .leading, spacing: 12) {
             if let error = page.error { Text(error).foregroundStyle(.secondary).accessibilityIdentifier("catalog.error") }
             if page.loading { ProgressView("Loading YouTube") }
-            else if page.error != nil || !page.loaded || page.nextPageToken != nil {
+            PublicActionGroup {
+            if !page.loading && (page.error != nil || !page.loaded || page.nextPageToken != nil) {
                 Button { Task { await load() } } label: {
-                    PublicIconActionLabel(title: page.error != nil ? "Retry" : page.loaded ? "Load next page" : initialTitle, symbol: page.error != nil ? "arrow.clockwise" : "arrow.down.circle")
+                    PublicTextActionLabel(title: page.error != nil ? "Retry" : page.loaded ? "More" : "Load", symbol: page.error != nil ? "arrow.clockwise" : "arrow.down.circle")
                 }
                     .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
+                    .accessibilityLabel(page.error != nil ? "Retry" : page.loaded ? "Load next page" : initialTitle)
                     .accessibilityIdentifier("catalog.load")
-            } else if page.items.isEmpty {
-                Text("No available items.").font(.footnote).foregroundStyle(.secondary)
             }
-            Button { clearing = true } label: { PublicIconActionLabel(title: "Clear loaded items", symbol: "xmark.circle") }
+            Button { clearing = true } label: { PublicTextActionLabel(title: "Clear display", symbol: "xmark.circle") }
                 .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                 .disabled(page.items.isEmpty && !page.loading)
                 .confirmationDialog("Clear local display?", isPresented: $clearing, titleVisibility: .visible) {
                     Button("Clear display", role: .destructive) { page.reset() }
                 } message: { Text("Clears only the items shown here. Your YouTube playlists and subscriptions are unchanged.") }
+            }
+            if page.loaded && page.items.isEmpty && !page.loading { Text("No available items.").foregroundStyle(.secondary) }
             if let date = page.fetchedAt {
                 Text("YouTube · Updated \(date.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2).foregroundStyle(.secondary)
@@ -147,20 +149,20 @@ struct PublicYouTubeAccountCatalog: View {
     @State private var clearing = false
     var body: some View {
         List {
-            Section("Local Muses profile") {
+            Section("Library") {
                 Text("\(session.tracks.count) saved videos · \(session.playlists.count) local playlists")
-                Text("Favorites, history, queue and local playlists stay on this device. They are separate from your YouTube account.").font(.footnote)
+                Text("YouTube collections are read-only.").font(.footnote).foregroundStyle(.secondary)
             }
             if session.signedIn {
-                Section("YouTube channel profile · Read only") {
+                Section("YouTube profile") {
                     ForEach(session.accountChannelPages.items, id: \.rowID) { PublicCatalogRow(session: session, item: $0) }
                     PublicCatalogPaging(page: session.accountChannelPages, initialTitle: "Load my YouTube profile") { await session.loadAccountChannel() }
                 }
-                Section("My YouTube playlists") {
+                Section("YouTube playlists") {
                     ForEach(session.accountPlaylistPages.items, id: \.rowID) { PublicCatalogRow(session: session, item: $0, authorized: true) }
                     PublicCatalogPaging(page: session.accountPlaylistPages, initialTitle: "Load my YouTube playlists") { await session.loadAccountPlaylists() }
                 }
-                Section("My YouTube subscriptions") {
+                Section("Subscriptions") {
                     ForEach(session.subscriptions, id: \.rowID) { PublicCatalogRow(session: session, item: $0) }
                     PublicCatalogPaging(page: session.subscriptionPages, initialTitle: "Load subscriptions") { await session.loadSubscriptions() }
                 }
@@ -169,7 +171,7 @@ struct PublicYouTubeAccountCatalog: View {
             }
         }.navigationTitle("Account & collections")
         .toolbar {
-            Button { clearing = true } label: { PublicIconActionLabel(title: "Clear local YouTube display", symbol: "xmark.circle") }
+            Button { clearing = true } label: { PublicTextActionLabel(title: "Clear account display", symbol: "xmark.circle") }
                 .labelStyle(.iconOnly)
                 .disabled(session.subscriptions.isEmpty && session.accountPlaylistPages.items.isEmpty && session.accountChannelPages.items.isEmpty)
         }
