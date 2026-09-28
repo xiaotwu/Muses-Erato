@@ -32,7 +32,7 @@ final class PublicSmokeTests: XCTestCase {
         let button = app.buttons["library.category.\(name)"]
         for direction in 0..<2 {
             for _ in 0..<8 {
-                if button.isHittable && button.frame.minX >= rail.frame.minX && button.frame.maxX <= rail.frame.maxX {
+                if button.isHittable {
                     button.tap()
                     if button.isSelected { return }
                 }
