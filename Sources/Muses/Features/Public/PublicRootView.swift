@@ -928,7 +928,7 @@ private struct PublicPlaylistCollection: View {
         .sheet(isPresented: $importing) { PublicPlaylistImportView(session: session) }
         .alert("Create local playlist", isPresented: $creating) {
             TextField("Playlist name", text: $name)
-            Button("Create") { session.createPlaylist(name) }
+            Button("Create") { session.createPlaylist(name, nameIsExplicitUserInput: true) }
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Cancel", role: .cancel) {}
         }
@@ -1009,7 +1009,7 @@ struct PublicPlaylistDetail: View {
         .toolbar { EditButton() }
         .alert("Rename playlist", isPresented: $renaming) {
             TextField("Playlist name", text: $name)
-            Button("Save") { session.editPlaylist(playlistID) { try $0.rename(name) } }
+            Button("Save") { session.editPlaylist(playlistID, nameIsExplicitUserInput: name.trimmingCharacters(in: .whitespacesAndNewlines) != playlist?.name) { try $0.rename(name) } }
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Cancel", role: .cancel) {}
         }
@@ -1054,7 +1054,7 @@ private struct PublicAddToPlaylistMenu: View {
         .alert("Create local playlist", isPresented: $creating) {
             TextField("Playlist name", text: $name)
             Button("Create") {
-                session.createPlaylist(name, trackIDs: [track.id])
+                session.createPlaylist(name, trackIDs: [track.id], nameIsExplicitUserInput: true)
             }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Cancel", role: .cancel) {}
         }
