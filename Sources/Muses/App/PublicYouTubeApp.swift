@@ -79,6 +79,7 @@ final class PublicYouTubeSession {
     var searchError: String? { searchPages.error }
     var searching: Bool { searchPages.loading }
     private(set) var signedIn = false
+    private(set) var accountCleanupPending = false
     var subscriptions: [MusesCatalog.CatalogItem] { subscriptionPages.items }
     var showPlayer = false
     var selectedCategory: LibraryCategory = .videos
@@ -174,7 +175,8 @@ final class PublicYouTubeSession {
                 let privateData = PublicPrivateData()
                 let auth = OAuthClient(configuration: config,
                     store: KeychainOAuthTokenStore(service: "com.xiaotwu.muses.erato.youtube"),
-                    privateData: privateData)
+                    privateData: privateData,
+                    cleanupJournal: FileOAuthCleanupJournal(url: destinationURL.appendingPathExtension("oauth-cleanup.json")))
                 oauth = auth
                 let remote = YouTubeDataCatalog(apiKey: apiKey, credential: auth,
                     budget: RequestBudget(searchCallsPerDay: 10, otherUnitsPerDay: 100),
@@ -186,9 +188,24 @@ final class PublicYouTubeSession {
                     guard let self, !self.deletingLocalData else { return }
                     self.activeNetworkCalls += 1
                     defer { self.activeNetworkCalls -= 1 }
-                    if (try? await auth.accessToken()) != nil, self.accountEpoch == epoch {
+                    do {
+                        if try await auth.resumePendingCleanup() {
+                            guard self.accountEpoch == epoch else { return }
+                            self.accountCleanupPending = false
+                            return
+                        }
+                        _ = try await auth.accessToken()
+                        guard self.accountEpoch == epoch else { return }
                         self.signedIn = true
                         await self.refreshPlaylistNames(force: true)
+                    } catch {
+                        guard self.accountEpoch == epoch else { return }
+                        let pending = (try? await auth.hasPendingCleanup()) ?? true
+                        guard self.accountEpoch == epoch else { return }
+                        self.accountCleanupPending = pending
+                        if pending {
+                            self.failureMessage = "Account cleanup is pending. Unlock this device and retry account cleanup in Settings."
+                        }
                     }
                 }
             } else if let apiKey {
@@ -353,7 +370,7 @@ final class PublicYouTubeSession {
     }
 
     func signIn() async {
-        guard !deletingLocalData, !signingOut else { return }
+        guard !deletingLocalData, !signingOut, !accountCleanupPending else { return }
         activeNetworkCalls += 1
         defer { activeNetworkCalls -= 1 }
         guard let oauth, let config = oauthConfiguration,
@@ -410,16 +427,40 @@ final class PublicYouTubeSession {
         signedIn = false
         resetAccountCatalog()
         do { try expireCatalogMetadata(force: true) } catch { failureMessage = "Metadata could not be removed: \(error.localizedDescription)" }
-        do { try await oauth.revokeAndDelete() }
+        accountCleanupPending = true
+        do {
+            try await oauth.revokeAndDelete()
+            accountCleanupPending = false
+        }
         catch OAuthFailure.storage {
             failureMessage = "Account cleanup could not finish on this device. Retry when the device is unlocked and review Google account access."
         }
         catch {
+            accountCleanupPending = false
             failureMessage = "Local account data was removed. Google revocation may have failed; review access in your Google account settings."
         }
         signedIn = false
         resetAccountCatalog()
         await catalog?.clearPrivateCache()
+    }
+
+    func retryAccountCleanup() async {
+        guard !deletingLocalData, !signingOut, let oauth else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
+        signingOut = true
+        defer { signingOut = false }
+        accountEpoch &+= 1
+        signedIn = false
+        resetAccountCatalog()
+        do {
+            try await oauth.deleteLocalAccount()
+            accountCleanupPending = false
+            failureMessage = nil
+        } catch {
+            accountCleanupPending = true
+            failureMessage = "Account cleanup could not finish. Unlock this device and retry."
+        }
     }
 
     func openLink(_ text: String) async {

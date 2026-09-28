@@ -34,7 +34,7 @@ Mocks exercise actor ordering and failure outcomes, not Google-account revocatio
 
 ## Remaining boundaries
 
-The generation/invalidation state is **in memory**. A restart after failed Keychain deletion can still reload surviving credentials unless a durable cleanup marker is added; sign-out currently has no full-wipe-equivalent tombstone. Durable retry/startup gating remains required. Likewise retained remote playlist/video identifiers and authorized import membership are not deleted by this package fix; archive classification/retirement remains open.
+**Historical boundary, superseded by the [durable cleanup follow-up](oauth-durable-cleanup-validation.md):** The generation/invalidation state is **in memory**. A restart after failed Keychain deletion can still reload surviving credentials unless a durable cleanup marker is added; sign-out currently has no full-wipe-equivalent tombstone. Durable retry/startup gating remains required. Likewise retained remote playlist/video identifiers and authorized import membership are not deleted by this package fix; archive classification/retirement remains open.
 
 Google may already have processed an in-flight request before cancellation. Discarding a local response is not evidence that Google revoked every grant or deleted provider-side data; account permission review and production revocation acceptance remain separate. [Developer Policies III.D.3 and III.E.4](https://developers.google.com/youtube/terms/developer-policies) require authorized-data deletion and token-validity/retention controls. This fix only prevents the named local resurrection/account-replacement races.
 

@@ -94,3 +94,7 @@ This document closes a **current-source evidence inventory**, not the release ga
 ## Later follow-up: OAuth account generation
 
 After `7065a17`, the [OAuth late-response validation](oauth-generation-validation.md) records generation/cancellation checks, shared refresh, deletion barriers, session sign-out cancellation and 14 passing package tests. These close specific in-process races that could restore deleted tokens or erase a newer grant. Durable sign-out retry/startup gating, retained identifiers, historical copies and physical/provider evidence remain open. The historical snapshot and earlier defect descriptions above retain their original source scope.
+
+## Later follow-up: durable OAuth cleanup intent
+
+After `458e2cf`, [durable OAuth cleanup validation](oauth-durable-cleanup-validation.md) records the production file journal, startup/token/exchange gating, Settings retry and concurrent-deletion protection. Twenty OAuth tests pass, including a new client reopening the pending file after token/cache deletion failure. Signed generic Release compilation, static audit and signature checks also pass. This supersedes the in-memory-only implementation limitation above; real iOS termination/locked-storage acceptance, retained authorized IDs/membership, historical-copy retirement, WebKit/provider evidence and public release gates remain open. No new device acceptance or published-domain proof is claimed.

@@ -127,15 +127,20 @@ public actor OAuthClient: CatalogCredential {
     private let transport: any HTTPTransport
     private let store: any OAuthTokenStore
     private let privateData: any PrivateAccountData
+    private let cleanupJournal: (any OAuthCleanupJournal)?
     private var accountGeneration: UInt64 = 0
     private var deletionOperations = 0
     private var refreshRequest: (id: UUID, generation: UInt64, task: Task<TokenResponse, Error>)?
     // Fail closed in this process even when Keychain deletion fails.
     private var credentialsInvalidated = false
-    public init(configuration: OAuthConfiguration, transport: any HTTPTransport = URLSessionTransport(), store: any OAuthTokenStore, privateData: any PrivateAccountData) {
+    public init(configuration: OAuthConfiguration, transport: any HTTPTransport = URLSessionTransport(), store: any OAuthTokenStore, privateData: any PrivateAccountData, cleanupJournal: (any OAuthCleanupJournal)? = nil) {
+        self.cleanupJournal = cleanupJournal
         self.configuration = configuration; self.transport = transport; self.store = store; self.privateData = privateData
     }
     public func complete(_ attempt: OAuthAttempt, callback: URL) async throws {
+        try Task.checkCancellation()
+        guard deletionOperations == 0 else { throw OAuthFailure.revoked }
+        _ = try await resumePendingCleanup()
         try Task.checkCancellation()
         guard deletionOperations == 0 else { throw OAuthFailure.revoked }
         guard attempt.redirectURI == configuration.redirectURI else { throw OAuthFailure.invalidConfiguration }
@@ -153,7 +158,10 @@ public actor OAuthClient: CatalogCredential {
     }
     public func accessToken() async throws -> String {
         try Task.checkCancellation()
-        guard deletionOperations == 0, !credentialsInvalidated else { throw OAuthFailure.revoked }
+        guard deletionOperations == 0 else { throw OAuthFailure.revoked }
+        if try await resumePendingCleanup() { throw OAuthFailure.revoked }
+        try Task.checkCancellation()
+        guard !credentialsInvalidated else { throw OAuthFailure.revoked }
         let generation = accountGeneration
         guard let saved = try store.load() else { throw OAuthFailure.revoked }
         if saved.expiresAt > Date().addingTimeInterval(60) { return saved.accessToken }
@@ -181,7 +189,7 @@ public actor OAuthClient: CatalogCredential {
         return access
     }
     public func revokeAndDelete() async throws {
-        beginDeletion()
+        try beginDeletion()
         defer { deletionOperations -= 1 }
         let tokens: OAuthTokens?
         var storageFailed = false
@@ -201,21 +209,34 @@ public actor OAuthClient: CatalogCredential {
         do { try store.delete() } catch { storageFailed = true }
         do { try await privateData.deletePrivateData() } catch { storageFailed = true }
         if storageFailed { throw OAuthFailure.storage }
+        try cleanupJournal?.finish()
         if let revokeError { throw revokeError }
     }
     public func deleteLocalAccount() async throws {
-        beginDeletion()
+        try beginDeletion()
         defer { deletionOperations -= 1 }
         var storageFailed = false
         do { try store.delete() } catch { storageFailed = true }
         do { try await privateData.deletePrivateData() } catch { storageFailed = true }
         if storageFailed { throw OAuthFailure.storage }
+        try cleanupJournal?.finish()
     }
-    private func beginDeletion() {
+    /// Startup retry performs local cleanup only; it never restores pending credentials.
+    @discardableResult
+    public func resumePendingCleanup() async throws -> Bool {
+        guard deletionOperations == 0 else { throw OAuthFailure.revoked }
+        guard try cleanupJournal?.isPending() == true else { return false }
+        try await deleteLocalAccount()
+        return true
+    }
+    public func hasPendingCleanup() throws -> Bool { try cleanupJournal?.isPending() == true }
+    private func beginDeletion() throws {
+        guard deletionOperations == 0 else { throw OAuthFailure.revoked }
         accountGeneration &+= 1
-        deletionOperations += 1
         credentialsInvalidated = true
         refreshRequest?.task.cancel()
+        try cleanupJournal?.begin()
+        deletionOperations += 1
     }
     private func validate(_ generation: UInt64) throws {
         try Task.checkCancellation()

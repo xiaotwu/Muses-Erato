@@ -562,7 +562,13 @@ struct PublicRootView: View {
                 }
             }
             Section("YouTube account") {
-                if session.signedIn {
+                if session.accountCleanupPending {
+                    Text("Account cleanup is pending. Google sign-in is blocked until cleanup finishes.")
+                        .foregroundStyle(.secondary)
+                    Button { Task { await session.retryAccountCleanup() } } label: {
+                        PublicTextActionLabel(title: "Retry account cleanup", symbol: "arrow.clockwise")
+                    }
+                } else if session.signedIn {
                     Text("Signed in · Read-only access").foregroundStyle(.secondary)
                     PublicActionGroup {
                         NavigationLink { PublicYouTubeAccountCatalog(session: session) } label: {
