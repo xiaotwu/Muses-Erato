@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import MusesCatalog
 
 struct PublicSettingsView: View {
     let session: PublicYouTubeSession
@@ -11,25 +12,16 @@ struct PublicSettingsView: View {
                 NavigationLink {
                     PublicAccountSettingsView(session: session)
                 } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        if session.signedIn, let channel = session.accountChannelPages.items.first {
-                            Text(channel.id).font(.subheadline.monospaced()).textSelection(.enabled)
-                            Text(channel.title).font(.caption).foregroundStyle(.secondary)
-                        } else {
-                            Text("Google account")
-                            Text(accountStatus).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 4)
+                    PublicAccountIdentity(session: session)
                 }
                 .accessibilityIdentifier("settings.account")
             }
             Section {
                 NavigationLink { PublicLibraryDataSettingsView(session: session) } label: {
-                    Label("Library & local data", systemImage: "externaldrive")
+                    Text("Library & data")
                 }
                 NavigationLink { PublicPlaybackSettingsView() } label: {
-                    Label("Playback", systemImage: "play.circle")
+                    Text("Playback")
                 }
                 NavigationLink {
                     List {
@@ -41,15 +33,17 @@ struct PublicSettingsView: View {
                     .navigationTitle("Privacy & support")
                     .navigationBarTitleDisplayMode(.inline)
                 } label: {
-                    Label("Privacy & support", systemImage: "hand.raised")
+                    Text("Privacy & support")
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(20)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { dismiss() } label: { PublicIconActionLabel(title: "Done", symbol: "checkmark") }
+                Button { dismiss() } label: { PublicIconActionLabel(title: "Close settings", symbol: "xmark") }
             }
         }
         .task(id: session.signedIn) {
@@ -57,15 +51,6 @@ struct PublicSettingsView: View {
         }
     }
 
-    private var accountStatus: String {
-        if session.accountCleanupPending { return "Cleanup needs attention" }
-        if session.signedIn {
-            if session.accountChannelPages.loading { return "Loading channel…" }
-            if session.accountChannelPages.error != nil { return "Channel unavailable" }
-            return session.accountChannelPages.loaded ? "No YouTube channel" : "Signed in"
-        }
-        return "Not signed in"
-    }
 }
 
 private struct PublicAccountSettingsView: View {
@@ -86,19 +71,13 @@ private struct PublicAccountSettingsView: View {
                     if session.accountChannelPages.loading {
                         ProgressView("Loading channel")
                     }
-                    ForEach(session.accountChannelPages.items, id: \.rowID) { channel in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(channel.title).font(.headline)
-                            HStack {
-                                Text(channel.id)
-                                    .font(.subheadline.monospaced())
-                                    .textSelection(.enabled)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .accessibilityIdentifier("account.channelID")
-                                Spacer(minLength: 8)
-                                Button { UIPasteboard.general.string = channel.id } label: {
-                                    PublicIconActionLabel(title: "Copy Channel ID", symbol: "doc.on.doc")
-                                }.buttonStyle(.borderless)
+                    PublicAccountIdentity(session: session)
+                    if let channel = session.accountChannelPages.items.first {
+                        DisclosureGroup("Channel details") {
+                            Text(channel.id).font(.footnote.monospaced()).textSelection(.enabled)
+                                .accessibilityIdentifier("account.channelID")
+                            Button { UIPasteboard.general.string = channel.id } label: {
+                                Label("Copy Channel ID", systemImage: "doc.on.doc")
                             }
                         }
                     }
@@ -110,10 +89,8 @@ private struct PublicAccountSettingsView: View {
                     } else if session.accountChannelPages.loaded && session.accountChannelPages.items.isEmpty {
                         Text("This account has no available YouTube channel.").foregroundStyle(.secondary)
                     }
-                    NavigationLink { PublicYouTubeAccountCatalog(session: session) } label: {
-                        Label("Account playlists & collections", systemImage: "music.note.list")
-                    }.accessibilityLabel("Account & YouTube collections")
                 } footer: { Text("Read-only YouTube access") }
+                PublicAccountCollectionSections(session: session)
                 Section("Account management") {
                     Button { Task { await session.signOut(revokeAccess: false) } } label: {
                         Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
@@ -133,10 +110,15 @@ private struct PublicAccountSettingsView: View {
             }
             if let error = session.failureMessage { Section { Text(error).foregroundStyle(.secondary) } }
         }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(20)
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: session.signedIn) {
-            if session.signedIn { await session.loadAccountChannel() }
+            if session.signedIn {
+                await session.loadAccountChannel()
+                await session.loadAccountCollections()
+            }
         }
         .confirmationDialog("Revoke Google access?", isPresented: $confirmingRevocation, titleVisibility: .visible) {
             Button("Revoke access", role: .destructive) { Task { await session.signOut() } }
@@ -190,5 +172,90 @@ private struct PublicPlaybackSettingsView: View {
         }
         .navigationTitle("Playback")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct PublicAccountIdentity: View {
+    let session: PublicYouTubeSession
+    var body: some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: session.accountChannelPages.items.first?.thumbnailURL) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Image(systemName: "person.crop.circle.fill")
+                    .resizable().scaledToFit().foregroundStyle(.secondary)
+            }
+            .frame(width: 48, height: 48).clipShape(Circle()).accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(session.accountChannelPages.items.first?.title ?? "Google account")
+                    .font(.headline).foregroundStyle(.primary)
+                    .accessibilityIdentifier("account.nickname")
+                Text(status).font(.footnote).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(.vertical, 6)
+    }
+    private var status: String {
+        if session.accountCleanupPending { return "Cleanup needs attention" }
+        if !session.signedIn { return "Sign in with Google" }
+        if session.accountChannelPages.loading { return "Loading profile…" }
+        if session.accountChannelPages.error != nil { return "Profile unavailable" }
+        if session.accountChannelPages.loaded && session.accountChannelPages.items.isEmpty { return "No YouTube profile" }
+        return "YouTube account"
+    }
+}
+
+struct PublicAccountCollectionSections: View {
+    let session: PublicYouTubeSession
+    var body: some View {
+        Section {
+            ForEach(session.accountPlaylistPages.items, id: \.rowID) {
+                PublicCatalogRow(session: session, item: $0, authorized: true)
+            }
+            PublicAccountCollectionFooter(page: session.accountPlaylistPages, title: "playlists") {
+                await session.loadAccountCollections()
+            }
+        } header: { PublicAccountCollectionHeader(title: "Playlists", page: session.accountPlaylistPages) }
+        Section {
+            ForEach(session.subscriptions, id: \.rowID) { PublicCatalogRow(session: session, item: $0) }
+            PublicAccountCollectionFooter(page: session.subscriptionPages, title: "subscriptions") {
+                await session.loadSubscriptions()
+            }
+        } header: { PublicAccountCollectionHeader(title: "Subscriptions", page: session.subscriptionPages) }
+    }
+}
+
+private struct PublicAccountCollectionHeader: View {
+    let title: String
+    let page: CatalogPager
+    @State private var confirming = false
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Button { confirming = true } label: {
+                PublicIconActionLabel(title: "Clear \(title.lowercased()) display", symbol: "trash")
+            }.disabled(page.items.isEmpty && !page.loading)
+        }
+        .confirmationDialog("Clear \(title.lowercased()) display?", isPresented: $confirming, titleVisibility: .visible) {
+            Button("Clear display", role: .destructive) { page.reset() }
+        } message: { Text("Only the display on this device is cleared. Your YouTube account is unchanged.") }
+    }
+}
+
+private struct PublicAccountCollectionFooter: View {
+    let page: CatalogPager
+    let title: String
+    let load: () async -> Void
+    var body: some View {
+        if page.loading { ProgressView("Loading \(title)") }
+        if let error = page.error { Text(error).font(.footnote).foregroundStyle(.secondary) }
+        if !page.loading && (!page.loaded || page.error != nil || page.nextPageToken != nil) {
+            Button { Task { await load() } } label: {
+                Label(page.error != nil ? "Retry" : page.loaded ? "More" : "Load \(title)",
+                      systemImage: page.error != nil ? "arrow.clockwise" : "arrow.down")
+            }.accessibilityIdentifier("account.load.\(title)")
+        }
+        if page.loaded && page.items.isEmpty && !page.loading { Text("No \(title)").foregroundStyle(.secondary) }
     }
 }

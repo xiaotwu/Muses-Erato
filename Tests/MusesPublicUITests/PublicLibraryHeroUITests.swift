@@ -60,6 +60,7 @@ import XCTest
         app.buttons["public.open"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 10))
         app.buttons["Close player"].tap()
+        addSavedVideosToLocalPlaylist(app, name: "Hero collection")
     }
     private func importSongs(_ app: XCUIApplication) {
         category("Playlists", app: app)
@@ -100,9 +101,9 @@ import XCTest
         XCTAssertTrue(actions.exists)
         actions.tap(); app.buttons["Delete saved video"].tap()
         app.buttons["Delete saved video"].tap()
-        XCTAssertTrue(app.staticTexts["No saved videos"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No playlist videos"].waitForExistence(timeout: 5))
         app.terminate(); app.launch(); library(app)
-        XCTAssertTrue(app.staticTexts["No saved videos"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No playlist videos"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["library.clear.Videos"].isEnabled)
     }
     func testLargeTextHeroAndCategoriesRemainReachable() {
@@ -121,7 +122,7 @@ import XCTest
         XCTAssertTrue(app.buttons["library.clear.Videos"].isEnabled)
         app.buttons["library.clear.Videos"].tap()
         app.buttons["Clear local items"].tap()
-        XCTAssertTrue(app.staticTexts["No saved videos"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No playlist videos"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["library.clear.Videos"].isEnabled)
     }
 }

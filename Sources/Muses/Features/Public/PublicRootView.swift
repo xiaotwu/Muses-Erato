@@ -4,7 +4,7 @@ import MusesDomain
 import MusesCatalog
 import MusesQueue
 
-private enum PublicStyle {
+enum PublicStyle {
     static let gold = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(red: 0.82, green: 0.68, blue: 0.44, alpha: 1)
@@ -53,6 +53,7 @@ struct PublicRootView: View {
     @FocusState private var linkFocused: Bool
     @FocusState private var searchFocused: Bool
     @State private var query = ""
+    @State private var musicHome = PublicMusicHomeModel()
     @State private var didRefreshLibraryMetadata = false
 
     var body: some View {
@@ -113,6 +114,7 @@ struct PublicRootView: View {
         .background(PublicKeyboardDismissal { linkFocused = false; searchFocused = false })
         .sheet(isPresented: $showSettings) {
             NavigationStack { settings }
+                .tint(PublicStyle.gold)
                 .fullScreenCover(isPresented: $session.showPlayer) {
                     PublicPlayerView(session: session)
                 }
@@ -157,16 +159,38 @@ struct PublicRootView: View {
                     }
                     .buttonStyle(.plain).accessibilityIdentifier("public.resume")
                 }
-                if !session.history.isEmpty {
+                if !session.libraryHistory.isEmpty {
                     HStack {
                         sectionHeading("Recently played", detail: "")
                         Button("See all") { session.selectedCategory = .history; selection = .library }
                             .font(.subheadline).frame(minHeight: 44)
                     }
-                    videoShelf(session.history.prefix(3))
-                } else if session.tracks.isEmpty {
-                    PublicEmptyState(symbol: "square.stack", title: "No saved videos", detail: "Open a YouTube link or import a playlist to get started.")
+                    videoShelf(session.libraryHistory.prefix(6))
+                } else if session.libraryTracks.isEmpty {
+                    PublicEmptyState(symbol: "square.stack", title: "Your Muses Home", detail: "Open a YouTube link or import a playlist to get started.")
                 }
+                if !session.libraryFavorites.isEmpty {
+                    sectionHeading("Favorites", detail: "")
+                    videoShelf(session.libraryFavorites.prefix(6))
+                }
+                if !session.libraryTracks.isEmpty {
+                    sectionHeading("From your playlists", detail: "")
+                    videoShelf(session.libraryTracks.prefix(6))
+                }
+                if session.signedIn {
+                    if !session.accountPlaylistPages.items.isEmpty {
+                        sectionHeading("Your YouTube playlists", detail: "")
+                        ForEach(session.accountPlaylistPages.items.prefix(6), id: \.rowID) {
+                            PublicCatalogRow(session: session, item: $0, authorized: true)
+                        }
+                    }
+                    if session.accountPlaylistPages.loading { ProgressView("Loading account playlists") }
+                    if let error = session.accountPlaylistPages.error {
+                        PublicNotice(message: error, symbol: "exclamationmark.circle")
+                        Button("Retry account playlists") { Task { await session.loadAccountCollections() } }
+                    }
+                }
+                PublicMusicHomeShelves(session: session, model: musicHome)
                 sectionHeading("Browse", detail: "")
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
                     discoveryTile("Live sessions", symbol: "music.mic", query: "live music sessions")
@@ -183,6 +207,12 @@ struct PublicRootView: View {
             .frame(maxWidth: .infinity)
         }
         .background(PublicStyle.background)
+        .task(id: session.musicHomeScope) { await musicHome.load(session: session) }
+        .task(id: session.signedIn) { if session.signedIn { await session.loadAccountCollections() } }
+        .refreshable {
+            await musicHome.load(session: session, refresh: true)
+            if session.signedIn { await session.loadAccountCollections() }
+        }
         .navigationDestination(item: $session.catalogRoute) { route in PublicCatalogDetail(session: session, route: route) }
         .navigationTitle("Home").navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -420,22 +450,15 @@ struct PublicRootView: View {
         }
     }
 
-    private var playlistSongs: [MusesDomain.Track] {
-        let available = Dictionary(uniqueKeysWithValues: session.tracks.map { ($0.id, $0) })
-        var seen = Set<TrackID>()
-        return session.playlists.flatMap(\.trackIDs).compactMap { id in
-            guard seen.insert(id).inserted else { return nil }
-            return available[id]
-        }
-    }
+    private var playlistSongs: [MusesDomain.Track] { session.libraryTracks }
 
     private var categoryDetail: String {
         switch session.selectedCategory {
-        case .videos: "\(session.tracks.count) saved videos"
+        case .videos: "\(session.libraryTracks.count) videos"
         case .songs: "\(playlistSongs.count) songs"
-        case .favorites: "\(session.favorites.count) saved"
+        case .favorites: "\(session.libraryFavorites.count) favorites"
         case .playlists: "\(session.playlists.count) local playlists"
-        case .history: "\(session.history.count) played"
+        case .history: "\(session.libraryHistory.count) played"
         case .subscriptions: session.signedIn ? "\(session.subscriptions.count) loaded" : "Sign in required"
         default: "Unavailable in this version"
         }
@@ -445,10 +468,10 @@ struct PublicRootView: View {
     private var categoryContent: some View {
         switch session.selectedCategory {
         case .videos:
-            if session.tracks.isEmpty {
-                PublicEmptyState(symbol: "play.rectangle", title: "No saved videos", detail: "Open a YouTube link on Home to start your collection.")
+            if session.libraryTracks.isEmpty {
+                PublicEmptyState(symbol: "play.rectangle", title: "No playlist videos", detail: "Import a playlist or add a video to a playlist.")
             } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.tracks, category: session.selectedCategory)
+                PublicLibraryHeroShelf(session: session, tracks: session.libraryTracks, category: session.selectedCategory)
             }
         case .songs:
             let songs = playlistSongs
@@ -458,18 +481,18 @@ struct PublicRootView: View {
                 PublicLibraryHeroShelf(session: session, tracks: songs, category: .songs)
             }
         case .favorites:
-            if session.favorites.isEmpty {
+            if session.libraryFavorites.isEmpty {
                 PublicEmptyState(symbol: "heart", title: "No favorites yet", detail: "Open a saved video and choose Favorite.")
             } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.favorites, category: .favorites)
+                PublicLibraryHeroShelf(session: session, tracks: session.libraryFavorites, category: .favorites)
             }
         case .playlists:
             PublicPlaylistCollection(session: session)
         case .history:
-            if session.history.isEmpty {
+            if session.libraryHistory.isEmpty {
                 PublicEmptyState(symbol: "clock", title: "No listening history", detail: "Videos appear after the official player confirms playback.")
             } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.history, category: .history)
+                PublicLibraryHeroShelf(session: session, tracks: session.libraryHistory, category: .history)
             }
         case .subscriptions:
             if session.signedIn {

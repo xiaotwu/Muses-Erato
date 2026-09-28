@@ -86,3 +86,43 @@ import XCTest
     }
 
 }
+
+
+extension PublicPlaylistImportUITests {
+    func testClearingPlaylistsEmptiesEveryTrackCollection() {
+        let app = XCUIApplication()
+        app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
+        app.launch()
+        app.tabBars.buttons["Library"].tap()
+        let rail = app.scrollViews["library.categories"]
+        func category(_ name: String) {
+            let button = app.buttons["library.category.\(name)"]
+            for _ in 0..<7 where !button.isHittable { rail.swipeRight(velocity: .slow) }
+            for _ in 0..<9 where !button.isHittable { rail.swipeLeft(velocity: .slow) }
+            button.tap()
+        }
+        category("Playlists")
+        app.buttons["library.add"].tap(); app.buttons["library.importPlaylist"].tap()
+        let owned = app.buttons["playlistImport.account.PLfixture"]
+        XCTAssertTrue(owned.waitForExistence(timeout: 10)); owned.tap()
+        app.buttons["playlistImport.save"].tap()
+        category("Videos")
+        XCTAssertTrue(app.staticTexts["2 videos"].waitForExistence(timeout: 5))
+        category("Playlists")
+        app.buttons["library.clear.Playlists"].tap()
+        app.buttons["Clear local items"].tap()
+        XCTAssertTrue(app.staticTexts["No local playlists"].waitForExistence(timeout: 5))
+        category("Songs")
+        XCTAssertTrue(app.staticTexts["No playlist songs"].exists)
+        category("Videos")
+        XCTAssertTrue(app.staticTexts["No playlist videos"].exists)
+        XCTAssertFalse(app.buttons["library.clear.Videos"].isEnabled)
+        category("Favorites")
+        XCTAssertTrue(app.staticTexts["No favorites yet"].exists)
+        category("History")
+        XCTAssertTrue(app.staticTexts["No listening history"].exists)
+        app.terminate(); app.launch(); app.tabBars.buttons["Library"].tap()
+        XCTAssertTrue(app.staticTexts["No playlist videos"].waitForExistence(timeout: 5))
+    }
+}

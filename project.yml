@@ -66,6 +66,7 @@ targets:
       - path: Sources/Muses/Persistence/LegacyMigration
       - path: Sources/Muses/Features/Public/PublicRootView.swift
       - path: Sources/Muses/Features/Public/PublicSettingsViews.swift
+      - path: Sources/Muses/Features/Public/PublicMusicHome.swift
       - path: Sources/Muses/Features/Public/PublicNotebookModel.swift
       - path: Sources/Muses/Features/Public/PublicNotebookViews.swift
       - path: Sources/Muses/Features/Public/PublicKeyboardDismissal.swift

@@ -42,6 +42,7 @@ import XCTest
         app.buttons["public.open"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 15))
         app.buttons["Close player"].tap()
+        addSavedVideosToLocalPlaylist(app, name: "Notebook collection")
         detail(app)
         reveal(app.buttons["notebook.addNote"], in: app)
         app.buttons["notebook.addNote"].tap()

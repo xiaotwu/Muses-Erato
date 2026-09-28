@@ -14,7 +14,6 @@ struct PublicYouTubeApp: App {
     var body: some Scene {
         WindowGroup {
             PublicPrivacyGate { PublicConsentedAppView() }
-                .preferredColorScheme(.dark)
         }
     }
 }
@@ -252,6 +251,18 @@ final class PublicYouTubeSession {
         return playedIDs.filter { seen.insert($0).inserted }.compactMap { id in tracks.first { $0.id == id } }
     }
     var favorites: [MusesDomain.Track] { tracks.filter(\.liked) }
+    /// Library is a projection of playlist membership, never of the saved metadata cache.
+    var libraryTracks: [MusesDomain.Track] {
+        let byID = Dictionary(uniqueKeysWithValues: tracks.map { ($0.id, $0) })
+        var seen = Set<TrackID>()
+        return playlists.flatMap(\.trackIDs).filter { seen.insert($0).inserted }.compactMap { byID[$0] }
+    }
+    var libraryFavorites: [MusesDomain.Track] { libraryTracks.filter(\.liked) }
+    var libraryHistory: [MusesDomain.Track] {
+        let members = Set(libraryTracks.map(\.id))
+        return history.filter { members.contains($0.id) }
+    }
+
     var apiConfigured: Bool { catalog != nil && (hasPublicAPIKey || signedIn) }
     var oauthConfigured: Bool { oauth != nil }
     var hasNext: Bool { !queue.snapshot.upcoming.isEmpty }
@@ -304,6 +315,30 @@ final class PublicYouTubeSession {
             guard self.signedIn, let catalog = self.catalog else { throw APIError.unauthorized }
             return try await catalog.myPlaylists(pageToken: token)
         }
+    }
+    var musicHomeScope: UInt64 { (accountEpoch << 1) | (signedIn ? 1 : 0) }
+    func readMusicHome(using service: PublicMusicHomeService) async throws -> PublicMusicHomeSnapshot {
+        guard signedIn, !deletingLocalData, let oauth else { throw APIError.unauthorized }
+        let epoch = accountEpoch
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
+        let token = try await oauth.accessToken()
+        try Task.checkCancellation()
+        guard epoch == accountEpoch, signedIn, !deletingLocalData else { throw CancellationError() }
+        let snapshot = try await service.fetch(accessToken: token)
+        try Task.checkCancellation()
+        guard epoch == accountEpoch, signedIn, !deletingLocalData else { throw CancellationError() }
+        return snapshot
+    }
+    func loadAccountCollections() async {
+        guard signedIn, !accountPlaylistPages.loading else { return }
+        if !accountPlaylistPages.loaded || accountPlaylistPages.nextPageToken != nil {
+            repeat {
+                await loadAccountPlaylists()
+                guard signedIn, !Task.isCancelled, accountPlaylistPages.error == nil else { return }
+            } while accountPlaylistPages.nextPageToken != nil
+        }
+        if signedIn && !subscriptionPages.loaded { await loadSubscriptions() }
     }
     func loadAccountChannel() async {
         guard !deletingLocalData else { return }
@@ -1014,13 +1049,12 @@ extension PublicYouTubeSession {
         guard let repository else { failureMessage = "Local library is unavailable."; return }
         do {
             switch category {
-            case .videos: _ = deleteSavedTracks(Set(tracks.map(\.id))); return
+            case .videos: _ = deleteSavedTracks(Set(libraryTracks.map(\.id))); return
             case .songs: _ = deleteSavedTracks(Set(playlists.flatMap(\.trackIDs))); return
             case .favorites:
-                _ = try repository.clearLocalFavorites()
-                for index in tracks.indices { tracks[index].liked = false }
+                for track in libraryFavorites { guard removeFavorite(track.id) else { return } }
             case .playlists: try repository.deleteAll(kind: .localPlaylist); playlists = []
-            case .history: try repository.deleteAll(kind: .history); playedIDs = []
+            case .history: for track in libraryHistory { guard removeHistoryItem(track.id) else { return } }
             default: return
             }
             failureMessage = nil

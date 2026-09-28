@@ -10,7 +10,7 @@ struct PublicLibraryCategories: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
-                    ForEach(LibraryCategory.allCases) { category in
+                    ForEach(LibraryCategory.allCases.filter { $0 != .subscriptions }) { category in
                         Button {
                             session.selectedCategory = category
                         } label: {
@@ -195,17 +195,17 @@ struct PublicLibraryClearButton: View {
     @State private var confirming = false
     private var count: Int {
         switch category {
-        case .videos: session.tracks.count
+        case .videos: session.libraryTracks.count
         case .songs: PublicCollectionScope.songs(tracks: session.tracks, playlists: session.playlists).count
-        case .favorites: session.favorites.count
+        case .favorites: session.libraryFavorites.count
         case .playlists: session.playlists.count
-        case .history: session.history.count
+        case .history: session.libraryHistory.count
         default: 0
         }
     }
     private var scope: String {
         switch category {
-        case .videos: "saved videos, favorites, history, queue, playlist references, notes and bookmarks"
+        case .videos: "only videos in your playlists, and their favorites, history, queue references, notes and bookmarks"
         case .songs: "only saved videos in your local playlists, and their favorites, history, queue entries, notes and bookmarks"
         case .favorites: "favorites only"
         case .playlists: "local playlists only"

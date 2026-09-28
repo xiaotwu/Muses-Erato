@@ -70,7 +70,7 @@ final class PublicSmokeTests: XCTestCase {
         reveal(clear, in: app)
         XCTAssertFalse(clear.isEnabled)
         app.buttons["Close player"].tap()
-        app.tabBars.buttons["Library"].tap()
+        addSavedVideosToLocalPlaylist(app, name: "Queue collection")
         app.buttons["library.presentation.List"].tap()
         let video = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.'")).firstMatch
         reveal(video, in: app); video.tap()
@@ -194,7 +194,7 @@ final class PublicSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["The queue is empty. Add videos from video details or a local playlist."].exists)
         app.terminate()
         app.launch()
-        app.tabBars.buttons["Library"].tap()
+        addSavedVideosToLocalPlaylist(app, name: "Favorites collection")
         selectCategory("Favorites", app: app)
         app.buttons["library.presentation.List"].tap()
         let saved = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
@@ -204,4 +204,25 @@ final class PublicSmokeTests: XCTestCase {
         app.buttons["Remove favorite"].tap()
         XCTAssertTrue(app.buttons["Favorite"].exists)
     }
+}
+
+
+/// Opening a link stores metadata; Library membership requires a playlist.
+@MainActor func addSavedVideosToLocalPlaylist(_ app: XCUIApplication, name: String) {
+    app.tabBars.buttons["Library"].tap()
+    app.buttons["library.add"].tap(); app.buttons["public.createPlaylist"].tap()
+    app.alerts.textFields.firstMatch.typeText(name); app.alerts.buttons["Create"].tap()
+    let rail = app.scrollViews["library.categories"]
+    let playlists = app.buttons["library.category.Playlists"]
+    for _ in 0..<7 where !playlists.isHittable { rail.swipeLeft(velocity: .slow) }
+    playlists.tap()
+    let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS %@", name)).firstMatch
+    XCTAssertTrue(row.waitForExistence(timeout: 5)); row.tap()
+    app.buttons["Add videos"].tap()
+    for video in app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'YouTube video '")).allElementsBoundByIndex where video.isEnabled { video.tap() }
+    app.buttons["Done"].tap()
+    app.navigationBars.buttons.firstMatch.tap()
+    let videos = app.buttons["library.category.Videos"]
+    for _ in 0..<7 where !videos.isHittable { rail.swipeRight(velocity: .slow) }
+    videos.tap()
 }

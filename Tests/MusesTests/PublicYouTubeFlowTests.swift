@@ -449,3 +449,49 @@ extension PublicLocalLibraryFlowTests {
         reopened.detach()
     }
 }
+
+
+extension PublicLocalLibraryFlowTests {
+    func testLibraryIsPlaylistUnionAndClearingPlaylistsHidesCachedVideos() throws {
+        let url = try store()
+        let session = PublicYouTubeSession(storeURL: url)
+        session.open(try VideoID("abcdefghijk"), title: "Playlist member")
+        let member = try XCTUnwrap(session.currentTrack)
+        session.toggleFavorite(member.id)
+        session.open(try VideoID("lmnopqrstuv"), title: "Saved cache only")
+        let orphan = try XCTUnwrap(session.currentTrack)
+        session.toggleFavorite(orphan.id)
+        XCTAssertTrue(session.createPlaylist("First", trackIDs: [member.id]))
+        XCTAssertTrue(session.createPlaylist("Second", trackIDs: [member.id]))
+        XCTAssertEqual(session.libraryTracks.map(\.id), [member.id], "Duplicate membership must not duplicate Library rows")
+        XCTAssertEqual(session.libraryFavorites.map(\.id), [member.id])
+        session.clearLibraryItems(.favorites)
+        XCTAssertTrue(session.libraryFavorites.isEmpty)
+        XCTAssertTrue(session.favorites.contains { $0.id == orphan.id }, "Scoped clear keeps cached nonmembers")
+        session.clearLibraryItems(.playlists)
+        XCTAssertTrue(session.libraryTracks.isEmpty)
+        XCTAssertTrue(session.libraryFavorites.isEmpty)
+        XCTAssertTrue(session.libraryHistory.isEmpty)
+        XCTAssertEqual(session.tracks.count, 2, "Playlist clear hides metadata without silently deleting it")
+        let restored = PublicYouTubeSession(storeURL: url)
+        XCTAssertTrue(restored.libraryTracks.isEmpty)
+        XCTAssertEqual(restored.tracks.count, 2)
+    }
+}
+
+extension PublicYouTubeFlowTests {
+    func testMusicHomeNormalizesRealEndpointsAndRequiresLoginEvidence() {
+        let json: [String: Any] = ["contents": [["musicCarouselShelfRenderer": [
+            "header": ["musicCarouselShelfBasicHeaderRenderer": ["title": ["runs": [["text": "Personal shelf"]]]]],
+            "contents": [["musicTwoRowItemRenderer": ["title": ["runs": [["text": "A song"]]], "navigationEndpoint": ["watchEndpoint": ["videoId": "abcdefghijk"]]]],
+                         ["musicTwoRowItemRenderer": ["title": ["runs": [["text": "A playlist"]]], "navigationEndpoint": ["watchPlaylistEndpoint": ["playlistId": "PLfixture"]]]]]
+        ]]]]
+        let sections = PublicMusicHomeService.parse(json)
+        XCTAssertEqual(sections.map(\.title), ["Personal shelf"])
+        XCTAssertEqual(sections.first?.cards.first?.videoID, "abcdefghijk")
+        XCTAssertEqual(sections.first?.cards.last?.destination.absoluteString, "https://music.youtube.com/playlist?list=PLfixture")
+        XCTAssertNil(sections.first?.cards.last?.videoID)
+        XCTAssertFalse(PublicMusicHomeService.confirmsSignedIn(json), "An OAuth request alone is not proof of account recommendations")
+        XCTAssertTrue(PublicMusicHomeService.confirmsSignedIn(["responseContext": ["serviceTrackingParams": [["params": [["key": "logged_in", "value": "1"]]]]]]))
+    }
+}

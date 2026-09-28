@@ -84,9 +84,8 @@ import XCTest
         app.buttons["Settings"].firstMatch.tap()
         let account = app.buttons["settings.account"]
         XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
-        app.buttons["Account & YouTube collections"].tap()
-        app.buttons["Load my YouTube playlists"].tap()
-        app.buttons.containing(.staticText, identifier: "Fixture public playlist").firstMatch.tap()
+        let playlist = app.cells.containing(.staticText, identifier: "Fixture public playlist").firstMatch
+        XCTAssertTrue(playlist.waitForExistence(timeout: 5)); playlist.tap()
         XCTAssertTrue(app.staticTexts["Fixture playlist description"].waitForExistence(timeout: 5))
         app.buttons["Load playlist videos"].tap()
         app.buttons.containing(.staticText, identifier: "Fixture playlist video 1").firstMatch.tap()
@@ -97,27 +96,52 @@ import XCTest
     func testReadOnlyAccountCollectionsAndProfileSeparation() {
         let app = launch()
         app.buttons["Settings"].firstMatch.tap()
-        let account = app.buttons["settings.account"]
-        XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
+        app.buttons["settings.account"].tap()
+        XCTAssertEqual(app.staticTexts["account.nickname"].firstMatch.label, "Fixture channel")
+        XCTAssertTrue(app.staticTexts["Read-only YouTube access"].exists)
+        app.buttons["Channel details"].tap()
         let channelID = app.staticTexts["account.channelID"]
-        XCTAssertTrue(channelID.waitForExistence(timeout: 5))
         XCTAssertEqual(channelID.label, "UCabcdefghijklmnopqrstuv")
         XCTAssertTrue(app.buttons["Copy Channel ID"].isEnabled)
-        app.buttons["Account & YouTube collections"].tap()
-        XCTAssertTrue(app.staticTexts["YouTube collections are read-only."].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["0 saved videos · 0 local playlists"].exists)
-        // Settings has already loaded the authenticated channel; collections reuses that page.
-        XCTAssertTrue(app.staticTexts["Fixture channel"].waitForExistence(timeout: 5))
-        app.buttons["Load my YouTube playlists"].tap()
+        app.buttons["Channel details"].tap()
         XCTAssertTrue(app.staticTexts["Fixture public playlist"].waitForExistence(timeout: 5))
-        let next = app.buttons["Load next page"].firstMatch
-        reveal(next, in: app); next.tap()
-        XCTAssertTrue(app.staticTexts["Fixture playlist 2"].waitForExistence(timeout: 5))
-        let subscriptions = app.buttons["Load subscriptions"]
-        reveal(subscriptions, in: app); subscriptions.tap()
-        XCTAssertTrue(app.staticTexts["Fixture subscription 1"].waitForExistence(timeout: 5))
-        let more = app.buttons["Load next page"].firstMatch
+        XCTAssertTrue(app.staticTexts["Fixture playlist 2"].exists)
+        let more = app.buttons["account.load.subscriptions"]
         reveal(more, in: app); more.tap()
         XCTAssertTrue(app.staticTexts["Fixture subscription 2"].waitForExistence(timeout: 5))
+    }
+}
+
+
+extension PublicCatalogUITests {
+    func testHomeRecommendationsNicknameAndInlineAccountCollections() { checkHomeAndAccount(largeText: false) }
+    func testLargeTextHomeAndAccountRemainUsable() { checkHomeAndAccount(largeText: true) }
+    private func checkHomeAndAccount(largeText: Bool) {
+        let app = launch()
+        if largeText {
+            app.terminate()
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+            app.launch()
+        }
+        let recommendation = app.buttons["home.music.video:abcdefghijk"]
+        XCTAssertTrue(recommendation.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Your recommendations"].exists)
+        XCTAssertTrue(app.staticTexts["Your YouTube playlists"].exists)
+        app.buttons["Settings"].firstMatch.tap()
+        let nickname = app.staticTexts["account.nickname"].firstMatch
+        XCTAssertTrue(nickname.waitForExistence(timeout: 5))
+        XCTAssertEqual(nickname.label, "Fixture channel")
+        let settingsImage = XCTAttachment(screenshot: app.screenshot())
+        settingsImage.name = "Settings profile and grouped directory"; settingsImage.lifetime = .keepAlways; add(settingsImage)
+        app.buttons["settings.account"].tap()
+        XCTAssertFalse(app.buttons["Account & YouTube collections"].exists)
+        XCTAssertFalse(app.staticTexts["account.channelID"].exists, "Technical identity stays collapsed")
+        let playlist = app.staticTexts["Fixture public playlist"].firstMatch
+        XCTAssertTrue(playlist.waitForExistence(timeout: 5))
+        reveal(playlist, in: app)
+        XCTAssertTrue(playlist.isHittable)
+        XCTAssertTrue(app.staticTexts["Fixture playlist 2"].exists, "All account playlists load automatically")
+        let accountImage = XCTAttachment(screenshot: app.screenshot())
+        accountImage.name = "Account nickname with inline playlists"; accountImage.lifetime = .keepAlways; add(accountImage)
     }
 }
