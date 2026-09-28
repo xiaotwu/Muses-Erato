@@ -29,4 +29,4 @@ Support and changes
 
 Use the Muses-Erato GitHub Issues support link below for questions or complaints. Issues are public: do not post Google account details, passwords, verification codes, tokens or other private information. Describe the app behavior without identifying your account. Use the app's deletion controls and Google Account permissions to manage your data.
 
-The policy will be updated when data practices change. The app records the version you agreed to and requires agreement to a new version before enabling its features.
+The policy will be updated when data practices change. The app records only the policy version you agreed to and requires agreement to a new version before enabling its features. This non-account agreement remains when library data is cleared.
