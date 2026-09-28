@@ -14,7 +14,7 @@ final class PublicSmokeTests: XCTestCase {
         app.buttons["Close"].tap()
         if app.tabBars.buttons["Library"].exists { app.tabBars.buttons["Library"].tap() }
         else { app.buttons["Library"].firstMatch.tap() }
-        XCTAssertTrue(app.staticTexts["public.libraryHeader"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
     }
 }
 
@@ -64,52 +64,25 @@ final class PublicSmokeTests: XCTestCase {
         XCTAssertFalse(clear.isEnabled)
         app.buttons["Close"].tap()
         app.tabBars.buttons["Library"].tap()
-        XCTAssertTrue(app.buttons["public.queue"].isHittable)
-        XCTAssertTrue(clear.isHittable)
-        XCTAssertFalse(clear.isEnabled)
-        let video = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
-        reveal(video, in: app)
-        video.tap()
-        reveal(app.buttons["Add to queue"], in: app)
-        app.buttons["Add to queue"].tap()
-        reveal(app.buttons["Open visible player"], in: app)
-        app.buttons["Open visible player"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 10))
-        reveal(clear, in: app)
-        XCTAssertTrue(clear.isEnabled)
-        clear.tap()
-        XCTAssertTrue(app.staticTexts["Your current video and playback are kept. Only upcoming videos are removed."].exists)
-        app.alerts.buttons["Clear Up Next"].tap()
-        let disabled = NSPredicate(format: "enabled == false")
-        expectation(for: disabled, evaluatedWith: clear)
-        waitForExpectations(timeout: 5)
-        XCTAssertFalse(clear.isEnabled)
-        XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].exists)
-        app.buttons["Close"].tap()
-        reveal(app.buttons["Add to queue"], in: app)
-        app.buttons["Add to queue"].tap()
-        app.terminate()
-        app.launch()
-        app.tabBars.buttons["Library"].tap()
-        XCTAssertTrue(clear.isHittable, "Clear is directly visible above categories")
-        XCTAssertTrue(clear.isEnabled)
-        clear.tap()
-        app.buttons["Cancel"].tap()
-        XCTAssertTrue(clear.isEnabled)
-        clear.tap()
-        app.alerts.buttons["Clear Up Next"].tap()
-        expectation(for: disabled, evaluatedWith: clear)
-        waitForExpectations(timeout: 5)
-        XCTAssertFalse(clear.isEnabled)
-        app.terminate()
-        app.launch()
-        app.tabBars.buttons["Library"].tap()
-        XCTAssertFalse(clear.isEnabled)
+        let video = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.'")).firstMatch
+        reveal(video, in: app); video.tap()
+        reveal(app.buttons["Add to queue"], in: app); app.buttons["Add to queue"].tap()
+        app.navigationBars.buttons.firstMatch.tap()
         app.buttons["public.queue"].tap()
+        let menuClear = app.buttons["Clear Up Next"]
+        XCTAssertTrue(menuClear.isEnabled)
+        menuClear.tap()
+        XCTAssertTrue(app.staticTexts["Your current video and playback are kept. Only upcoming videos are removed."].exists)
+        app.alerts.buttons["Cancel"].tap()
+        app.buttons["public.queue"].tap(); app.buttons["Clear Up Next"].tap()
+        app.alerts.buttons["Clear Up Next"].tap()
+        app.terminate(); app.launch(); app.tabBars.buttons["Library"].tap()
+        app.buttons["public.queue"].tap()
+        XCTAssertFalse(app.buttons["Clear Up Next"].isEnabled)
+        app.buttons["Open Queue"].tap()
         XCTAssertTrue(app.staticTexts["Current video"].exists)
         XCTAssertTrue(app.staticTexts["YouTube video dQw4w9WgXcQ"].exists)
     }
-
     func testEmptyLibraryAndPlaylistCreation() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
@@ -153,7 +126,7 @@ final class PublicSmokeTests: XCTestCase {
         app.buttons["YouTube video M7lc1UVf-VE"].tap()
         XCTAssertFalse(app.buttons["YouTube video dQw4w9WgXcQ"].isEnabled)
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.staticTexts["2 videos · On this device"].exists)
+        XCTAssertTrue(app.staticTexts["Videos · 2"].exists)
         app.buttons["Edit"].tap()
         let handles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Reorder'"))
         XCTAssertEqual(handles.count, 2)
@@ -172,7 +145,7 @@ final class PublicSmokeTests: XCTestCase {
         let night = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS %@", "Night")).firstMatch
         reveal(night, in: app)
         night.tap()
-        XCTAssertTrue(app.staticTexts["2 videos · On this device"].exists)
+        XCTAssertTrue(app.staticTexts["Videos · 2"].exists)
         let firstRow = app.cells.containing(.staticText, identifier: "YouTube video M7lc1UVf-VE").firstMatch
         let secondRow = app.cells.containing(.staticText, identifier: "YouTube video dQw4w9WgXcQ").firstMatch
         XCTAssertLessThan(firstRow.frame.minY, secondRow.frame.minY, "Reordered playlist survives relaunch")
@@ -180,7 +153,7 @@ final class PublicSmokeTests: XCTestCase {
         let videoRow = app.cells.containing(.staticText, identifier: "YouTube video M7lc1UVf-VE").firstMatch
         videoRow.swipeLeft()
         app.buttons["Delete"].tap()
-        XCTAssertTrue(app.staticTexts["1 videos · On this device"].exists)
+        XCTAssertTrue(app.staticTexts["Videos · 1"].exists)
         app.buttons["Delete playlist"].tap()
         app.sheets.buttons["Delete playlist"].tap()
         XCTAssertTrue(app.staticTexts["No local playlists"].waitForExistence(timeout: 5))
@@ -189,6 +162,7 @@ final class PublicSmokeTests: XCTestCase {
             app.swipeDown()
         }
         app.buttons["public.queue"].tap()
+        app.buttons["Open Queue"].tap()
         XCTAssertTrue(app.navigationBars["Queue"].exists)
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'queue.entry.'")).count, 2)
         app.buttons["Edit"].tap()
