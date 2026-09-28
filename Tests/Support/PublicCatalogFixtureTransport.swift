@@ -21,6 +21,16 @@ actor PublicCatalogFixtureTransport: HTTPTransport {
             default:
                 body = second ? #"{"items":[{"id":{"videoId":"lmnopqrstuv"},"snippet":{"title":"Fixture second video"}}]}"# : #"{"nextPageToken":"second","items":[{"id":{"videoId":"abcdefghijk"},"snippet":{"title":"Fixture first video","channelId":"UCabcdefghijklmnopqrstuv"}}]}"#
             }
+        case "videos":
+            if query["part"]?.contains("status") == true {
+                let id = query["id"] ?? ""
+                let status: [String: Bool] = id == "MFKabcdefgh"
+                    ? ["madeForKids": true, "embeddable": true]
+                    : ["madeForKids": false, "embeddable": true]
+                let data = try JSONSerialization.data(withJSONObject: ["items": [["id": id, "snippet": ["title": "Fixture video"], "status": status]]])
+                return HTTPResponse(status: 200, body: data)
+            }
+            body = #"{"items":[]}"#
         case "channels": body = #"{"items":[{"id":"UCabcdefghijklmnopqrstuv","snippet":{"title":"Fixture channel","description":"Fixture channel description"},"contentDetails":{"relatedPlaylists":{"uploads":"UUfixture"}}}]}"#
         case "playlistItems": body = second ? #"{"items":[{"id":"entry2","snippet":{"title":"Fixture playlist video 2","resourceId":{"videoId":"lmnopqrstuv"}}}]}"# : #"{"nextPageToken":"second","items":[{"id":"entry1","snippet":{"title":"Fixture playlist video 1","resourceId":{"videoId":"abcdefghijk"}}}]}"#
         case "playlists": body = second ? #"{"items":[{"id":"PLsecond","snippet":{"title":"Fixture playlist 2"}}]}"# : #"{"nextPageToken":"second","items":[{"id":"PLfixture","snippet":{"title":"Fixture public playlist","description":"Fixture playlist description","channelId":"UCabcdefghijklmnopqrstuv"}}]}"#

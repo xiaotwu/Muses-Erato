@@ -12,7 +12,7 @@ This file records verified evidence, not completion claims. The original checkou
 | P2 | Domain, queue, V1 persistence and lossless legacy archive contracts | Package tests pass; legacy archive 14 tests pass | Archive provenance/retention release gate; full device upgrade acceptance |
 | P3 | Official Data API catalog, OAuth with PKCE, quota ledger and caching | Package tests; physical sign-in/search/account import; correct bundle header 200 and wrong/missing headers 403 | OAuth public production/verification, API allowlist and quota evidence |
 | P4 | Public app shell, compact Library, local collections and visible player route | Integrated phone/tablet and maximum-text flows; owner confirmed current physical UI functions | Layout refinement deferred by owner; manual accessibility and broader device acceptance |
-| P6 | Public source allowlist, signed Release archive and local App Store IPA | 79eff2e archive/export pass static and distribution-signing audits; IPA not uploaded | Privacy/retention, domain/OAuth approval, release packet, TestFlight and App Review |
+| P6 | Public source allowlist, content-status gate, signed Release build; historical App Store IPA | Content-status Release build/static audit pass; 79eff2e IPA predates the gate, not uploaded | Privacy/retention, domain/OAuth approval, release packet, TestFlight and App Review |
 
 ## Current UI delivery (2026-09-27)
 
@@ -82,7 +82,7 @@ The public composition owns one playback adapter, account cache and store projec
 
 Current-source privacy review exposed a Keychain deletion failure skipping private-cache cleanup when refresh returns `invalid_grant`. Commit `00181ba` reuses the all-attempts local-account deletion path. All five OAuth tests passed, including all four token/cache failure combinations, in `/tmp/erato-oauth-revoked-cleanup-tests.log`. The eb36a02 artifact above predates this repair; the 79eff2e artifact below supersedes it. The [current-source privacy evidence](release/current-source-privacy-evidence.md) records the remaining retention, provider and content-status boundaries.
 
-## Current distribution artifact (79eff2e)
+## Historical distribution artifact (79eff2e)
 
 - Source commit `79eff2e` includes the revoked-refresh repair. Signed Release archive `/tmp/erato-release-79eff2e.xcarchive` and local App Store export `/tmp/erato-app-store-79eff2e/Muses.ipa` succeeded. No upload occurred.
 - Archive audit `/tmp/erato-release-79eff2e-audit.log` and actual IPA audit `/tmp/erato-app-store-79eff2e-audit.log` passed the same public-source/single-scene, signature, explicit identity and distribution-profile checks. Build/export logs: `/tmp/erato-release-79eff2e.log`, `/tmp/erato-app-store-79eff2e-export.log`.
@@ -96,3 +96,16 @@ The owner confirmed Google Auth Platform Audience is **Testing** and verificatio
 ## Release decision
 
 **NO GO** for public distribution. The remaining gates above require implementation and evidence. Migration activation and process recovery now have integrated test evidence. Public release still requires the archive provenance/retention lifecycle, embedded-provider privacy declarations, verified policy/consent domain, owner/platform configuration, final signed artifact and physical acceptance. See `docs/release/privacy-inventory.md` and `docs/release/privacy-domain-check.md`; a successful build is not P6 acceptance.
+
+## P6 continuation: content status and selected Pages host
+
+- The existing heartbeat targets this continuation chat; no duplicate automation was created. Integration baseline was clean d411c14; original workspace and macOS reference were not modified.
+- Added fresh `videos.list` audience/embedding lookup before every public session player load. Made For Kids, missing/ambiguous status, missing resource, nonembeddable, and failed requests are blocked with actionable messages and the existing external YouTube link. Pending/old player data cannot grant playback or history after selection/detach. Policy/terms version is now `2026-09-27.2`. Details: [content-status evidence](release/content-status-validation.md).
+- Catalog selected run: 28 tests pass. Hosted local-library/notebook run: 18 tests pass on iPhone 17e / iOS 26.5 Simulator, including delayed responses, blocked states, collection Next and file-backed restart. Live restricted-key probe returned 200 and explicit allowed fields for two known public demonstration videos. This does not establish live MFK playback/privacy controls or physical acceptance.
+- Owner selected `xiaotwu.github.io`. Prepared manual Pages workflow deploying only the approved `docs/site` artifact and a separate passive host-root starter. Anonymous root/project probes returned 404; Pages/root repository reads returned 404. No push, deployment, root repository, verification token or Cloud change occurred. [Deployment plan](release/pages-deployment-plan.md).
+- **79eff2e IPA is now historical:** product/policy changes above require a fresh final archive/export before submission. Current source is not represented by that IPA. Keep earlier hash/logs intact; do not upload it as this candidate.
+- P6 remains **NO GO**: physical validation of this gate, retained-ID account/revocation lifecycle, real legacy/recovery classification/retirement, provider tracking/ATT/App Privacy, owned host/domain proof, OAuth approval, API/quota and final TestFlight/App Review remain open. Layout refinement stays deferred.
+
+- Final content-status Release build and public static audit passed (`/tmp/erato-content-status-release-final.log`, `/tmp/erato-content-status-release-final-audit.log`). The signed Release app was installed and launched on the physical iPhone; functional gate acceptance remains pending. No archive/export/upload was repeated. Two focused final Catalog tests and the IFrame contract executable also passed.
+
+- New MFK restriction/action/disabled-Play UI scenario passed on the phone simulator in `/tmp/erato-content-status-ui-final.log`; policy agreement/relaunch passed in `/tmp/erato-content-status-ui.log`. Two earlier MFK UI runs had an ambiguous global notice selector (Home plus player) and are not counted as passes. The corrected query requires a visible matching label. Code-signature verification passed on the installed Release app; its development entitlement is not App Store distribution evidence.

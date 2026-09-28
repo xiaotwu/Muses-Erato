@@ -45,6 +45,14 @@ struct ContractChecks {
                           originHost: "com.xiaotwu.muses.erato")?.kind == .ended, "ended lost")
         check(gate.accept(ended, isMainFrame: true, originScheme: "https",
                           originHost: "com.xiaotwu.muses.erato") == nil, "duplicate ended accepted")
+        gate.clear()
+        check(gate.isAlive && gate.videoID == nil, "clear must remove video without retiring adapter")
+        check(gate.accept(error, isMainFrame: true, originScheme: "https",
+                          originHost: "com.xiaotwu.muses.erato") == nil, "cleared video accepted")
+        let nextGeneration = gate.load(second)
+        check(nextGeneration > secondGeneration, "same-video reload reused generation")
+        check(gate.accept(error, isMainFrame: true, originScheme: "https",
+                          originHost: "com.xiaotwu.muses.erato") == nil, "old same-video callback accepted")
         gate.teardown()
         check(gate.accept(error, isMainFrame: true, originScheme: "https",
                           originHost: "com.xiaotwu.muses.erato") == nil, "post-teardown accepted")

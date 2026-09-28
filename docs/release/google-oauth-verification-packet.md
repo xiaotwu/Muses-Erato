@@ -40,3 +40,7 @@ Verify this wording against the actual submission build and enabled UI. Do not c
 | Final embedded-provider privacy declarations | Open; separate from OAuth approval |
 
 Record only redacted statuses, build/commit, approved scope set, public URLs and outcome dates. Never commit secrets, personal review credentials or private contact correspondence.
+
+## Follow-up: selected host / content status
+
+The owner selected `xiaotwu.github.io`; see [deployment plan](pages-deployment-plan.md) for required host-root proof and currently unavailable URLs. The new [content-status restriction](content-status-validation.md) must be shown in the final demonstration/build description. The previously exported 79eff2e IPA predates this change; use a fresh final candidate when recording/submitting. Audience remains Testing and no verification evidence is closed by these local preparations.

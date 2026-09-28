@@ -86,18 +86,20 @@ final class PublicYouTubeFlowTests: XCTestCase {
         XCTAssertFalse(reopened.hasNext)
     }
 
-    func testHistoryOnlyRecordsConfirmedCurrentPlaybackAndCanBeCleared() throws {
-        let session = PublicYouTubeSession(storeURL: try store())
+    func testHistoryOnlyRecordsConfirmedCurrentPlaybackAndCanBeCleared() async throws {
+        let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: allowedCatalog())
         let video = try VideoID("dQw4w9WgXcQ")
         session.open(video, title: "First")
         let adapter = YouTubeIFrameAdapter()
         session.attach(adapter)
+        await waitForCheck(adapter: adapter, session: session)
+        XCTAssertTrue(adapter.hasLoadedVideo)
         defer { session.detach() }
         let id = try XCTUnwrap(IFrameVideoID(video.rawValue))
         adapter.onEvent?(.init(videoID: id, generation: 99, kind: .playing))
         XCTAssertTrue(session.history.isEmpty)
-        adapter.onEvent?(.init(videoID: id, generation: 1, kind: .playing))
-        adapter.onEvent?(.init(videoID: id, generation: 1, kind: .playing))
+        adapter.onEvent?(.init(videoID: id, generation: adapter.currentGeneration, kind: .playing))
+        adapter.onEvent?(.init(videoID: id, generation: adapter.currentGeneration, kind: .playing))
         XCTAssertEqual(session.playedIDs.count, 1)
         session.clearHistory()
         XCTAssertTrue(session.history.isEmpty)
@@ -105,19 +107,21 @@ final class PublicYouTubeFlowTests: XCTestCase {
         XCTAssertTrue(try session.repository!.list(PlaybackHistoryEntry.self, kind: .history).isEmpty)
     }
 
-    func testClearUpNextKeepsPlayingCurrentAndPersistsEmptyQueue() throws {
+    func testClearUpNextKeepsPlayingCurrentAndPersistsEmptyQueue() async throws {
         let url = try store()
-        let session = PublicYouTubeSession(storeURL: url)
+        let session = PublicYouTubeSession(storeURL: url, catalogOverride: allowedCatalog())
         session.open(try VideoID("dQw4w9WgXcQ"), title: "Current")
         let track = try XCTUnwrap(session.currentTrack)
         session.enqueueTrack(track)
         session.enqueueTrack(track)
         let adapter = YouTubeIFrameAdapter()
         session.attach(adapter)
+        await waitForCheck(adapter: adapter, session: session)
+        XCTAssertTrue(adapter.hasLoadedVideo)
         defer { session.detach() }
         let id = try XCTUnwrap(IFrameVideoID("dQw4w9WgXcQ"))
-        adapter.onEvent?(.init(videoID: id, generation: 1, kind: .playing))
-        adapter.onEvent?(.init(videoID: id, generation: 1, kind: .time(position: 12, duration: 100)))
+        adapter.onEvent?(.init(videoID: id, generation: adapter.currentGeneration, kind: .playing))
+        adapter.onEvent?(.init(videoID: id, generation: adapter.currentGeneration, kind: .time(position: 12, duration: 100)))
         let before = session.queue.snapshot
         session.clearUpcoming()
         XCTAssertTrue(session.queue.snapshot.upcoming.isEmpty)
@@ -329,5 +333,119 @@ extension PublicLocalLibraryFlowTests {
         let other = try XCTUnwrap(session.currentTrack?.id)
         XCTAssertTrue(session.deleteSavedTrack(other))
         XCTAssertEqual(session.tracks.first?.title, "Fresh API display")
+    }
+}
+
+private struct EmbeddingStatusTransport: HTTPTransport {
+    let status: String
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        let id = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.first { $0.name == "id" }!.value!
+        return HTTPResponse(status: 200, body: Data(("{\"items\":[{\"id\":\"" + id + "\",\"snippet\":{\"title\":\"Video\"},\"status\":" + status + "}]}").utf8))
+    }
+}
+
+@MainActor func allowedCatalog() -> YouTubeDataCatalog {
+    YouTubeDataCatalog(apiKey: "fake", transport: EmbeddingStatusTransport(status: #"{"madeForKids":false,"embeddable":true}"#))
+}
+
+@MainActor func waitForCheck(adapter: YouTubeIFrameAdapter, session: PublicYouTubeSession) async {
+    for _ in 0..<200 {
+        if adapter.hasLoadedVideo || session.state.state == .failed { return }
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+}
+
+extension PublicLocalLibraryFlowTests {
+    func testRestrictedUnknownAndDeniedContentNeverLoadsRemotePlayer() async throws {
+        for status in [#"{"madeForKids":true,"embeddable":true}"#, #"{"embeddable":true}"#, #"{"madeForKids":false,"embeddable":false}"#] {
+            let session = PublicYouTubeSession(storeURL: try store(), catalogOverride:
+                YouTubeDataCatalog(apiKey: "fake", transport: EmbeddingStatusTransport(status: status)))
+            session.open(try VideoID("abcdefghijk"), title: "Restricted")
+            let adapter = YouTubeIFrameAdapter()
+            session.attach(adapter)
+            await waitForCheck(adapter: adapter, session: session)
+            XCTAssertFalse(adapter.hasLoadedVideo)
+            XCTAssertEqual(session.state.state, .failed)
+            XCTAssertTrue(session.state.capabilities.isEmpty)
+            XCTAssertNotNil(session.failureMessage)
+            // Even a forged event cannot record playback while status is blocked.
+            adapter.onEvent?(.init(videoID: IFrameVideoID("abcdefghijk")!, generation: 0, kind: .playing))
+            XCTAssertTrue(session.history.isEmpty)
+            session.detach()
+        }
+    }
+}
+
+private actor DelayedEmbeddingStatusTransport: HTTPTransport {
+    var pending: CheckedContinuation<HTTPResponse, Never>?
+    var started: CheckedContinuation<Void, Never>?
+    func waitUntilStarted() async {
+        if pending != nil { return }
+        await withCheckedContinuation { started = $0 }
+    }
+    func release() {
+        pending?.resume(returning: HTTPResponse(status: 200, body: Data(#"{"items":[{"id":"abcdefghijk","snippet":{"title":"Old"},"status":{"madeForKids":false,"embeddable":true}}]}"#.utf8)))
+        pending = nil
+    }
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        if request.url!.absoluteString.contains("abcdefghijk") {
+            return await withCheckedContinuation {
+                pending = $0
+                started?.resume(); started = nil
+            }
+        }
+        return HTTPResponse(status: 200, body: Data(#"{"items":[{"id":"lmnopqrstuv","snippet":{"title":"New"},"status":{"madeForKids":true,"embeddable":true}}]}"#.utf8))
+    }
+}
+
+extension PublicLocalLibraryFlowTests {
+    func testLateAllowedResponseCannotLoadRestrictedNextOrDetachedPlayer() async throws {
+        for detach in [false, true] {
+            let transport = DelayedEmbeddingStatusTransport()
+            let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: YouTubeDataCatalog(apiKey: "fake", transport: transport))
+            session.open(try VideoID("abcdefghijk"), title: "Old")
+            let adapter = YouTubeIFrameAdapter()
+            session.attach(adapter)
+            await transport.waitUntilStarted()
+            XCTAssertFalse(adapter.hasLoadedVideo)
+            if detach { session.detach() }
+            else {
+                session.open(try VideoID("lmnopqrstuv"), title: "New")
+                await waitForCheck(adapter: adapter, session: session)
+                XCTAssertEqual(session.state.state, .failed)
+            }
+            await transport.release()
+            for _ in 0..<20 { await Task.yield() }
+            XCTAssertFalse(adapter.hasLoadedVideo)
+            XCTAssertTrue(session.history.isEmpty)
+            session.detach()
+        }
+    }
+
+    func testCollectionNextAndRestartMustRecheckContentStatus() async throws {
+        let url = try store()
+        let session = PublicYouTubeSession(storeURL: url, catalogOverride: allowedCatalog())
+        session.open(try VideoID("abcdefghijk"), title: "First")
+        session.open(try VideoID("lmnopqrstuv"), title: "Second")
+        XCTAssertTrue(session.playTracks(session.tracks, startingAt: 0, context: "test"))
+        let adapter = YouTubeIFrameAdapter()
+        session.attach(adapter)
+        await waitForCheck(adapter: adapter, session: session)
+        XCTAssertTrue(adapter.hasLoadedVideo)
+        let initialGeneration = adapter.currentGeneration
+        session.next()
+        XCTAssertFalse(adapter.hasLoadedVideo, "The old player is removed during the next status check")
+        await waitForCheck(adapter: adapter, session: session)
+        XCTAssertTrue(adapter.hasLoadedVideo)
+        XCTAssertGreaterThan(adapter.currentGeneration, initialGeneration)
+        session.detach()
+        let reopened = PublicYouTubeSession(storeURL: url, catalogOverride: YouTubeDataCatalog(apiKey: "fake", transport: EmbeddingStatusTransport(status: #"{"madeForKids":true,"embeddable":true}"#)))
+        XCTAssertFalse(reopened.showPlayer)
+        let afterRestart = YouTubeIFrameAdapter()
+        reopened.attach(afterRestart)
+        await waitForCheck(adapter: afterRestart, session: reopened)
+        XCTAssertFalse(afterRestart.hasLoadedVideo)
+        XCTAssertEqual(reopened.state.state, .failed)
+        reopened.detach()
     }
 }

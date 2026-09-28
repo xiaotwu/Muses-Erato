@@ -15,6 +15,27 @@ import XCTest
         }
         XCTAssertTrue(element.isHittable)
     }
+    func testMadeForKidsShowsRestrictionAndExternalAction() {
+        let app = launch()
+        let link = app.textFields["public.link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 5))
+        link.tap(); link.typeText("MFKabcdefgh")
+        app.buttons["public.open"].tap()
+        XCTAssertTrue(app.staticTexts["Failed"].waitForExistence(timeout: 8))
+        let notices = app.staticTexts.matching(identifier: "Made for Kids videos are not supported by this embedded player. Open this video in YouTube.")
+        XCTAssertTrue(notices.firstMatch.waitForExistence(timeout: 5))
+        // The presenting Home and player both show the shared session failure.
+        // Check the visible label rather than requiring one global match.
+        XCTAssertTrue(notices.allElementsBoundByIndex.contains { $0.isHittable })
+        let external = app.buttons["Open in YouTube"]
+        reveal(external, in: app)
+        XCTAssertTrue(external.isEnabled)
+        XCTAssertFalse(app.buttons["Play"].isEnabled)
+        XCTAssertTrue(app.buttons["Close"].isEnabled)
+        app.buttons["Close"].tap()
+        XCTAssertTrue(app.buttons["public.open"].waitForExistence(timeout: 5))
+    }
+
     func testSearchPaginationIsExplicitAndRetryPreservesRows() {
         let app = launch()
         app.tabBars.buttons["Search"].tap()

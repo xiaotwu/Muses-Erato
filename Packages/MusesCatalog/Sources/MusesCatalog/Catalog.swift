@@ -3,6 +3,10 @@ import CryptoKit
 import MusesNetworking
 
 /// Temporary P3 boundary. P4 maps these values to P2's frozen Domain IDs/pages.
+public enum VideoEmbeddingStatus: String, Sendable, Codable {
+    case permitted, madeForKids, notEmbeddable, unknown
+}
+
 public struct CatalogItem: Sendable, Equatable, Codable {
     public enum Kind: String, Sendable, Codable { case video, playlist, channel }
     public let kind: Kind
@@ -16,8 +20,10 @@ public struct CatalogItem: Sendable, Equatable, Codable {
     public var rowID: String { kind.rawValue + ":" + (listEntryID ?? id) }
     public let fetchedAt: Date?
     public let uploadsPlaylistID: String?
-    public init(kind: Kind, id: String, title: String, channelID: String?, thumbnailURL: URL?, source: String = "youtubeDataAPI", description: String? = nil, uploadsPlaylistID: String? = nil, fetchedAt: Date? = nil, listEntryID: String? = nil) {
+    public let embeddingStatus: VideoEmbeddingStatus?
+    public init(kind: Kind, id: String, title: String, channelID: String?, thumbnailURL: URL?, source: String = "youtubeDataAPI", description: String? = nil, uploadsPlaylistID: String? = nil, fetchedAt: Date? = nil, listEntryID: String? = nil, embeddingStatus: VideoEmbeddingStatus? = nil) {
         self.kind = kind; self.id = id; self.title = title; self.channelID = channelID; self.thumbnailURL = thumbnailURL; self.source = source
+        self.embeddingStatus = embeddingStatus
         self.listEntryID = listEntryID; self.fetchedAt = fetchedAt; self.description = description; self.uploadsPlaylistID = uploadsPlaylistID
     }
 }
@@ -87,6 +93,18 @@ public actor YouTubeDataCatalog {
         guard unique.count <= 50 else { throw APIError.invalidResponse }
         return try await fetch(.videos, parameters: ["part":"snippet", "id":unique.joined(separator: ","), "maxResults":"50"], pageToken: nil, authorized: false)
     }
+    /// A fresh lookup before creating each embedded player. Search/import/cache data
+    /// and missing fields never grant permission to embed.
+    public func videoEmbeddingStatus(_ id: String) async throws -> VideoEmbeddingStatus {
+        guard id.utf8.count == 11, id.utf8.allSatisfy({
+            (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 95
+        }) else { throw APIError.invalidResponse }
+        let page = try await fetch(.videos, parameters: ["part":"id,snippet,status", "id":id],
+                                   pageToken: nil, authorized: false, useCache: false)
+        let matches = page.items.filter { $0.id == id && $0.kind == .video }
+        guard matches.count == 1 else { return .unknown }
+        return matches[0].embeddingStatus ?? .unknown
+    }
     public func playlist(id: String, pageToken: String? = nil, authorized: Bool = false) async throws -> CatalogPage {
         try await fetch(.playlistItems, parameters: ["part":"snippet", "playlistId":id, "maxResults":"50"], pageToken: pageToken, authorized: authorized)
     }
@@ -109,7 +127,7 @@ public actor YouTubeDataCatalog {
         try await fetch(.channels, parameters: ["part":"snippet", "mine":"true"], pageToken: nil, authorized: true)
     }
 
-    private func fetch(_ endpoint: CatalogEndpoint, parameters: [String:String], pageToken: String?, authorized: Bool) async throws -> CatalogPage {
+    private func fetch(_ endpoint: CatalogEndpoint, parameters: [String:String], pageToken: String?, authorized: Bool, useCache: Bool = true) async throws -> CatalogPage {
         let epoch = cacheEpoch
         guard pageToken == nil || (!pageToken!.isEmpty && pageToken!.count < 512) else { throw APIError.invalidResponse }
         // Google accepts OAuth credentials for the same read endpoints. This lets
@@ -126,9 +144,10 @@ public actor YouTubeDataCatalog {
         let accountMarker = token.map { Data(SHA256.hash(data: Data($0.utf8))).base64EncodedString() } ?? ""
         let identity = (token != nil ? "private:\(accountMarker):" : "public:") + endpoint.rawValue + ":" + (parts.percentEncodedQuery ?? "")
         purgeExpiredCache()
-        if let cached = cache[identity], cached.1 > Date() { return cached.0 }
+        if useCache, let cached = cache[identity], cached.1 > Date() { return cached.0 }
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
+        if !useCache { request.cachePolicy = .reloadIgnoringLocalCacheData }
         if token == nil, let clientIdentity {
             request.setValue(clientIdentity.iOSBundleID, forHTTPHeaderField: "X-Ios-Bundle-Identifier")
         }
@@ -144,7 +163,7 @@ public actor YouTubeDataCatalog {
         if endpoint == .playlistItems, items.count != decoded.items.count { throw PlaylistImportError.incomplete }
         let page = CatalogPage(items: items, nextPageToken: decoded.nextPageToken)
         guard epoch == cacheEpoch else { throw CancellationError() }
-        cache[identity] = (page, Date().addingTimeInterval(ttl))
+        if useCache { cache[identity] = (page, Date().addingTimeInterval(ttl)) }
         return page
     }
 }
@@ -162,6 +181,17 @@ private struct DataItem: Decodable {
         struct Related: Decodable { let uploads: String? }
         let relatedPlaylists: Related?
     }
+    struct Status: Decodable {
+        let madeForKids: Bool?
+        let embeddable: Bool?
+        var embeddingStatus: VideoEmbeddingStatus {
+            if madeForKids == true { return .madeForKids }
+            if embeddable == false { return .notEmbeddable }
+            guard madeForKids == false, embeddable == true else { return .unknown }
+            return .permitted
+        }
+    }
+    let status: Status?
     let contentDetails: ContentDetails?
     let id: IDValue?
     let snippet: Snippet?
@@ -182,7 +212,7 @@ private struct DataItem: Decodable {
         case .channels: kind = .channel; rawID = id?.stringValue
         }
         guard let rawID, !rawID.isEmpty else { return nil }
-        return CatalogItem(kind: kind, id: rawID, title: title, channelID: endpoint == .playlistItems ? snippet.videoOwnerChannelId : snippet.channelId, thumbnailURL: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url, description: snippet.description, uploadsPlaylistID: contentDetails?.relatedPlaylists?.uploads, fetchedAt: Date(), listEntryID: endpoint == .playlistItems ? id?.stringValue : nil)
+        return CatalogItem(kind: kind, id: rawID, title: title, channelID: endpoint == .playlistItems ? snippet.videoOwnerChannelId : snippet.channelId, thumbnailURL: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url, description: snippet.description, uploadsPlaylistID: contentDetails?.relatedPlaylists?.uploads, fetchedAt: Date(), listEntryID: endpoint == .playlistItems ? id?.stringValue : nil, embeddingStatus: endpoint == .videos ? (status?.embeddingStatus ?? .unknown) : nil)
     }
 }
 private enum IDValue: Decodable {

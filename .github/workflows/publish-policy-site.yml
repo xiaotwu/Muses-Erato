@@ -1,0 +1,43 @@
+name: Publish reviewed policy site
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: policy-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/configure-pages@v5
+      - name: Validate reviewed static content
+        run: |
+          python3 scripts/build-privacy-site.py --check
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          root = Path('docs/site')
+          allowed = {'index.html', 'privacy.html', 'terms.html', 'styles.css', '.nojekyll'}
+          assert {p.name for p in root.iterdir()} == allowed, 'Unexpected publication files'
+          assert all(p.is_file() and not p.is_symlink() for p in root.iterdir()), 'Only regular publication files are allowed'
+          PYCODE
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

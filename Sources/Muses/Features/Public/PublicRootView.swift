@@ -857,7 +857,9 @@ private struct PublicPlayerView: View {
             }
             HStack(spacing: 10) {
                 Button { session.play() } label: { Label("Play", systemImage: "play.fill") }
+                    .disabled(session.state.capabilities.isEmpty)
                 Button { session.pause() } label: { Label("Pause", systemImage: "pause.fill") }
+                    .disabled(session.state.capabilities.isEmpty)
                 Button { session.next() } label: { Label("Next", systemImage: "forward.end.fill") }
                     .disabled(!session.hasNext)
             }

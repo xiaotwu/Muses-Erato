@@ -109,9 +109,9 @@ import MusesPersistence
             XCTAssertThrowsError(try controller.prepare(entryID: entry, videoID: video, milliseconds: value))
         }
     }
-    func testSessionNotebookReopenAndStaleAdapterIsolation() throws {
+    func testSessionNotebookReopenAndStaleAdapterIsolation() async throws {
         let url = try store()
-        let session = PublicYouTubeSession(storeURL: url)
+        let session = PublicYouTubeSession(storeURL: url, catalogOverride: allowedCatalog())
         session.open(try VideoID("dQw4w9WgXcQ"), title: "Video")
         let track = try XCTUnwrap(session.currentTrack)
         session.notebook.load(track.id)
@@ -128,6 +128,8 @@ import MusesPersistence
         XCTAssertEqual(session.queue.snapshot.intent, .pause)
         let current = YouTubeIFrameAdapter()
         session.attach(current)
+        await waitForCheck(adapter: current, session: session)
+        XCTAssertTrue(current.hasLoadedVideo)
         defer { session.detach() }
         let iframeID = try XCTUnwrap(IFrameVideoID("dQw4w9WgXcQ"))
         callback?(.init(videoID: iframeID, generation: 1, kind: .playing))
@@ -135,13 +137,13 @@ import MusesPersistence
         XCTAssertTrue(session.history.isEmpty)
         callback?(.init(videoID: iframeID, generation: 1, kind: .ready))
         XCTAssertNotNil(session.bookmarkSeeking.request)
-        current.onEvent?(.init(videoID: iframeID, generation: 1, kind: .cued))
+        current.onEvent?(.init(videoID: iframeID, generation: current.currentGeneration, kind: .cued))
         XCTAssertNotNil(session.bookmarkSeeking.request, "Cued must not consume a ready-only seek")
         XCTAssertFalse(session.hasCurrentPlaybackTime)
-        current.onEvent?(.init(videoID: iframeID, generation: 1, kind: .time(position: 4.25, duration: 50)))
+        current.onEvent?(.init(videoID: iframeID, generation: current.currentGeneration, kind: .time(position: 4.25, duration: 50)))
         XCTAssertEqual(session.state.positionMilliseconds, 4250)
         XCTAssertTrue(session.hasCurrentPlaybackTime)
-        current.onEvent?(.init(videoID: iframeID, generation: 1, kind: .time(position: .infinity, duration: 50)))
+        current.onEvent?(.init(videoID: iframeID, generation: current.currentGeneration, kind: .time(position: .infinity, duration: 50)))
         XCTAssertEqual(session.state.positionMilliseconds, 4250)
         session.detach()
         XCTAssertNil(session.bookmarkSeeking.request)

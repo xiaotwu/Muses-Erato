@@ -56,6 +56,12 @@ struct IFrameEventGate {
         return generation
     }
 
+    mutating func clear() {
+        generation &+= 1
+        videoID = nil
+        endedGeneration = nil
+    }
+
     mutating func teardown() {
         generation &+= 1
         videoID = nil

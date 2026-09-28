@@ -84,6 +84,8 @@ final class PublicYouTubeSession {
     var selectedCategory: LibraryCategory = .videos
     private var adapter: YouTubeIFrameAdapter?
     private var adapterGeneration: UInt64 = 0
+    private var contentCheck: Task<Void, Never>?
+    private var contentCheckID = UUID()
     private var catalog: YouTubeDataCatalog?
     private var hasPublicAPIKey = false
     private var oauth: OAuthClient?
@@ -643,6 +645,8 @@ final class PublicYouTubeSession {
     }
 
     func detach() {
+        contentCheck?.cancel()
+        contentCheckID = UUID()
         adapter?.teardown()
         adapter = nil
         adapterGeneration = 0
@@ -655,16 +659,50 @@ final class PublicYouTubeSession {
     }
 
     private func loadCurrent() {
+        contentCheck?.cancel()
+        let checkID = UUID()
+        contentCheckID = checkID
+        adapterGeneration = 0
+        adapter?.clear()
         guard let adapter, case .youtubeVideo(let id) = queue.snapshot.current?.source,
               let iframeID = IFrameVideoID(id.rawValue) else { return }
+        let entryID = queue.snapshot.current?.id
         hasCurrentPlaybackTime = false
         state.positionMilliseconds = 0
-        adapterGeneration = adapter.load(iframeID)
-        if let entry = queue.snapshot.current { bookmarkSeeking.bind(entryID: entry.id, generation: adapterGeneration) }
         state.state = .loading
+        state.failure = nil
         state.generation = queue.snapshot.generation
         state.source = .youtubeVideo(id)
-        state.capabilities = youtubeCapabilities
+        state.capabilities = []
+        failureMessage = nil
+        contentCheck = Task { @MainActor [weak self, weak adapter] in
+            guard let self, let adapter else { return }
+            let status: VideoEmbeddingStatus
+            do {
+                guard let catalog = self.catalog else { throw APIError.unauthorized }
+                status = try await catalog.videoEmbeddingStatus(id.rawValue)
+            } catch { status = .unknown }
+            guard !Task.isCancelled, self.contentCheckID == checkID,
+                  self.adapter === adapter, !self.deletingLocalData,
+                  self.queue.snapshot.current?.id == entryID else { return }
+            guard status == .permitted else {
+                self.bookmarkSeeking.cancel()
+                self.state.state = .failed
+                self.state.failure = status == .notEmbeddable ? .notEmbeddable : .permissionDenied
+                switch status {
+                case .madeForKids:
+                    self.failureMessage = "Made for Kids videos are not supported by this embedded player. Open this video in YouTube."
+                case .notEmbeddable:
+                    self.failureMessage = "This video does not allow embedding. Open it in YouTube."
+                default:
+                    self.failureMessage = "YouTube content status could not be verified. Reopen the player to retry, or open this video in YouTube."
+                }
+                return
+            }
+            self.state.capabilities = self.youtubeCapabilities
+            self.adapterGeneration = adapter.load(iframeID)
+            if let entryID { self.bookmarkSeeking.bind(entryID: entryID, generation: self.adapterGeneration) }
+        }
     }
 
     private var youtubeCapabilities: PlaybackCapabilities {
@@ -677,7 +715,7 @@ final class PublicYouTubeSession {
     }
 
     private func receive(_ event: IFrameEvent) {
-        guard adapter != nil, event.generation == adapterGeneration,
+        guard adapter != nil, adapterGeneration != 0, event.generation == adapterGeneration,
               case .youtubeVideo(let id) = queue.snapshot.current?.source,
               id.rawValue == event.videoID.rawValue else { return }
         switch event.kind {
@@ -731,6 +769,7 @@ final class PublicYouTubeSession {
     }
 
     func play() {
+        guard adapterGeneration != 0 else { return }
         do { try adapter?.play() }
         catch { failureMessage = "Player is still loading. Use its visible controls when ready." }
     }

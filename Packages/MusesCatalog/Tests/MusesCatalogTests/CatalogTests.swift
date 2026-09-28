@@ -84,3 +84,50 @@ final class CatalogTests: XCTestCase {
         XCTAssertEqual(after.calls["playlists"], 2)
     }
 }
+
+private actor ContentStatusHTTP: HTTPTransport {
+    let statuses: [String]
+    var calls = 0
+    init(_ statuses: [String]) { self.statuses = statuses }
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        let query = Dictionary(uniqueKeysWithValues: URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(query["part"], "id,snippet,status")
+        XCTAssertEqual(query["id"], "abcdefghijk")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Ios-Bundle-Identifier"), "com.xiaotwu.muses.erato")
+        let status = statuses[min(calls, statuses.count - 1)]
+        calls += 1
+        return HTTPResponse(status: 200, body: Data(("{\"items\":[{\"id\":\"abcdefghijk\",\"snippet\":{\"title\":\"Video\"},\"status\":" + status + "}]}").utf8))
+    }
+}
+
+extension CatalogTests {
+    func testEmbeddingStatusIsFreshAndNeverInfersMissingFields() async throws {
+        let transport = ContentStatusHTTP([
+            #"{"madeForKids":false,"embeddable":true}"#,
+            #"{"madeForKids":true,"embeddable":true}"#,
+            #"{"embeddable":true}"#,
+            #"{"madeForKids":false}"#,
+            #"{"madeForKids":false,"embeddable":false}"#
+        ])
+        let catalog = YouTubeDataCatalog(apiKey: "fake", transport: transport,
+            clientIdentity: CatalogClientIdentity(iOSBundleID: "com.xiaotwu.muses.erato"))
+        for expected in [VideoEmbeddingStatus.permitted, .madeForKids, .unknown, .unknown, .notEmbeddable] {
+            let actual = try await catalog.videoEmbeddingStatus("abcdefghijk")
+            XCTAssertEqual(actual, expected)
+        }
+        let counts = await catalog.requestCounts()
+        XCTAssertEqual(counts.calls["videos"], 5, "A previous allowed result must not hide a changed status")
+    }
+
+    func testMissingWrongAndDuplicateVideoCannotGrantEmbedding() async throws {
+        for body in [
+            #"{"items":[]}"#,
+            #"{"items":[{"id":"lmnopqrstuv","snippet":{"title":"Other"},"status":{"madeForKids":false,"embeddable":true}}]}"#,
+            #"{"items":[{"id":"abcdefghijk","snippet":{"title":"One"},"status":{"madeForKids":false,"embeddable":true}},{"id":"abcdefghijk","snippet":{"title":"Two"},"status":{"madeForKids":false,"embeddable":true}}]}"#
+        ] {
+            let catalog = YouTubeDataCatalog(apiKey: "fake", transport: FakeHTTP(body: Data(body.utf8)))
+            let status = try await catalog.videoEmbeddingStatus("abcdefghijk")
+            XCTAssertEqual(status, .unknown)
+        }
+    }
+}

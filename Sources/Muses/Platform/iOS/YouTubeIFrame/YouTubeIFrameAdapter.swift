@@ -7,10 +7,13 @@ import WebKit
 @MainActor
 final class YouTubeIFrameAdapter: NSObject {
     let view: WKWebView
+    var hasLoadedVideo: Bool { gate.videoID != nil }
+    var currentGeneration: UInt64 { gate.generation }
     var onEvent: ((IFrameEvent) -> Void)?
 
     private var gate: IFrameEventGate
     private let clientOrigin: URL
+    private var documentID = UUID().uuidString
     private var apiLoaded = false
     private var playerReady = false
     private var pausedByHost = false
@@ -51,11 +54,27 @@ final class YouTubeIFrameAdapter: NSObject {
             send(["action": "switch", "videoID": id.rawValue,
                   "generation": String(generation)])
         } else {
+            documentID = UUID().uuidString
+            let documentJSON = String(data: try! JSONEncoder().encode(documentID), encoding: .utf8)!
             let originJSON = String(data: try! JSONEncoder().encode(clientOrigin.absoluteString), encoding: .utf8)!
-            view.loadHTMLString(Self.html.replacingOccurrences(of: "__ERATO_ORIGIN__", with: originJSON),
+            view.loadHTMLString(Self.html.replacingOccurrences(of: "__ERATO_ORIGIN__", with: originJSON)
+                    .replacingOccurrences(of: "__ERATO_DOCUMENT__", with: documentJSON),
                                 baseURL: clientOrigin)
         }
         return generation
+    }
+
+    /// Remove the previous player before an asynchronous content-status check.
+    /// No remote player resources are loaded until the session grants a new load.
+    func clear() {
+        gate.clear()
+        documentID = UUID().uuidString
+        apiLoaded = false
+        playerReady = false
+        pausedByHost = true
+        send(["action": "destroy"])
+        view.stopLoading()
+        view.loadHTMLString("<!doctype html><html><body style='background:black'></body></html>", baseURL: nil)
     }
 
     /// Call from an explicit user action; the IFrame's own controls also remain available.
@@ -122,6 +141,7 @@ final class YouTubeIFrameAdapter: NSObject {
               message.frameInfo.securityOrigin.host == clientOrigin.host,
               let body = message.body as? [String: Any] else { return }
         if body["kind"] as? String == "apiReady" {
+            guard gate.videoID != nil, body["documentID"] as? String == documentID else { return }
             apiLoaded = true
             if let id = gate.videoID {
                 send(["action": "switch", "videoID": id.rawValue,
@@ -158,7 +178,7 @@ final class YouTubeIFrameAdapter: NSObject {
                        generation:current.generation}, extra || {}));
     }
     function onYouTubeIframeAPIReady() {
-      window.webkit.messageHandlers.eratoPlayer.postMessage({kind:'apiReady'});
+      window.webkit.messageHandlers.eratoPlayer.postMessage({kind:'apiReady', documentID:__ERATO_DOCUMENT__});
     }
     window.eratoCommand = function(command) {
       if (command.action === 'destroy') {

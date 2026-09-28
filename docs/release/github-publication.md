@@ -65,3 +65,7 @@ The proof types, exact-file requirements and ongoing token retention follow [Sea
 - Owner approves terms/publication, establishes hosting/domain proof and checks real URLs. No live status is established here.
 - Owner supplies platform contact fields privately, completes OAuth production/scope approval and verifies corrected API-key restrictions.
 - Complete [embedded-player privacy/ATT evidence](youtube-embed-privacy-review.md), App Privacy declarations and final archived-build checks. A static-site check is not app privacy approval.
+
+## Follow-up: selected host and prepared deployment
+
+The owner selected `xiaotwu.github.io` on 2026-09-27. [The deployment plan](pages-deployment-plan.md) records actual 404 observations, the new manual project Pages workflow and the passive separate host-root homepage. This supersedes the earlier statement that no workflow is prepared; neither artifact has been pushed/deployed and no root verification token exists. Policy and terms now use version `2026-09-27.2` to reflect content-status checks; retention/provider reconciliation remains open before public publication.
