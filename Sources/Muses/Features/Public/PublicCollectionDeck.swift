@@ -35,6 +35,34 @@ struct PublicCollectionDeck: View {
             focus = min(max(0, index + amount), max(0, tracks.count - 1))
         }
     }
+    private func positionedCard(_ item: Int, width: CGFloat, footer: CGFloat) -> some View {
+        let distance = item - index
+        let track = tracks[item]
+        let selected = distance == 0
+        let scale: CGFloat = 1 - CGFloat(abs(distance)) * 0.065
+        let offsetX = CGFloat(distance) * width * 0.39
+        let offsetY = CGFloat(abs(distance)) * 13 + 12
+        let identifier = selected ? "library.play." + track.id.rawValue : "collection.adjacent.\(distance)"
+        return Button {
+            if selected {
+                if let video = track.publicVideoID { session.open(video, title: track.title) }
+            } else { move(distance) }
+        } label: {
+            PublicDeckArtworkCard(track: track, width: width, footer: footer, focused: selected)
+        }.buttonStyle(.plain)
+            .scaleEffect(scale)
+            .rotationEffect(.degrees(Double(distance) * 8))
+            .offset(x: offsetX, y: offsetY)
+            .zIndex(Double(10 - abs(distance)))
+            .accessibilityLabel(track.title + ", " + track.artist)
+            .accessibilityValue("\(index + 1) of \(tracks.count)")
+            .accessibilityHint("Double tap to open the visible video player. Swipe up or down to choose another card.")
+            .accessibilityAdjustableAction { direction in
+                switch direction { case .increment: move(1); case .decrement: move(-1); @unknown default: break }
+            }
+            .accessibilityHidden(!selected)
+            .accessibilityIdentifier(identifier)
+    }
     var body: some View {
         if !tracks.isEmpty {
             VStack(spacing: 4) {
@@ -43,26 +71,7 @@ struct PublicCollectionDeck: View {
                     let footer = footerHeight
                     ZStack(alignment: .top) {
                         ForEach(PublicDeckProjection.visibleIndices(count: tracks.count, focus: index), id: \.self) { item in
-                            let distance = item - index
-                            Button {
-                                if distance == 0 {
-                                    if let video = tracks[item].publicVideoID { session.open(video, title: tracks[item].title) }
-                                } else { move(distance) }
-                            } label: {
-                                PublicDeckArtworkCard(track: tracks[item], width: width, footer: footer, focused: distance == 0)
-                            }.buttonStyle(.plain)
-                                .scaleEffect(1 - CGFloat(abs(distance)) * 0.065)
-                                .rotationEffect(.degrees(Double(distance) * 8))
-                                .offset(x: CGFloat(distance) * width * 0.39, y: CGFloat(abs(distance)) * 13 + 12)
-                                .zIndex(Double(10 - abs(distance)))
-                                .accessibilityLabel(tracks[item].title + ", " + tracks[item].artist)
-                                .accessibilityValue("\(index + 1) of \(tracks.count)")
-                                .accessibilityHint("Double tap to open the visible video player. Swipe up or down to choose another card.")
-                                .accessibilityAdjustableAction { direction in
-                                    switch direction { case .increment: move(1); case .decrement: move(-1); @unknown default: break }
-                                }
-                                .accessibilityHidden(distance != 0)
-                                .accessibilityIdentifier(distance == 0 ? "library.play.\(tracks[item].id.rawValue)" : "collection.adjacent.\(distance)")
+                            positionedCard(item, width: width, footer: footer)
                         }
                     }.frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
                         .contentShape(Rectangle())
