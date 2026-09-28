@@ -39,10 +39,13 @@
 		582B20A1E2DC666B99D57036 /* MusesSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C5F631496ED3835C3DBFFB /* MusesSchema.swift */; };
 		628EB76BCE37CD0AF7C54CD8 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9029839B4A7936B66EF4E34 /* PlaylistItem.swift */; };
 		69EE898D898F89B921474BF9 /* QueueItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F28D830AFA6AA5972A1D3A /* QueueItem.swift */; };
+		6AD86ACD407ABD8164EC2547 /* PublicNativePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B5F8B067C1B37F41FCF926 /* PublicNativePlayerView.swift */; };
 		6DF1AF16D5F08305E9FBC433 /* ListeningEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F596B88D0AE9777DA4F9A60 /* ListeningEvent.swift */; };
 		6E308E0EE68117B2D348D7BF /* PublicYouTubeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38F7FFDCC49F387A86934E8 /* PublicYouTubeApp.swift */; };
 		6EA15B99732E710FF6701337 /* PublicNotebookViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3C6FAADDB87FAA89AE2285 /* PublicNotebookViews.swift */; };
 		7273935935728720CB6E452E /* PublicKeyboardDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */; };
+		7886BA1B3772F0C72EC4460B /* PublicNativePlayerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F7F0FFCBA5BA81C263B130 /* PublicNativePlayerUITests.swift */; };
+		792DDAFB07AF8F51DD71701C /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = DF1CAD464EDA36472F0585ED /* YouTubeKit */; };
 		7F08B637B7E304022B8FF1B1 /* PublicYouTubeFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DFB0F5C9F1F00760EEE27DB /* PublicYouTubeFlowTests.swift */; };
 		80281E2D11EF659D70EBAE2F /* FocusSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB1178ABA9490F6FE5A7AAD /* FocusSession.swift */; };
 		83B838F9077E758A8FD941DD /* MusesPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = 59C04AE7291360CB2F8D1980 /* MusesPersistence */; };
@@ -60,6 +63,7 @@
 		A36AF2110C4B7F6743F85FCF /* YouTubeIFrameDemoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C8A5E00E87E54C6FDC16B7B /* YouTubeIFrameDemoViewController.swift */; };
 		A4C5341876408402442D8E48 /* ListeningContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3649F5A754B687EE1BBFC459 /* ListeningContext.swift */; };
 		A611858239C519E0CC137C70 /* YouTubeCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C9DBDB5A12AB927AFE32CFB /* YouTubeCatalog.swift */; };
+		A74B699F6CAC038C9E3A765E /* ExperimentalNativePlaybackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52DE6F8D82BF43200E48ED1F /* ExperimentalNativePlaybackTests.swift */; };
 		AD9A205C0AE3A66C6E8296F9 /* PublicStoreRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879303FA0599D586397A415B /* PublicStoreRouter.swift */; };
 		AE01D6906CA341578D3A82BF /* RecapRange.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0880CC35824A5B8F0A2D17D /* RecapRange.swift */; };
 		AF34FF0134BC1CB63C4AA935 /* PublicPrivacyPolicy.md in Resources */ = {isa = PBXBuildFile; fileRef = 7916F022FB9E64BE8A7281B5 /* PublicPrivacyPolicy.md */; };
@@ -76,7 +80,9 @@
 		E3E236720BC9E57CC3113F77 /* YouTubePlaylistSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35C372D00C4DFD71B7A0830F /* YouTubePlaylistSync.swift */; };
 		E6FBEB34EBBA0031E688959E /* LegacyMigrationPreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3FC9E082C3F686C08BF0A7 /* LegacyMigrationPreparation.swift */; };
 		E76E5DC874C583525DBF1BBF /* MusesIOSOAuth in Frameworks */ = {isa = PBXBuildFile; productRef = B564C53AE980502BCDEA589C /* MusesIOSOAuth */; };
+		EF3812920EECEBB283014650 /* ExperimentalNativePlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A59535F57589CABB371A50 /* ExperimentalNativePlayback.swift */; };
 		F0BF6BEE1C7B1F9FA77BCB28 /* PublicCredentialDeletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB16787D5F235E6D540866C /* PublicCredentialDeletion.swift */; };
+		F784DC345AB5B907E4E66DF5 /* YouTubeKit-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 45C2E290E9671F877AB84B23 /* YouTubeKit-LICENSE.txt */; };
 		FBC52BCAF7C8A50C9CCAA475 /* UserPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF062E2BC7A5EF95B22E93C3 /* UserPreferences.swift */; };
 /* End PBXBuildFile section */
 
@@ -120,9 +126,11 @@
 		3EB8BAF1CB7C8CBEBAE510B6 /* InboxItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxItem.swift; sourceTree = "<group>"; };
 		3F596B88D0AE9777DA4F9A60 /* ListeningEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningEvent.swift; sourceTree = "<group>"; };
 		450AF4AE3A6C4930373DD319 /* YouTubeIFrameAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeIFrameAdapter.swift; sourceTree = "<group>"; };
+		45C2E290E9671F877AB84B23 /* YouTubeKit-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "YouTubeKit-LICENSE.txt"; sourceTree = "<group>"; };
 		49A19B53F3771910A76EC8FD /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Track.swift; sourceTree = "<group>"; };
 		4F2827B9BE0DF8E134EE4200 /* PublicMusicHome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicMusicHome.swift; sourceTree = "<group>"; };
 		4F76861EC868C4EAACB514F9 /* PublicWebsiteDataDeletion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicWebsiteDataDeletion.swift; sourceTree = "<group>"; };
+		52DE6F8D82BF43200E48ED1F /* ExperimentalNativePlaybackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalNativePlaybackTests.swift; sourceTree = "<group>"; };
 		53C5D2DAAE6B5194B0777348 /* YouTubeImportItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeImportItem.swift; sourceTree = "<group>"; };
 		619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicKeyboardDismissal.swift; sourceTree = "<group>"; };
 		6B726EBFDB43E586F77DAD14 /* PublicServiceLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicServiceLinks.swift; sourceTree = "<group>"; };
@@ -143,7 +151,10 @@
 		8DCBCD2B6481049097FCA6C3 /* PhysicalLegacyFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalLegacyFixture.swift; sourceTree = "<group>"; };
 		8DFB0F5C9F1F00760EEE27DB /* PublicYouTubeFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicYouTubeFlowTests.swift; sourceTree = "<group>"; };
 		91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardDismissalTests.swift; sourceTree = "<group>"; };
+		94F7F0FFCBA5BA81C263B130 /* PublicNativePlayerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicNativePlayerUITests.swift; sourceTree = "<group>"; };
+		97B5F8B067C1B37F41FCF926 /* PublicNativePlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicNativePlayerView.swift; sourceTree = "<group>"; };
 		9822313D18A980A1C93BA3D9 /* MusesNetworking */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesNetworking; path = Packages/MusesNetworking; sourceTree = SOURCE_ROOT; };
+		98A59535F57589CABB371A50 /* ExperimentalNativePlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExperimentalNativePlayback.swift; sourceTree = "<group>"; };
 		9B2B64ABE3D786015914AD9A /* LegacyStoreReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyStoreReader.swift; sourceTree = "<group>"; };
 		9C8A5E00E87E54C6FDC16B7B /* YouTubeIFrameDemoViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeIFrameDemoViewController.swift; sourceTree = "<group>"; };
 		A84A504CC6C82F3DEA644725 /* PublicLibraryHeroUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicLibraryHeroUITests.swift; sourceTree = "<group>"; };
@@ -185,6 +196,7 @@
 				1691B322D0E2E4A124CA3976 /* MusesNetworking in Frameworks */,
 				BF3F53ECA098B096C3072A35 /* MusesCatalog in Frameworks */,
 				E76E5DC874C583525DBF1BBF /* MusesIOSOAuth in Frameworks */,
+				792DDAFB07AF8F51DD71701C /* YouTubeKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -229,6 +241,7 @@
 				0E499433DA82459A29E31C98 /* Assets.xcassets */,
 				14D40A8955CC50AB87F7462D /* PrivacyInfo.xcprivacy */,
 				7916F022FB9E64BE8A7281B5 /* PublicPrivacyPolicy.md */,
+				45C2E290E9671F877AB84B23 /* YouTubeKit-LICENSE.txt */,
 			);
 			name = Resources;
 			path = Sources/Muses/Resources;
@@ -237,12 +250,14 @@
 		435F32758A99587684E1F8A6 /* Public */ = {
 			isa = PBXGroup;
 			children = (
+				98A59535F57589CABB371A50 /* ExperimentalNativePlayback.swift */,
 				80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */,
 				18679B1E3B1EE371E4E2174A /* PublicCollectionDeck.swift */,
 				619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */,
 				DF5A2EC815611F2FABC3A082 /* PublicLibraryHeroViews.swift */,
 				C81F467A3435C6012A35B541 /* PublicMigrationArchiveView.swift */,
 				4F2827B9BE0DF8E134EE4200 /* PublicMusicHome.swift */,
+				97B5F8B067C1B37F41FCF926 /* PublicNativePlayerView.swift */,
 				B718C354ECFF33EF9D4AD63A /* PublicNotebookModel.swift */,
 				8A3C6FAADDB87FAA89AE2285 /* PublicNotebookViews.swift */,
 				13AD923E4A632D1FDA065F07 /* PublicPlaylistImportView.swift */,
@@ -261,6 +276,7 @@
 				91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */,
 				B38C4DF4F5CE19FD4531B992 /* PublicCatalogUITests.swift */,
 				A84A504CC6C82F3DEA644725 /* PublicLibraryHeroUITests.swift */,
+				94F7F0FFCBA5BA81C263B130 /* PublicNativePlayerUITests.swift */,
 				FFEABBB343EF659168B63ED0 /* PublicNotebookUITests.swift */,
 				83B5D24C9B8D526375D04ADF /* PublicPlaylistImportUITests.swift */,
 				E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */,
@@ -307,6 +323,7 @@
 		B457E8459AD93ED6DBECDDE9 /* MusesTests */ = {
 			isa = PBXGroup;
 			children = (
+				52DE6F8D82BF43200E48ED1F /* ExperimentalNativePlaybackTests.swift */,
 				82777FC97A993D3021AAF724 /* PublicNotebookTests.swift */,
 				E182EDE9E903E576F9F79E2A /* PublicPlaylistImportTests.swift */,
 				C10D53A63375B4624892B545 /* PublicUpgradeStartupTests.swift */,
@@ -427,6 +444,7 @@
 				B6C839E616E7ADEBC1EA86EE /* MusesNetworking */,
 				D0A0D1FFD092F222494DCD28 /* MusesCatalog */,
 				B564C53AE980502BCDEA589C /* MusesIOSOAuth */,
+				DF1CAD464EDA36472F0585ED /* YouTubeKit */,
 			);
 			productName = Muses;
 			productReference = DB123987A950FCEDAD853C84 /* Muses.app */;
@@ -474,6 +492,7 @@
 			mainGroup = CC6E309848BEBEDE0759C1BA;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				B373005E88F1D19F29793CB4 /* XCRemoteSwiftPackageReference "YouTubeKit" */,
 				7C8E831B7E2211F2E7F2850C /* XCLocalSwiftPackageReference "Packages/MusesCatalog" */,
 				CF8DA880E9B8D078F52A7393 /* XCLocalSwiftPackageReference "Packages/MusesDomain" */,
 				94C2C1B6705300D7033C28A8 /* XCLocalSwiftPackageReference "Platform/iOS/OAuth" */,
@@ -501,6 +520,7 @@
 				09EF9F7672736CFDB429908A /* Assets.xcassets in Resources */,
 				1C9CDF738ED2298F36CF3394 /* PrivacyInfo.xcprivacy in Resources */,
 				AF34FF0134BC1CB63C4AA935 /* PublicPrivacyPolicy.md in Resources */,
+				F784DC345AB5B907E4E66DF5 /* YouTubeKit-LICENSE.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -515,6 +535,7 @@
 				BDAFE58103567C06652C6E10 /* EQBand.swift in Sources */,
 				12FCB8FBCBFF65678994C6E9 /* EQPreset.swift in Sources */,
 				B02C42D966F4D17DFC301312 /* Enums.swift in Sources */,
+				EF3812920EECEBB283014650 /* ExperimentalNativePlayback.swift in Sources */,
 				80281E2D11EF659D70EBAE2F /* FocusSession.swift in Sources */,
 				BFCC5DEFF60E9F6E9F791302 /* InboxItem.swift in Sources */,
 				A350E43F561D0CC8FB8662CC /* L10n.swift in Sources */,
@@ -537,6 +558,7 @@
 				148812AC812C5E6C11391E93 /* PublicLibraryHeroViews.swift in Sources */,
 				31FDA48D3F5C7D034F58AB50 /* PublicMigrationArchiveView.swift in Sources */,
 				35D7DAD7F0E59B8A38A2C8DC /* PublicMusicHome.swift in Sources */,
+				6AD86ACD407ABD8164EC2547 /* PublicNativePlayerView.swift in Sources */,
 				02245EBDD35D14A0D86817C7 /* PublicNotebookModel.swift in Sources */,
 				6EA15B99732E710FF6701337 /* PublicNotebookViews.swift in Sources */,
 				97E0EFE0A5D4411A258D7856 /* PublicPlaylistImportView.swift in Sources */,
@@ -568,6 +590,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A74B699F6CAC038C9E3A765E /* ExperimentalNativePlaybackTests.swift in Sources */,
 				34A146771707ACDA7A68AE3D /* PhysicalLegacyFixture.swift in Sources */,
 				905E0CE95AC17D221CFF5F64 /* PublicNotebookTests.swift in Sources */,
 				369176A6927E4A79D63A2938 /* PublicPlaylistImportTests.swift in Sources */,
@@ -583,6 +606,7 @@
 				109B68E82A26267834BF227E /* KeyboardDismissalTests.swift in Sources */,
 				8525D550E4F0761D9A32B796 /* PublicCatalogUITests.swift in Sources */,
 				56065018CE92DE951A466C0A /* PublicLibraryHeroUITests.swift in Sources */,
+				7886BA1B3772F0C72EC4460B /* PublicNativePlayerUITests.swift in Sources */,
 				8AF6B5523E2CB9B7F1A26604 /* PublicNotebookUITests.swift in Sources */,
 				8E1E448516F885B3472107A4 /* PublicPlaylistImportUITests.swift in Sources */,
 				48E5884910C6DC3E956F633D /* PublicPrivacyUITests.swift in Sources */,
@@ -643,6 +667,44 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses";
 			};
 			name = Release;
+		};
+		32F75061B59A8A74C1E06AB9 /* Native */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaotwu.muses.erato.publicuitests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Muses;
+			};
+			name = Native;
+		};
+		36963886F7F5F5FADD721F9B /* Native */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Sources/Muses/Resources/Info-Native.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MUSES_GOOGLE_REDIRECT_SCHEME = "muses-erato";
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaotwu.muses.erato;
+				PRODUCT_NAME = Muses;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) MUSES_NATIVE_PLAYBACK";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Native;
 		};
 		384EEEA706E55F4A0F021CE7 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -778,7 +840,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				INFOPLIST_FILE = Sources/Muses/Resources/Info.plist;
+				INFOPLIST_FILE = "Sources/Muses/Resources/Info-Native.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -788,9 +850,71 @@
 				PRODUCT_NAME = Muses;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG MUSES_NATIVE_PLAYBACK";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		BB39C5EA21DC487D12C54053 /* Native */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 6.0;
+				WATCHOS_DEPLOYMENT_TARGET = 11.0;
+			};
+			name = Native;
 		};
 		DEE224F397583962B4B632FC /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -811,6 +935,26 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses";
 			};
 			name = Debug;
+		};
+		E2DFA989B07BBFA9C8DD0AB5 /* Native */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaotwu.muses.erato.tests;
+				PRODUCT_MODULE_NAME = MusesTests;
+				PRODUCT_NAME = MusesTests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses";
+			};
+			name = Native;
 		};
 		E5AA96952A2448654A42B613 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -856,6 +1000,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				3A47C27FC8EC3E45D21FE3BF /* Debug */,
+				36963886F7F5F5FADD721F9B /* Native */,
 				E5AA96952A2448654A42B613 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -865,6 +1010,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EFD0483DEC4837C978234784 /* Debug */,
+				32F75061B59A8A74C1E06AB9 /* Native */,
 				1B97008385C921D8E30F43B3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -874,6 +1020,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DEE224F397583962B4B632FC /* Debug */,
+				E2DFA989B07BBFA9C8DD0AB5 /* Native */,
 				30D8E349C6FBD482AB7C46F2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -883,6 +1030,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				384EEEA706E55F4A0F021CE7 /* Debug */,
+				BB39C5EA21DC487D12C54053 /* Native */,
 				38767D36B33FA46A92F04CC5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -917,6 +1065,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		B373005E88F1D19F29793CB4 /* XCRemoteSwiftPackageReference "YouTubeKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/alexeichhorn/YouTubeKit.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.4.9;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		59C04AE7291360CB2F8D1980 /* MusesPersistence */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -937,6 +1096,11 @@
 		D0A0D1FFD092F222494DCD28 /* MusesCatalog */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = MusesCatalog;
+		};
+		DF1CAD464EDA36472F0585ED /* YouTubeKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B373005E88F1D19F29793CB4 /* XCRemoteSwiftPackageReference "YouTubeKit" */;
+			productName = YouTubeKit;
 		};
 		E849032D7BF5D062EC253E75 /* MusesQueue */ = {
 			isa = XCSwiftPackageProductDependency;

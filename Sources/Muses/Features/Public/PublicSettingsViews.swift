@@ -20,7 +20,7 @@ struct PublicSettingsView: View {
                 NavigationLink { PublicLibraryDataSettingsView(session: session) } label: {
                     Text("Library & data")
                 }
-                NavigationLink { PublicPlaybackSettingsView() } label: {
+                NavigationLink { PublicPlaybackSettingsView(session: session) } label: {
                     Text("Playback")
                 }
                 NavigationLink {
@@ -131,11 +131,12 @@ private struct PublicAccountSettingsView: View {
 private struct PublicLibraryDataSettingsView: View {
     let session: PublicYouTubeSession
     @State private var confirmingDeletion = false
+    @State private var confirmingSync = false
 
     var body: some View {
         List {
             Section {
-                Button { Task { await session.refreshSavedMetadata() } } label: {
+                Button { confirmingSync = true } label: {
                     Label("Refresh details", systemImage: "arrow.clockwise")
                 }.disabled(session.refreshingMetadata)
             }
@@ -150,6 +151,10 @@ private struct PublicLibraryDataSettingsView: View {
         }
         .navigationTitle("Library & data")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Sync details from YouTube?", isPresented: $confirmingSync) {
+            Button("Cancel", role: .cancel) {}
+            Button("Sync details") { Task { await session.refreshSavedMetadata() } }
+        } message: { Text("Updates saved titles and metadata from YouTube. Your local playlist membership and notes remain.") }
         .confirmationDialog("Delete local Muses data?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
             Button("Delete local data", role: .destructive) { Task { await session.deleteLocalData() } }
         } message: {
@@ -159,17 +164,41 @@ private struct PublicLibraryDataSettingsView: View {
 }
 
 private struct PublicPlaybackSettingsView: View {
+    let session: PublicYouTubeSession
+    @State private var confirmingNative = false
     var body: some View {
         List {
             Section {
-                Label("YouTube video player", systemImage: "play.rectangle")
+                if session.nativePlaybackAvailable {
+                    Button {
+                        if !session.nativePlaybackEnabled { confirmingNative = true }
+                    } label: {
+                        HStack {
+                            Label("Background audio", systemImage: "waveform")
+                            Spacer()
+                            Image(systemName: session.nativePlaybackEnabled ? "checkmark.circle.fill" : "circle").accessibilityHidden(true)
+                        }
+                    }.accessibilityValue(session.nativePlaybackEnabled ? "Selected" : "Not selected")
+                        .accessibilityIdentifier("playback.backgroundAudio")
+                }
+                Button { session.setNativePlayback(false) } label: {
+                    HStack {
+                        Label("YouTube video player", systemImage: "play.rectangle")
+                        Spacer()
+                        Image(systemName: session.nativePlaybackEnabled ? "circle" : "checkmark.circle.fill").accessibilityHidden(true)
+                    }
+                }.accessibilityValue(session.nativePlaybackEnabled ? "Not selected" : "Selected")
                 Link(destination: URL(string: "https://music.youtube.com/")!) {
                     Label("YouTube Music website", systemImage: "safari")
                 }
             } footer: {
-                Text("Current in-app playback pauses when the player closes or Muses enters the background.")
+                Text(session.nativePlaybackEnabled ? "Experimental IPA playback supports background audio and lock-screen controls. Some YouTube streams may be unavailable." : "YouTube video playback pauses when the player closes or Muses enters the background.")
             }
         }
+        .alert("Enable experimental background playback?", isPresented: $confirmingNative) {
+            Button("Cancel", role: .cancel) {}
+            Button("Enable background audio") { session.setNativePlayback(true) }
+        } message: { Text("This IPA option resolves playable streams directly from YouTube on this device without sending Google credentials. Availability may change. Website playback remains available.") }
         .navigationTitle("Playback")
         .navigationBarTitleDisplayMode(.inline)
     }

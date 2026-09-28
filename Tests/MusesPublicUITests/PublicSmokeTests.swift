@@ -166,6 +166,9 @@ final class PublicSmokeTests: XCTestCase {
         let videoRow = app.cells.containing(.staticText, identifier: "YouTube video M7lc1UVf-VE").firstMatch
         videoRow.swipeLeft()
         app.buttons["Delete"].tap()
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.staticTexts["Videos · 2"].exists)
+        videoRow.swipeLeft(); app.buttons["Delete"].tap(); app.buttons["Remove entries"].tap()
         XCTAssertTrue(app.staticTexts["Videos · 1"].exists)
         app.buttons["playlist.actions"].tap()
         app.buttons["Delete playlist"].tap()
@@ -188,6 +191,9 @@ final class PublicSmokeTests: XCTestCase {
         XCTAssertEqual(queuedRows.element(boundBy: 0).label, "YouTube video dQw4w9WgXcQ")
         queuedRows.element(boundBy: 0).swipeLeft()
         app.buttons["Delete"].tap()
+        app.buttons["Cancel"].tap()
+        XCTAssertEqual(queuedRows.count, 2)
+        queuedRows.element(boundBy: 0).swipeLeft(); app.buttons["Delete"].tap(); app.buttons["Remove entries"].tap()
         XCTAssertEqual(queuedRows.count, 1)
         app.buttons["Clear Up Next"].tap()
         app.alerts.buttons["Clear Up Next"].tap()
@@ -202,6 +208,7 @@ final class PublicSmokeTests: XCTestCase {
         saved.tap()
         XCTAssertTrue(app.buttons["Remove favorite"].exists)
         app.buttons["Remove favorite"].tap()
+        app.alerts.buttons["Remove favorite"].tap()
         XCTAssertTrue(app.buttons["Favorite"].exists)
     }
 }

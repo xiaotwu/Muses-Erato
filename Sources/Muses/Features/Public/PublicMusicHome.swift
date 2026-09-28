@@ -212,7 +212,7 @@ struct PublicMusicHomeShelves: View {
                         LazyHStack(alignment: .top, spacing: 12) {
                             ForEach(section.cards) { card in
                                 Button {
-                                    if let id = card.videoID, let video = try? VideoID(id) { session.open(video, title: card.title) }
+                                    if let id = card.videoID, let video = try? VideoID(id) { session.open(video, title: card.title, metadataFetchedAt: Date()) }
                                     else { openURL(card.destination) }
                                 } label: {
                                     VStack(alignment: .leading, spacing: 6) {

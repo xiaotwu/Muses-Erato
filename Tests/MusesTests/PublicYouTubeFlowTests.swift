@@ -495,3 +495,29 @@ extension PublicYouTubeFlowTests {
         XCTAssertTrue(PublicMusicHomeService.confirmsSignedIn(["responseContext": ["serviceTrackingParams": [["params": [["key": "logged_in", "value": "1"]]]]]]))
     }
 }
+
+private struct SongMetadataTransport: HTTPTransport {
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        HTTPResponse(status: 200, body: Data(#"{"items":[{"id":"dQw4w9WgXcQ","snippet":{"title":"Never Gonna Give You Up","channelTitle":"Rick Astley - Topic"}}]}"#.utf8))
+    }
+}
+@MainActor final class PublicSongMetadataTests: XCTestCase {
+    func testColdQueueAndHistoryReferencesHydrateSongNameAndCreatorWithoutChangingMembership() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("library.sqlite")
+        let first = PublicYouTubeSession(storeURL: url)
+        first.open(try VideoID("dQw4w9WgXcQ"), title: "Never Gonna Give You Up", metadataFetchedAt: Date(), artist: "Rick Astley")
+        let track = try XCTUnwrap(first.currentTrack)
+        first.createPlaylist("My playlist", trackIDs: [track.id])
+        let catalog = YouTubeDataCatalog(apiKey: "test", transport: SongMetadataTransport())
+        let restored = PublicYouTubeSession(storeURL: url, catalogOverride: catalog)
+        XCTAssertEqual(restored.currentTrack?.displayTitle, "Song details unavailable")
+        await restored.hydrateDisplayMetadata()
+        XCTAssertEqual(restored.currentTrack?.displayTitle, "Never Gonna Give You Up")
+        XCTAssertEqual(restored.currentTrack?.displayArtist, "Rick Astley")
+        XCTAssertEqual(restored.playlists.first?.trackIDs, [track.id])
+        XCTAssertEqual(restored.queue.snapshot.current?.trackID, track.id)
+    }
+}

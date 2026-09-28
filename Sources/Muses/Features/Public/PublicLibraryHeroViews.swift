@@ -109,8 +109,8 @@ struct PublicCollectionRow: View {
                 PublicHeroArtwork(videoID: track.publicVideoID?.rawValue).frame(width: 48, height: 48)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(track.title).font(.body.weight(.medium)).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
-                    Text(track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                    Text(track.displayTitle).font(.body.weight(.medium)).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+                    Text(track.displayArtist).font(.caption).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityIdentifier("library.detail.\(track.id.rawValue)")
@@ -169,6 +169,8 @@ struct PublicTrackActions: View {
 }
 
 extension MusesDomain.Track {
+    var displayTitle: String { metadataOrigin == .placeholder ? "Song details unavailable" : title }
+    var displayArtist: String { artist == "YouTube" ? "Unknown artist" : artist }
     var publicVideoID: VideoID? { if case .youtubeVideo(let id) = source { id } else { nil } }
 }
 
@@ -178,12 +180,8 @@ struct PublicHeroArtwork: View {
         GeometryReader { geometry in
             ZStack {
                 Color(red: 0.18, green: 0.16, blue: 0.12)
-                if let videoID, let url = URL(string: "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg") {
-                    AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: {
-                        Image(systemName: "play.rectangle").font(.largeTitle).foregroundStyle(.white.opacity(0.2))
-                    }.frame(width: geometry.size.width, height: geometry.size.height).clipped()
-                }
-                LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.45), .black.opacity(0.96)], startPoint: .top, endPoint: .bottom)
+                PublicPlayerArtwork(videoID: videoID)
+                LinearGradient(colors: [.black.opacity(0.25), .black.opacity(0.45), .black.opacity(0.65)], startPoint: .top, endPoint: .bottom)
             }
         }.accessibilityHidden(true).allowsHitTesting(false)
     }

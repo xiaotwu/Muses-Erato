@@ -12,7 +12,15 @@ settings:
     GENERATE_INFOPLIST_FILE: NO
     ENABLE_USER_SCRIPT_SANDBOXING: NO
 
+configs:
+  Debug: debug
+  Release: release
+  Native: release
+
 packages:
+  YouTubeKit:
+    url: https://github.com/alexeichhorn/YouTubeKit.git
+    exactVersion: 0.4.9
   MusesDomain:
     path: Packages/MusesDomain
   MusesQueue:
@@ -66,12 +74,16 @@ targets:
       - path: Sources/Muses/Persistence/LegacyMigration
       - path: Sources/Muses/Features/Public/PublicRootView.swift
       - path: Sources/Muses/Features/Public/PublicSettingsViews.swift
+      - path: Sources/Muses/Features/Public/ExperimentalNativePlayback.swift
+      - path: Sources/Muses/Features/Public/PublicNativePlayerView.swift
       - path: Sources/Muses/Features/Public/PublicMusicHome.swift
       - path: Sources/Muses/Features/Public/PublicNotebookModel.swift
       - path: Sources/Muses/Features/Public/PublicNotebookViews.swift
       - path: Sources/Muses/Features/Public/PublicKeyboardDismissal.swift
       - path: Sources/Muses/Features/Public/PublicServiceLinks.swift
       - path: Sources/Muses/Features/Public/PublicPrivacyView.swift
+      - path: Sources/Muses/Resources/YouTubeKit-LICENSE.txt
+        buildPhase: resources
       - path: Sources/Muses/Resources/PublicPrivacyPolicy.md
         buildPhase: resources
       - path: Sources/Muses/Features/Public/PublicCatalogViews.swift
@@ -93,6 +105,7 @@ targets:
       - package: MusesNetworking
       - package: MusesCatalog
       - package: MusesIOSOAuth
+      - package: YouTubeKit
     settings:
       base:
         INFOPLIST_FILE: Sources/Muses/Resources/Info.plist
@@ -102,11 +115,19 @@ targets:
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MUSES_GOOGLE_REDIRECT_SCHEME: muses-erato
+      configs:
+        Debug:
+          INFOPLIST_FILE: Sources/Muses/Resources/Info-Native.plist
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG MUSES_NATIVE_PLAYBACK"
+        Native:
+          INFOPLIST_FILE: Sources/Muses/Resources/Info-Native.plist
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MUSES_NATIVE_PLAYBACK"
 
   MusesTests:
     type: bundle.unit-test
     platform: iOS
     sources:
+      - path: Tests/MusesTests/ExperimentalNativePlaybackTests.swift
       - path: Tests/MusesTests/PublicYouTubeFlowTests.swift
       - path: Tests/MusesTests/PublicNotebookTests.swift
       - path: Tests/MusesTests/PublicPlaylistImportTests.swift

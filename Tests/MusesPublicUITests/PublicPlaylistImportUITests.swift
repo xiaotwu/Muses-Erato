@@ -49,6 +49,10 @@ import XCTest
         XCTAssertFalse(app.buttons["playlistImport.loadAll"].exists)
         XCTAssertEqual(app.textFields["playlistImport.name"].value as? String, "Fixture public playlist")
         save.tap()
+        XCTAssertTrue(app.buttons["Import playlist"].waitForExistence(timeout: 3))
+        app.alerts.buttons["Cancel"].tap()
+        XCTAssertTrue(save.exists, "Cancel must retain the preview without importing")
+        save.tap(); app.alerts.buttons["Import playlist"].tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS 'Fixture public playlist'")).firstMatch.waitForExistence(timeout: 5))
         capture("Library playlist blocks", app)
         let songs = app.buttons["library.category.Songs"]
@@ -107,6 +111,7 @@ extension PublicPlaylistImportUITests {
         let owned = app.buttons["playlistImport.account.PLfixture"]
         XCTAssertTrue(owned.waitForExistence(timeout: 10)); owned.tap()
         app.buttons["playlistImport.save"].tap()
+        app.alerts.buttons["Import playlist"].tap()
         category("Videos")
         XCTAssertTrue(app.staticTexts["2 videos"].waitForExistence(timeout: 5))
         category("Playlists")

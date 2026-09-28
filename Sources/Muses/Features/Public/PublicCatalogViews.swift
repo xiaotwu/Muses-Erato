@@ -13,10 +13,10 @@ struct PublicCatalogRow: View {
         Group {
             if item.kind == .video, let id = try? VideoID(item.id) {
                 HStack(alignment: .top, spacing: 8) {
-                    Button { session.open(id, title: item.title, metadataFetchedAt: item.fetchedAt) } label: { label }
+                    Button { session.open(id, title: item.title, metadataFetchedAt: item.fetchedAt, artist: item.displayCreator) } label: { label }
                         .buttonStyle(.plain)
                     Menu {
-                        Button { session.enqueue(id, title: item.title, metadataFetchedAt: item.fetchedAt) } label: {
+                        Button { session.enqueue(id, title: item.title, metadataFetchedAt: item.fetchedAt, artist: item.displayCreator) } label: {
                             Label("Add to queue", systemImage: "text.badge.plus")
                         }
                         if let channel = item.channelID {
@@ -208,5 +208,13 @@ struct PublicYouTubeAccountCatalog: View {
         .confirmationDialog("Clear local YouTube display and cache?", isPresented: $clearing, titleVisibility: .visible) {
             Button("Clear display and cache", role: .destructive) { Task { await session.clearCatalogDisplay() } }
         } message: { Text("Your YouTube playlists and subscriptions stay unchanged.") }
+    }
+}
+
+// The official API identifies the uploader; Topic channels are artist names supplied by YouTube.
+extension MusesCatalog.CatalogItem {
+    var displayCreator: String {
+        guard let value = channelTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return "Unknown artist" }
+        return value.hasSuffix(" - Topic") ? String(value.dropLast(8)) : value
     }
 }

@@ -13,6 +13,7 @@ public struct CatalogItem: Sendable, Equatable, Codable {
     public let id: String
     public let title: String
     public let channelID: String?
+    public let channelTitle: String?
     public let thumbnailURL: URL?
     public let source: String
     public let description: String?
@@ -21,8 +22,9 @@ public struct CatalogItem: Sendable, Equatable, Codable {
     public let fetchedAt: Date?
     public let uploadsPlaylistID: String?
     public let embeddingStatus: VideoEmbeddingStatus?
-    public init(kind: Kind, id: String, title: String, channelID: String?, thumbnailURL: URL?, source: String = "youtubeDataAPI", description: String? = nil, uploadsPlaylistID: String? = nil, fetchedAt: Date? = nil, listEntryID: String? = nil, embeddingStatus: VideoEmbeddingStatus? = nil) {
+    public init(kind: Kind, id: String, title: String, channelID: String?, thumbnailURL: URL?, source: String = "youtubeDataAPI", description: String? = nil, uploadsPlaylistID: String? = nil, fetchedAt: Date? = nil, listEntryID: String? = nil, embeddingStatus: VideoEmbeddingStatus? = nil, channelTitle: String? = nil) {
         self.kind = kind; self.id = id; self.title = title; self.channelID = channelID; self.thumbnailURL = thumbnailURL; self.source = source
+        self.channelTitle = channelTitle
         self.embeddingStatus = embeddingStatus
         self.listEntryID = listEntryID; self.fetchedAt = fetchedAt; self.description = description; self.uploadsPlaylistID = uploadsPlaylistID
     }
@@ -176,7 +178,7 @@ private struct DataItem: Decodable {
     struct ResourceID: Decodable { let kind: String?; let videoId: String?; let playlistId: String?; let channelId: String? }
     struct Thumb: Decodable { let url: URL? }
     struct Thumbs: Decodable { let `default`: Thumb?; let medium: Thumb? }
-    struct Snippet: Decodable { let title: String?; let description: String?; let videoOwnerChannelId: String?; let channelId: String?; let resourceId: ResourceID?; let thumbnails: Thumbs? }
+    struct Snippet: Decodable { let title: String?; let description: String?; let videoOwnerChannelId: String?; let videoOwnerChannelTitle: String?; let channelId: String?; let channelTitle: String?; let resourceId: ResourceID?; let thumbnails: Thumbs? }
     struct ContentDetails: Decodable {
         struct Related: Decodable { let uploads: String? }
         let relatedPlaylists: Related?
@@ -212,7 +214,7 @@ private struct DataItem: Decodable {
         case .channels: kind = .channel; rawID = id?.stringValue
         }
         guard let rawID, !rawID.isEmpty else { return nil }
-        return CatalogItem(kind: kind, id: rawID, title: title, channelID: endpoint == .playlistItems ? snippet.videoOwnerChannelId : snippet.channelId, thumbnailURL: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url, description: snippet.description, uploadsPlaylistID: contentDetails?.relatedPlaylists?.uploads, fetchedAt: Date(), listEntryID: endpoint == .playlistItems ? id?.stringValue : nil, embeddingStatus: endpoint == .videos ? (status?.embeddingStatus ?? .unknown) : nil)
+        return CatalogItem(kind: kind, id: rawID, title: title, channelID: endpoint == .playlistItems ? snippet.videoOwnerChannelId : snippet.channelId, thumbnailURL: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url, description: snippet.description, uploadsPlaylistID: contentDetails?.relatedPlaylists?.uploads, fetchedAt: Date(), listEntryID: endpoint == .playlistItems ? id?.stringValue : nil, embeddingStatus: endpoint == .videos ? (status?.embeddingStatus ?? .unknown) : nil, channelTitle: endpoint == .playlistItems ? snippet.videoOwnerChannelTitle : snippet.channelTitle)
     }
 }
 private enum IDValue: Decodable {

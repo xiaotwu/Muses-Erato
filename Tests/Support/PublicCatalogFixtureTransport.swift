@@ -1,5 +1,6 @@
 #if DEBUG
 import Foundation
+import AVFoundation
 import MusesNetworking
 
 /// Only activated by an isolated UI test library plus explicit fixture mode.
@@ -22,15 +23,12 @@ actor PublicCatalogFixtureTransport: HTTPTransport {
                 body = second ? #"{"items":[{"id":{"videoId":"lmnopqrstuv"},"snippet":{"title":"Fixture second video"}}]}"# : #"{"nextPageToken":"second","items":[{"id":{"videoId":"abcdefghijk"},"snippet":{"title":"Fixture first video","channelId":"UCabcdefghijklmnopqrstuv"}}]}"#
             }
         case "videos":
-            if query["part"]?.contains("status") == true {
-                let id = query["id"] ?? ""
-                let status: [String: Bool] = id == "MFKabcdefgh"
-                    ? ["madeForKids": true, "embeddable": true]
-                    : ["madeForKids": false, "embeddable": true]
-                let data = try JSONSerialization.data(withJSONObject: ["items": [["id": id, "snippet": ["title": "YouTube video \(id)"], "status": status]]])
-                return HTTPResponse(status: 200, body: data)
+            let ids = (query["id"] ?? "").split(separator: ",").map(String.init)
+            let items = ids.map { id -> [String: Any] in
+                ["id": id, "snippet": ["title": "YouTube video \(id)", "channelTitle": "Fixture artist - Topic"],
+                 "status": ["madeForKids": id == "MFKabcdefgh", "embeddable": true]]
             }
-            body = #"{"items":[]}"#
+            return HTTPResponse(status: 200, body: try JSONSerialization.data(withJSONObject: ["items": items]))
         case "channels": body = #"{"items":[{"id":"UCabcdefghijklmnopqrstuv","snippet":{"title":"Fixture channel","description":"Fixture channel description"},"contentDetails":{"relatedPlaylists":{"uploads":"UUfixture"}}}]}"#
         case "playlistItems": body = second ? #"{"items":[{"id":"entry2","snippet":{"title":"Fixture playlist video 2","resourceId":{"videoId":"lmnopqrstuv"}}}]}"# : #"{"nextPageToken":"second","items":[{"id":"entry1","snippet":{"title":"Fixture playlist video 1","resourceId":{"videoId":"abcdefghijk"}}}]}"#
         case "playlists": body = second ? #"{"items":[{"id":"PLsecond","snippet":{"title":"Fixture playlist 2"}}]}"# : #"{"nextPageToken":"second","items":[{"id":"PLfixture","snippet":{"title":"Fixture public playlist","description":"Fixture playlist description","channelId":"UCabcdefghijklmnopqrstuv"}}]}"#
@@ -41,6 +39,19 @@ actor PublicCatalogFixtureTransport: HTTPTransport {
             body = body.replacingOccurrences(of: "\"nextPageToken\":\"second\",", with: "")
         }
         return HTTPResponse(status: 200, body: Data(body.utf8))
+    }
+}
+/// Generated silence exercises AVPlayer without streaming media or authenticating.
+@MainActor enum PublicFixtureAudio {
+    static func makeURL() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("muses-ui-silence.wav")
+        if FileManager.default.fileExists(atPath: url.path) { return url }
+        let format = AVAudioFormat(standardFormatWithSampleRate: 16000, channels: 1)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 16000 * 30)!
+        buffer.frameLength = buffer.frameCapacity
+        if let samples = buffer.floatChannelData?[0] { samples.initialize(repeating: 0, count: Int(buffer.frameLength)) }
+        do { let file = try AVAudioFile(forWriting: url, settings: format.settings); try file.write(from: buffer) }
+        return url
     }
 }
 #endif

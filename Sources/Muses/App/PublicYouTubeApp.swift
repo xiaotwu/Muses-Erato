@@ -8,7 +8,8 @@ import MusesCatalog
 import MusesNetworking
 import MusesIOSOAuth
 
-/// The App Store composition root. The inherited services are deliberately not constructed here.
+/// Shared composition root: Release uses the visible player; Debug/Native can opt into native audio.
+/// The inherited macOS services are not constructed here.
 @MainActor
 struct PublicYouTubeApp: App {
     var body: some Scene {
@@ -81,6 +82,22 @@ final class PublicYouTubeSession {
     private(set) var accountCleanupPending = false
     var subscriptions: [MusesCatalog.CatalogItem] { subscriptionPages.items }
     var showPlayer = false
+    var nativePlaybackEnabled = false
+    @ObservationIgnored lazy var nativePlayback: ExperimentalNativePlayback = {
+        #if DEBUG
+        let fixture = ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] != nil && ProcessInfo.processInfo.environment["MUSES_UI_TEST_CATALOG"] == "fixtures"
+        let engine = ExperimentalNativePlayback { videoID in
+            if fixture { return try PublicFixtureAudio.makeURL() }
+            return try await ExperimentalNativePlayback.resolveLocalStream(videoID)
+        }
+        #else
+        let engine = ExperimentalNativePlayback()
+        #endif
+        engine.onEvent = { [weak self] event in self?.receiveNative(event) }
+        engine.onNext = { [weak self] in self?.next() }
+        engine.onPrevious = { [weak self] in self?.previous() }
+        return engine
+    }()
     var selectedCategory: LibraryCategory = .videos
     private var adapter: YouTubeIFrameAdapter?
     private var adapterGeneration: UInt64 = 0
@@ -120,6 +137,7 @@ final class PublicYouTubeSession {
         legacyURL = storeURL?.deletingLastPathComponent().appending(path: "muses-youtube-native.sqlite") ?? musesDefaultStoreURL()
         destinationURL = storeURL ?? legacyURL.deletingLastPathComponent().appending(path: "muses-public-v1.sqlite")
         self.defaults = defaults
+        nativePlaybackEnabled = ExperimentalNativePlayback.available && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil && ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] == nil && storeURL == nil && defaults.bool(forKey: "experimentalNativePlayback")
         defaultsDomain = domainName
         self.deleteCredentials = deleteCredentials
         self.deleteWebsiteData = deleteWebsiteData
@@ -196,7 +214,6 @@ final class PublicYouTubeSession {
                         _ = try await auth.accessToken()
                         guard self.accountEpoch == epoch else { return }
                         self.signedIn = true
-                        await self.refreshPlaylistNames(force: true)
                     } catch {
                         guard self.accountEpoch == epoch else { return }
                         let pending = (try? await auth.hasPendingCleanup()) ?? true
@@ -266,7 +283,7 @@ final class PublicYouTubeSession {
     var apiConfigured: Bool { catalog != nil && (hasPublicAPIKey || signedIn) }
     var oauthConfigured: Bool { oauth != nil }
     var hasNext: Bool { !queue.snapshot.upcoming.isEmpty }
-    var isPlayerVisible: Bool { adapter != nil }
+    var isPlayerVisible: Bool { adapter != nil || (nativePlaybackEnabled && showPlayer) }
 
     func search(_ input: String) async {
         guard !deletingLocalData else { return }
@@ -370,6 +387,33 @@ final class PublicYouTubeSession {
         }
     }
 
+    private var hydratingMetadata = false
+    private var lastHydrationAttempt: Date?
+    private var lastHydrationEpoch: UInt64?
+    func hydrateDisplayMetadata() async {
+        guard !deletingLocalData, !hydratingMetadata, let catalog, apiConfigured else { return }
+        if lastHydrationEpoch == accountEpoch, let lastHydrationAttempt, Date().timeIntervalSince(lastHydrationAttempt) < 60 { return }
+        let ids = tracks.filter { $0.metadataOrigin == .placeholder || $0.artist == "YouTube" }.compactMap { $0.publicVideoID?.rawValue }
+        guard !ids.isEmpty else { return }
+        hydratingMetadata = true; lastHydrationAttempt = Date(); lastHydrationEpoch = accountEpoch; activeNetworkCalls += 1
+        defer { hydratingMetadata = false; activeNetworkCalls -= 1 }
+        let epoch = accountEpoch
+        do {
+            for start in stride(from: 0, to: ids.count, by: 50) {
+                let page = try await catalog.videos(Array(ids[start..<min(start + 50, ids.count)]))
+                guard epoch == accountEpoch, !deletingLocalData, !Task.isCancelled else { return }
+                for index in tracks.indices {
+                    guard let video = tracks[index].publicVideoID, let item = page.items.first(where: { $0.id == video.rawValue }) else { continue }
+                    if tracks[index].metadataOrigin != .user {
+                        tracks[index].title = item.title; tracks[index].metadataOrigin = .youtubeDataAPI; tracks[index].metadataFetchedAt = page.fetchedAt
+                    }
+                    tracks[index].artist = item.displayCreator
+                }
+            }
+            if nativePlaybackEnabled, let track = currentTrack { nativePlayback.updateDisplayInfo(title: track.displayTitle, artist: track.displayArtist) }
+        } catch { failureMessage = "Song details could not load. Check your connection or use Refresh details in Settings. " + error.localizedDescription }
+    }
+
     private(set) var refreshingMetadata = false
     func refreshSavedMetadata() async {
         guard !deletingLocalData else { return }
@@ -394,12 +438,13 @@ final class PublicYouTubeSession {
                     guard case .youtubeVideo(let id) = tracks[index].source, batch.contains(id.rawValue), tracks[index].metadataOrigin != .user else { continue }
                     var track = tracks[index]
                     if let item = page.items.first(where: { $0.id == id.rawValue }) {
-                        track.title = item.title; track.artist = "YouTube"
+                        track.title = item.title; track.artist = item.displayCreator
                         track.metadataOrigin = .youtubeDataAPI; track.metadataFetchedAt = page.fetchedAt
                     } else { track.expireYouTubeMetadata(force: true) }
                     try repository?.saveTrack(track); tracks[index] = track
                 }
             }
+            if nativePlaybackEnabled, let track = currentTrack { nativePlayback.updateDisplayInfo(title: track.displayTitle, artist: track.displayArtist) }
             failureMessage = nil
         } catch { failureMessage = error.localizedDescription }
     }
@@ -432,7 +477,6 @@ final class PublicYouTubeSession {
             accountEpoch &+= 1
             resetAccountCatalog()
             signedIn = true
-            await refreshPlaylistNames(force: true)
             await loadSubscriptions()
         } catch {
             if epoch == accountEpoch { failureMessage = "Sign in failed: \(error.localizedDescription)" }
@@ -516,14 +560,16 @@ final class PublicYouTubeSession {
             return
         }
         var fetchedAt: Date?
+        var artist: String?
         var title = "YouTube video \(video.rawValue)"
         if let catalog, let result = try? await catalog.videos([video.rawValue]),
            let item = result.items.first(where: { $0.id == video.rawValue }) {
             title = item.title
+            artist = item.displayCreator
             fetchedAt = item.fetchedAt
         }
         guard !deletingLocalData, generation == linkGeneration, epoch == accountEpoch, !Task.isCancelled else { return }
-        open(video, title: title, metadataFetchedAt: fetchedAt)
+        open(video, title: title, metadataFetchedAt: fetchedAt, artist: artist)
     }
 
     nonisolated static func videoID(from input: String) -> VideoID? {
@@ -532,16 +578,22 @@ final class PublicYouTubeSession {
     }
 
     @discardableResult
-    func open(_ id: VideoID, title: String, metadataFetchedAt: Date? = nil) -> Bool {
+    func open(_ id: VideoID, title: String, metadataFetchedAt: Date? = nil, artist: String? = nil) -> Bool {
         guard repository != nil else { return false }
         bookmarkSeeking.cancel()
         bookmarkCueMilliseconds = nil
         do {
             let track: MusesDomain.Track
-            if let existing = tracks.first(where: { $0.source == .youtubeVideo(id) }) { track = existing }
+            if let index = tracks.firstIndex(where: { $0.source == .youtubeVideo(id) }) {
+                if let metadataFetchedAt, tracks[index].metadataOrigin != .user {
+                    tracks[index].title = title; tracks[index].metadataOrigin = .youtubeDataAPI; tracks[index].metadataFetchedAt = metadataFetchedAt
+                }
+                if let artist { tracks[index].artist = artist }
+                track = tracks[index]
+            }
             else {
                 track = try MusesDomain.Track(id: TrackID(UUID().uuidString), title: title,
-                    artist: "YouTube", source: .youtubeVideo(id),
+                    artist: artist ?? "YouTube", source: .youtubeVideo(id),
                     provenance: Provenance(provider: ProviderID("youtube"), originalID: id.rawValue),
                     metadataOrigin: metadataFetchedAt == nil ? (title == "YouTube video \(id.rawValue)" ? .placeholder : .user) : .youtubeDataAPI, metadataFetchedAt: metadataFetchedAt)
                 try repository?.saveTrack(track)
@@ -552,7 +604,7 @@ final class PublicYouTubeSession {
                 generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
             failureMessage = nil
             showPlayer = true
-            if adapter != nil { loadCurrent() }
+            if nativePlaybackEnabled || adapter != nil { loadCurrent() }
             return true
         } catch { failureMessage = error.localizedDescription; return false }
     }
@@ -564,6 +616,10 @@ final class PublicYouTubeSession {
             return
         }
         guard open(videoID, title: track.title), let entry = queue.snapshot.current else { return }
+        if nativePlaybackEnabled {
+            bookmarkCueMilliseconds = bookmark.timestampMilliseconds
+            loadCurrent(); return
+        }
         do {
             try bookmarkSeeking.prepare(entryID: entry.id, videoID: videoID, milliseconds: bookmark.timestampMilliseconds)
             bookmarkCueMilliseconds = bookmark.timestampMilliseconds
@@ -571,14 +627,20 @@ final class PublicYouTubeSession {
         } catch { failureMessage = error.localizedDescription }
     }
 
-    func enqueue(_ id: VideoID, title: String, metadataFetchedAt: Date? = nil) {
+    func enqueue(_ id: VideoID, title: String, metadataFetchedAt: Date? = nil, artist: String? = nil) {
         guard repository != nil else { return }
         do {
             let track: MusesDomain.Track
-            if let existing = tracks.first(where: { $0.source == .youtubeVideo(id) }) { track = existing }
+            if let index = tracks.firstIndex(where: { $0.source == .youtubeVideo(id) }) {
+                if let metadataFetchedAt, tracks[index].metadataOrigin != .user {
+                    tracks[index].title = title; tracks[index].metadataOrigin = .youtubeDataAPI; tracks[index].metadataFetchedAt = metadataFetchedAt
+                }
+                if let artist { tracks[index].artist = artist }
+                track = tracks[index]
+            }
             else {
                 track = try MusesDomain.Track(id: TrackID(UUID().uuidString), title: title,
-                    artist: "YouTube", source: .youtubeVideo(id),
+                    artist: artist ?? "YouTube", source: .youtubeVideo(id),
                     provenance: Provenance(provider: ProviderID("youtube"), originalID: id.rawValue),
                     metadataOrigin: metadataFetchedAt == nil ? (title == "YouTube video \(id.rawValue)" ? .placeholder : .user) : .youtubeDataAPI, metadataFetchedAt: metadataFetchedAt)
                 try repository?.saveTrack(track)
@@ -648,6 +710,7 @@ final class PublicYouTubeSession {
             try change(&proposed)
             try repository.saveQueue(proposed.snapshot)
             queue = proposed
+            if nativePlaybackEnabled { nativePlayback.updateQueueAvailability(hasNext: hasNext) }
             failureMessage = nil
             return true
         } catch { failureMessage = "Could not save queue: \(error.localizedDescription)"; return false }
@@ -690,7 +753,7 @@ final class PublicYouTubeSession {
         state = PlaybackSnapshot(state: .loading, source: selectedTrack.source,
             generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
         showPlayer = true
-        if adapter != nil { loadCurrent() }
+        if nativePlaybackEnabled || adapter != nil { loadCurrent() }
         return true
     }
 
@@ -707,7 +770,7 @@ final class PublicYouTubeSession {
         state = PlaybackSnapshot(state: .loading, source: collection[index].source,
             generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
         showPlayer = true
-        if adapter != nil { loadCurrent() }
+        if nativePlaybackEnabled || adapter != nil { loadCurrent() }
         return true
     }
 
@@ -719,6 +782,7 @@ final class PublicYouTubeSession {
     }
 
     func attach(_ player: YouTubeIFrameAdapter) {
+        nativePlayback.stop()
         adapter?.teardown()
         adapter = player
         player.onEvent = { [weak self, weak player] event in
@@ -743,6 +807,16 @@ final class PublicYouTubeSession {
     }
 
     private func loadCurrent() {
+        if nativePlaybackEnabled {
+            contentCheck?.cancel(); contentCheckID = UUID()
+            adapter?.teardown(); adapter = nil; adapterGeneration = 0
+            guard let track = currentTrack, case .youtubeVideo(let id) = track.source else { nativePlayback.stop(); return }
+            state = PlaybackSnapshot(state: .loading, source: track.source, generation: queue.snapshot.generation, intent: .play, capabilities: [.seek, .queueByID, .backgroundAudio, .systemRemote])
+            hasCurrentPlaybackTime = false; failureMessage = nil
+            nativePlayback.updateQueueAvailability(hasNext: hasNext)
+            nativePlayback.load(videoID: id.rawValue, title: track.displayTitle, artist: track.displayArtist, start: (bookmarkCueMilliseconds ?? 0) / 1000, autoplay: bookmarkCueMilliseconds == nil)
+            return
+        }
         contentCheck?.cancel()
         let checkID = UUID()
         contentCheckID = checkID
@@ -853,11 +927,14 @@ final class PublicYouTubeSession {
     }
 
     func play() {
+        if nativePlaybackEnabled {
+            if nativePlayback.loaded || state.state == .loading || state.state == .buffering || state.state == .paused { nativePlayback.play() } else { loadCurrent() }; return
+        }
         guard adapterGeneration != 0 else { return }
         do { try adapter?.play() }
         catch { failureMessage = "Player is still loading. Use its visible controls when ready." }
     }
-    func pause() { adapter?.pause(); queue.setIntent(.pause); try? persistQueue() }
+    func pause() { if nativePlaybackEnabled { nativePlayback.pause() }; adapter?.pause(); queue.setIntent(.pause); try? persistQueue() }
     func next() {
         guard hasNext else { pause(); return }
         guard editQueue({ _ = try $0.next(); $0.setIntent(.pause) }) else { return }
@@ -868,9 +945,51 @@ final class PublicYouTubeSession {
             generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
         loadCurrent()
     }
+
+    var nativePlaybackAvailable: Bool { ExperimentalNativePlayback.available }
+    func setNativePlayback(_ enabled: Bool) {
+        guard !enabled || nativePlaybackAvailable else { return }
+        nativePlayback.stop(); detach()
+        nativePlaybackEnabled = enabled
+        defaults.set(enabled, forKey: "experimentalNativePlayback")
+        if enabled, currentTrack != nil { loadCurrent() }
+    }
+    func closePlayerPresentation() { if !nativePlaybackEnabled { detach() } }
+    func seekPlayback(seconds: Double) {
+        if nativePlaybackEnabled { nativePlayback.seek(seconds) }
+        else { do { try adapter?.seek(to: seconds) } catch { failureMessage = "Player is not ready to seek." } }
+    }
+    func previous() {
+        guard nativePlaybackEnabled else { return }
+        if state.positionMilliseconds > 3000 || queue.snapshot.history.isEmpty { nativePlayback.seek(0); return }
+        guard editQueue({ _ = try $0.previous() }) else { return }
+        recordedEntryID = nil; bookmarkCueMilliseconds = nil; loadCurrent()
+    }
+    private func receiveNative(_ event: ExperimentalNativePlayback.Event) {
+        guard nativePlaybackEnabled else { return }
+        switch event {
+        case .playing:
+            state.state = .playing; queue.setIntent(.play)
+            if let current = queue.snapshot.current, recordedEntryID != current.id {
+                let entry = PlaybackHistoryEntry(id: UUID(), trackID: current.trackID, date: Date())
+                do { try repository?.put(entry, kind: .history, id: entry.id.uuidString); playedIDs.insert(current.trackID, at: 0); recordedEntryID = current.id }
+                catch { failureMessage = "Playback started, but history could not be saved." }
+            }
+        case .paused: state.state = .paused; queue.setIntent(.pause); try? persistQueue()
+        case .buffering: state.state = .buffering
+        case .time(let position, let duration):
+            hasCurrentPlaybackTime = true
+            state.positionMilliseconds = Int(position * 1000); state.durationMilliseconds = Int(duration * 1000)
+            queue.checkpoint(positionMilliseconds: state.positionMilliseconds)
+        case .ended: state.state = .ended; next()
+        case .failed(let message): state.state = .failed; state.failure = .unavailable; hasCurrentPlaybackTime = false; failureMessage = message
+        }
+    }
+
     private func persistQueue() throws { try repository?.saveQueue(queue.snapshot) }
 
     func deleteLocalData() async {
+        nativePlayback.stop()
         if deletingLocalData { await finishRecordedDeletion(); return }
         detach()
         accountEpoch &+= 1
@@ -894,6 +1013,7 @@ final class PublicYouTubeSession {
     }
 
     private func clearVisibleLibrary() {
+        nativePlayback.stop()
         notebook.reset()
         bookmarkSeeking.cancel()
         bookmarkCueMilliseconds = nil
@@ -1013,6 +1133,7 @@ extension PublicYouTubeSession {
                 if case .youtubeVideo(let video) = track.source { return video.rawValue == item.id }; return false
             } }
             if wasCurrent {
+                nativePlayback.stop()
                 bookmarkSeeking.cancel(); bookmarkCueMilliseconds = nil; hasCurrentPlaybackTime = false
                 adapter?.teardown(); adapter = nil; adapterGeneration = 0
                 recordedEntryID = nil; showPlayer = false; state = PlaybackSnapshot()
@@ -1081,7 +1202,7 @@ extension PublicYouTubeSession {
                   case .youtubeVideo(let video) = tracks[index].source,
                   let item = draft.items.first(where: { $0.id == video.rawValue }) else { continue }
             tracks[index].title = item.title
-            tracks[index].artist = "YouTube"
+            tracks[index].artist = item.displayCreator
             tracks[index].metadataOrigin = .youtubeDataAPI
             tracks[index].metadataFetchedAt = item.fetchedAt ?? Date()
         }

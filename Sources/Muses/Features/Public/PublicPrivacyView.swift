@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum PublicPrivacyPolicy {
-    static let version = "2026-09-28.1"
+    static let version = "2026-09-28.2"
     // Keep this non-account policy version separate from inherited library settings.
     // Resetting it during an asynchronous wipe would remove the session's pending-cleanup UI.
     static let acceptanceKey = "eratoPrivacyAcceptedVersion"

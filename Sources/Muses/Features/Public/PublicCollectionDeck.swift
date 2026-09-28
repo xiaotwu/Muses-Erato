@@ -122,15 +122,15 @@ struct PublicDeckArtworkCard: View {
                 .frame(width: width, height: height)
             LinearGradient(stops: [
                 .init(color: .clear, location: 0),
-                .init(color: .black.opacity(0.45), location: 0.45),
-                .init(color: .black.opacity(0.85), location: 0.75),
-                .init(color: .black.opacity(0.95), location: 1)
+                .init(color: .black.opacity(0.18), location: 0.45),
+                .init(color: .black.opacity(0.48), location: 0.75),
+                .init(color: .black.opacity(0.65), location: 1)
             ], startPoint: .top, endPoint: .bottom)
                 .frame(height: height * 0.58)
             VStack(alignment: .leading, spacing: 4) {
-                Text(track?.title ?? "Unavailable entry").font(.subheadline.weight(.bold)).lineLimit(1)
+                Text(track?.displayTitle ?? "Unavailable entry").font(.subheadline.weight(.bold)).lineLimit(2)
                     .shadow(color: .black.opacity(0.7), radius: 3, y: 1)
-                Text(track?.artist ?? "Kept in playlist").font(.caption).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                Text(track?.displayArtist ?? "Kept in playlist").font(.caption).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
                 HStack {
                     if track?.liked == true { Image(systemName: "heart.fill").font(.caption).accessibilityLabel("Favorite") }
                     Spacer(minLength: 0)
@@ -149,18 +149,7 @@ struct PublicDeckArtworkCard: View {
 
 private struct PublicCollectionArtwork: View {
     let videoID: String?
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color(uiColor: .secondarySystemFill)
-                if let videoID, let url = URL(string: "https://i.ytimg.com/vi/\(videoID)/hqdefault.jpg") {
-                    AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: {
-                        Image(systemName: "play.rectangle").font(.largeTitle).foregroundStyle(.secondary)
-                    }
-                } else { Image(systemName: "rectangle.slash").font(.largeTitle).foregroundStyle(.secondary) }
-            }.frame(width: geometry.size.width, height: geometry.size.height).clipped()
-        }.accessibilityHidden(true).allowsHitTesting(false)
-    }
+    var body: some View { PublicPlayerArtwork(videoID: videoID).accessibilityHidden(true).allowsHitTesting(false) }
 }
 
 /// Rendering keeps original occurrence positions, including repeated and missing entries.
@@ -192,7 +181,7 @@ struct PublicPlaylistBlock: View {
                                         .contentShape(RoundedRectangle(cornerRadius: 22))
                                 }.buttonStyle(.plain).disabled(track == nil)
                                     .accessibilityElement(children: .ignore)
-                                    .id(index).accessibilityLabel("Entry \(index + 1), \(track?.title ?? "Unavailable")")
+                                    .id(index).accessibilityLabel("Entry \(index + 1), \(track?.displayTitle ?? "Unavailable")")
                                     .accessibilityIdentifier("playlist.entry.\(playlist.id).\(index)")
                             }
                         }.scrollTargetLayout().padding(.vertical, 6)

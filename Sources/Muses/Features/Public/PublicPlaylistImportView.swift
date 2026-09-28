@@ -17,6 +17,7 @@ struct PublicPlaylistImportView: View {
     @State private var reader = PlaylistImportReader()
     private var draft: PlaylistImportDraft { reader.draft }
     @State private var busy = false
+    @State private var confirmingImport = false
     @State private var error: String?
     @State private var work: Task<Void, Never>?
     @State private var owned = OwnedPlaylistReader()
@@ -128,6 +129,18 @@ struct PublicPlaylistImportView: View {
                 }
             }
         }
+        .alert("Import this cloud playlist?", isPresented: $confirmingImport) {
+            Button("Cancel", role: .cancel) {}
+            Button("Import playlist") {
+                guard let selected, draft.complete else { return }
+                do {
+                    try session.saveImportedPlaylist(name: name, draft: draft,
+                        remoteSource: RemotePlaylistSource(playlistID: selected, requiresAuthorization: authorized),
+                        originalName: reader.metadata?.title, nameFetchedAt: reader.metadata?.fetchedAt)
+                    dismiss()
+                } catch { self.error = error.localizedDescription }
+            }
+        } message: { Text("Saves a local copy of this playlist and its cloud metadata. The original YouTube playlist remains unchanged.") }
         .task(id: session.signedIn) {
             if session.signedIn {
                 if !owned.complete { loadOwned() }
@@ -148,12 +161,7 @@ struct PublicPlaylistImportView: View {
     @ViewBuilder private func selectedActions(_ selected: String) -> some View {
         if draft.complete {
             importButton("Import", icon: "checkmark.circle") {
-                do {
-                    try session.saveImportedPlaylist(name: name, draft: draft,
-                        remoteSource: RemotePlaylistSource(playlistID: selected, requiresAuthorization: authorized),
-                        originalName: reader.metadata?.title, nameFetchedAt: reader.metadata?.fetchedAt)
-                    dismiss()
-                } catch { self.error = error.localizedDescription }
+                confirmingImport = true
             }
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityIdentifier("playlistImport.save")

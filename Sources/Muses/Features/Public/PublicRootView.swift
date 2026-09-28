@@ -54,7 +54,7 @@ struct PublicRootView: View {
     @FocusState private var searchFocused: Bool
     @State private var query = ""
     @State private var musicHome = PublicMusicHomeModel()
-    @State private var didRefreshLibraryMetadata = false
+    @State private var confirmingSync = false
 
     var body: some View {
         Group {
@@ -85,17 +85,17 @@ struct PublicRootView: View {
                     .listStyle(.sidebar)
                     .frame(minWidth: 210)
                 } detail: {
-                    NavigationStack { destinationContent }
+                    NavigationStack { destinationContent.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer } }
                 }
             } else {
                 TabView(selection: $selection) {
-                    NavigationStack { home }
+                    NavigationStack { home.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer } }
                         .tabItem { Label("Home", systemImage: "house") }
                         .tag(PublicDestination.home)
-                    NavigationStack { search }
+                    NavigationStack { search.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer } }
                         .tabItem { Label("Search", systemImage: "magnifyingglass") }
                         .tag(PublicDestination.search)
-                    NavigationStack { library }
+                    NavigationStack { library.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer } }
                         .tabItem { Label("Library", systemImage: "square.stack") }
                         .tag(PublicDestination.library)
                 }
@@ -104,12 +104,14 @@ struct PublicRootView: View {
         .task {
             while !Task.isCancelled {
                 await session.maintainCatalogData()
+                await session.hydrateDisplayMetadata()
                 do { try await Task.sleep(for: .seconds(3600)) } catch { break }
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await session.maintainCatalogData() } }
+            if phase == .active { Task { await session.maintainCatalogData(); await session.hydrateDisplayMetadata() } }
         }
+        .task(id: session.apiConfigured) { await session.hydrateDisplayMetadata() }
         .tint(PublicStyle.gold)
         .background(PublicKeyboardDismissal { linkFocused = false; searchFocused = false })
         .sheet(isPresented: $showSettings) {
@@ -137,6 +139,10 @@ struct PublicRootView: View {
         )) {
             PublicPlayerView(session: session)
         }
+    }
+
+    @ViewBuilder private var miniPlayer: some View {
+        if session.currentTrack != nil && !session.showPlayer { PublicMiniPlayer(session: session) }
     }
 
     @ViewBuilder
@@ -395,13 +401,12 @@ struct PublicRootView: View {
         }
         .background(PublicStyle.background)
         .navigationTitle("Library")
-        .task(id: session.apiConfigured) {
-            guard session.apiConfigured, !didRefreshLibraryMetadata else { return }
-            didRefreshLibraryMetadata = true
-            await session.refreshSavedMetadata()
-        }
         .navigationBarTitleDisplayMode(.inline)
-        .refreshable { await session.refreshSavedMetadata() }
+        .refreshable { confirmingSync = true }
+        .alert("Sync details from YouTube?", isPresented: $confirmingSync) {
+            Button("Cancel", role: .cancel) {}
+            Button("Sync details") { Task { await session.refreshSavedMetadata() } }
+        } message: { Text("Updates saved titles and metadata using cloud information. Local playlists and notes remain.") }
         .toolbar {
             queueToolbar
             ToolbarItem(placement: .topBarTrailing) {
@@ -670,11 +675,11 @@ private struct PublicVideoRow: View {
                 PublicVideoArtwork(videoID: id.rawValue)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(track.title)
+                Text(track.displayTitle)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(PublicStyle.ink)
                     .lineLimit(2)
-                Text(track.artist)
+                Text(track.displayArtist)
                     .font(.caption)
                     .foregroundStyle(PublicStyle.muted)
                     .lineLimit(1)
@@ -697,11 +702,24 @@ private struct PublicIFrameSurface: UIViewRepresentable {
 }
 
 private struct PublicPlayerView: View {
+    let session: PublicYouTubeSession
+    var body: some View {
+        if session.nativePlaybackEnabled { PublicNativePlayerView(session: session) }
+        else { PublicWebPlayerView(session: session) }
+    }
+}
+
+private struct PublicWebPlayerView: View {
     @Bindable var session: PublicYouTubeSession
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var scrubPosition = 0.0
+    @State private var scrubbing = false
     @State private var adapter: YouTubeIFrameAdapter?
+    @State private var confirmingFavoriteRemoval = false
+    @State private var removedEntries: [UUID] = []
+    @State private var confirmingRemoval = false
 
     var body: some View {
         NavigationStack {
@@ -756,6 +774,17 @@ private struct PublicPlayerView: View {
                     } label: { PublicIconActionLabel(title: "Playback actions", symbol: "ellipsis") }
                 }
             }
+            .alert("Remove this favorite?", isPresented: $confirmingFavoriteRemoval) {
+            Button("Cancel", role: .cancel) {}
+                Button("Remove favorite", role: .destructive) { if session.currentTrack?.liked == true { session.toggleFavorite() } }
+            }
+            .alert("Remove this queue entry?", isPresented: $confirmingRemoval) {
+            Button("Cancel", role: .cancel) {}
+                Button("Remove entry", role: .destructive) {
+                    let existing = Set(session.queue.snapshot.upcoming.map(\.id))
+                    session.editQueue { queue in for id in removedEntries where existing.contains(id) { try queue.remove(id: id) } }
+                }
+            }
             .onAppear {
                 let created = YouTubeIFrameFactory.make()
                 adapter = created
@@ -803,7 +832,7 @@ private struct PublicPlayerView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
-                Text(session.currentTrack?.title ?? "YouTube video")
+                Text(session.currentTrack?.displayTitle ?? "Now Playing")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(PublicStyle.ink)
                     .fixedSize(horizontal: false, vertical: true)
@@ -813,7 +842,9 @@ private struct PublicPlayerView: View {
                     .accessibilityIdentifier("public.playbackState")
                 }
                 Spacer(minLength: 0)
-                Button { session.toggleFavorite() } label: {
+                Button {
+                    if session.currentTrack?.liked == true { confirmingFavoriteRemoval = true } else { session.toggleFavorite() }
+                } label: {
                     PublicIconActionLabel(title: session.currentTrack?.liked == true ? "Remove favorite" : "Favorite",
                         symbol: session.currentTrack?.liked == true ? "heart.fill" : "heart")
                 }
@@ -821,15 +852,26 @@ private struct PublicPlayerView: View {
             if let message = session.failureMessage {
                 PublicNotice(message: message, symbol: "exclamationmark.circle")
             }
-            PublicActionGroup {
-                Button { session.play() } label: { PublicIconActionLabel(title: "Play", symbol: "play.fill") }
-                    .disabled(session.state.capabilities.isEmpty)
-                Button { session.pause() } label: { PublicIconActionLabel(title: "Pause", symbol: "pause.fill") }
-                    .disabled(session.state.capabilities.isEmpty)
-                Button { session.next() } label: { PublicIconActionLabel(title: "Next", symbol: "forward.end.fill") }
-                    .disabled(!session.hasNext)
-                if let track = session.currentTrack { PublicCurrentBookmarkButton(session: session, trackID: track.id) }
+            VStack(spacing: 8) {
+                let duration = Double(session.state.durationMilliseconds ?? 0) / 1000
+                let position = Double(session.state.positionMilliseconds) / 1000
+                Slider(value: Binding(get: { scrubbing ? scrubPosition : min(position, max(1, duration)) }, set: { scrubPosition = $0 }), in: 0...max(1, duration), onEditingChanged: { editing in
+                    if editing { scrubPosition = position; scrubbing = true }
+                    else { scrubbing = false; session.seekPlayback(seconds: scrubPosition) }
+                }).disabled(!session.hasCurrentPlaybackTime || duration <= 0).accessibilityLabel("Playback position")
+                HStack(spacing: 24) {
+                    if let track = session.currentTrack { PublicCurrentBookmarkButton(session: session, trackID: track.id) }
+                    Spacer(minLength: 0)
+                    Button { session.state.state == .playing ? session.pause() : session.play() } label: {
+                        Image(systemName: session.state.state == .playing ? "pause.fill" : "play.fill").font(.system(size: 36)).frame(width: 64, height: 64)
+                    }.disabled(session.state.capabilities.isEmpty)
+                        .accessibilityLabel(session.state.state == .playing ? "Pause" : "Play")
+                    Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.title2).frame(width: 44, height: 44) }
+                        .disabled(!session.hasNext).accessibilityLabel("Next")
+                    Spacer(minLength: 0)
+                }.buttonStyle(.plain)
             }
+
             .accessibilityElement(children: .contain)
         }
     }
@@ -862,12 +904,10 @@ private struct PublicPlayerView: View {
             } else {
                 ForEach(session.queue.snapshot.upcoming) { entry in
                     HStack {
-                        Text(session.tracks.first(where: { $0.id == entry.trackID })?.title ?? "YouTube video")
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID })
                         Menu("Queue actions", systemImage: "ellipsis.circle") {
                             Button("Move to next") { session.editQueue { try $0.reorder(id: entry.id, to: 0) } }
-                            Button("Remove from queue", role: .destructive) { session.editQueue { try $0.remove(id: entry.id) } }
+                            Button("Remove from queue", role: .destructive) { removedEntries = [entry.id]; confirmingRemoval = true }
                         }
                     }
                     .padding(12)
@@ -904,6 +944,9 @@ struct PublicPlaylistDetail: View {
     @State private var clearing = false
     @State private var adding = false
     @State private var name = ""
+    @State private var removedOccurrences: [UUID] = []
+    @State private var removedTracks: [TrackID] = []
+    @State private var confirmingRemoval = false
     private var playlist: LocalPlaylist? { session.playlists.first { $0.id == playlistID } }
 
     var body: some View {
@@ -936,8 +979,7 @@ struct PublicPlaylistDetail: View {
                             }
                         }
                         .onDelete { indices in
-                            let removed = indices.map { occurrences[$0].id }
-                            session.editPlaylist(playlistID) { value in removed.forEach { value.removeOccurrence($0) } }
+                            removedOccurrences = indices.map { occurrences[$0].id }; removedTracks = []; confirmingRemoval = true
                         }
                         .onMove { indices, destination in
                             var ids = occurrences.map(\.id)
@@ -953,8 +995,7 @@ struct PublicPlaylistDetail: View {
                             }
                         }
                         .onDelete { indices in
-                            let removed = indices.map { playlist.trackIDs[$0] }
-                            session.editPlaylist(playlistID) { value in removed.forEach { value.remove($0) } }
+                            removedTracks = indices.map { playlist.trackIDs[$0] }; removedOccurrences = []; confirmingRemoval = true
                         }
                         .onMove { indices, destination in
                             var ids = playlist.trackIDs
@@ -984,6 +1025,14 @@ struct PublicPlaylistDetail: View {
                 .accessibilityIdentifier("playlist.actions")
             }
         }
+        .alert("Remove selected playlist entries?", isPresented: $confirmingRemoval) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove entries", role: .destructive) {
+                session.editPlaylist(playlistID) { value in
+                    removedOccurrences.forEach { value.removeOccurrence($0) }; removedTracks.forEach { value.remove($0) }
+                }
+            }
+        } message: { Text("Only these local playlist entries are removed. YouTube is unchanged.") }
         .confirmationDialog("Clear this local playlist?", isPresented: $clearing, titleVisibility: .visible) {
             Button("Clear playlist videos", role: .destructive) {
                 session.editPlaylist(playlistID) { $0.removeAllEntries() }
@@ -1019,7 +1068,7 @@ struct PublicPlaylistDetail: View {
     }
 }
 
-private struct PublicAddToPlaylistMenu: View {
+struct PublicAddToPlaylistMenu: View {
     let session: PublicYouTubeSession
     let track: MusesDomain.Track
     @State private var creating = false
@@ -1048,6 +1097,7 @@ struct PublicVideoDetail: View {
     let trackID: TrackID
     @Environment(\.dismiss) private var dismiss
     @State private var deleting = false
+    @State private var removingFavorite = false
     private var track: MusesDomain.Track? { session.tracks.first { $0.id == trackID } }
     var body: some View {
         List {
@@ -1056,15 +1106,15 @@ struct PublicVideoDetail: View {
                     HStack(spacing: 12) {
                         if case .youtubeVideo(let id) = track.source { PublicVideoArtwork(videoID: id.rawValue) }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(track.title).font(.headline)
-                            Text(track.artist).font(.caption).foregroundStyle(.secondary)
+                            Text(track.displayTitle).font(.headline)
+                            Text(track.displayArtist).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     PublicActionGroup {
                         if case .youtubeVideo(let id) = track.source {
                             Button { session.open(id, title: track.title) } label: { PublicIconActionLabel(title: "Open visible player", symbol: "play.fill") }
                         }
-                        Button { session.toggleFavorite(trackID) } label: {
+                        Button { if track.liked { removingFavorite = true } else { session.toggleFavorite(trackID) } } label: {
                             PublicIconActionLabel(title: track.liked ? "Remove favorite" : "Favorite", symbol: track.liked ? "heart.fill" : "heart")
                         }
                         PublicAddToPlaylistMenu(session: session, track: track)
@@ -1095,6 +1145,10 @@ struct PublicVideoDetail: View {
                 }
             }
         }
+        .alert("Remove this favorite?", isPresented: $removingFavorite) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove favorite", role: .destructive) { session.removeFavorite(trackID) }
+        }
         .confirmationDialog("Delete this saved video?", isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete saved video", role: .destructive) {
                 if session.deleteSavedTrack(trackID) { dismiss() }
@@ -1105,14 +1159,16 @@ struct PublicVideoDetail: View {
     }
 }
 
-private struct PublicQueueView: View {
+struct PublicQueueView: View {
     let session: PublicYouTubeSession
+    @State private var removedEntries: [UUID] = []
+    @State private var confirmingRemoval = false
     var body: some View {
         List {
             if let current = session.currentTrack {
                 Section("Now playing") {
                     HStack {
-                        Text(current.title).fixedSize(horizontal: false, vertical: true)
+                        PublicQueueTrackLabel(track: current)
                         Spacer()
                         Button { session.showPlayer = true } label: { PublicIconActionLabel(title: "Open visible player", symbol: "play.fill") }
                     }.buttonStyle(.borderless)
@@ -1124,22 +1180,19 @@ private struct PublicQueueView: View {
                 }
                 ForEach(session.queue.snapshot.upcoming) { entry in
                     HStack {
-                        Text(session.tracks.first(where: { $0.id == entry.trackID })?.title ?? "Unavailable video")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .accessibilityIdentifier("queue.entry.\(entry.id)")
+                        PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID }, identifier: "queue.entry.\(entry.id)")
                         Menu {
                             Button("Move to next", systemImage: "text.line.first.and.arrowtriangle.forward") {
                                 session.editQueue { try $0.reorder(id: entry.id, to: 0) }
                             }
                             Button("Remove from queue", systemImage: "minus.circle", role: .destructive) {
-                                session.editQueue { try $0.remove(id: entry.id) }
+                                removedEntries = [entry.id]; confirmingRemoval = true
                             }
                         } label: { PublicIconActionLabel(title: "Queue actions", symbol: "ellipsis") }
                     }
                 }
                 .onDelete { indices in
-                    let ids = indices.map { session.queue.snapshot.upcoming[$0].id }
-                    session.editQueue { queue in for id in ids { try queue.remove(id: id) } }
+                    removedEntries = indices.map { session.queue.snapshot.upcoming[$0].id }; confirmingRemoval = true
                 }
                 .onMove { indices, destination in
                     var entries = session.queue.snapshot.upcoming
@@ -1157,6 +1210,13 @@ private struct PublicQueueView: View {
             }
             if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
         }
+        .alert("Remove selected queue entries?", isPresented: $confirmingRemoval) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove entries", role: .destructive) {
+                let existing = Set(session.queue.snapshot.upcoming.map(\.id))
+                session.editQueue { queue in for id in removedEntries where existing.contains(id) { try queue.remove(id: id) } }
+            }
+        } message: { Text("The current item keeps playing.") }
         .navigationTitle("Queue")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { EditButton() }
@@ -1179,5 +1239,16 @@ private struct PublicClearUpNextButton: View {
             } message: {
                 Text("Your current video and playback are kept. Only upcoming videos are removed.")
             }
+    }
+}
+
+private struct PublicQueueTrackLabel: View {
+    let track: MusesDomain.Track?
+    var identifier = ""
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(track?.displayTitle ?? "Unavailable song").font(.subheadline.weight(.medium)).lineLimit(2).accessibilityIdentifier(identifier)
+            Text(track?.displayArtist ?? "Unknown artist").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }
