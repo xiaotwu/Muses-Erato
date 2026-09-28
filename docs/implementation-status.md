@@ -78,6 +78,10 @@ The public composition owns one playback adapter, account cache and store projec
 - IPA SHA-256: `079bc78eb985f36ffcabb9a7e8eedd0200268b9e23513946efe2c68357690842`; version/build `1.0.0` / `1`. No upload, TestFlight acceptance or App Review acceptance occurred. This artifact can be superseded by later product or release-configuration changes.
 - Generated public pages still pass `build-privacy-site.py --check`; they remain unpublished and this check performs no remote verification.
 
+## Confirmed OAuth release blocker
+
+The owner confirmed Google Auth Platform Audience is **Testing** and verification is **not complete**. Public account import remains gated on production branding/domain and data-access verification. The prepared [Google verification packet](release/google-oauth-verification-packet.md) contains scope justification and a recording script; it has not been submitted.
+
 ## Release decision
 
 **NO GO** for public distribution. The remaining gates above require implementation and evidence. Migration activation and process recovery now have integrated test evidence. Public release still requires the archive provenance/retention lifecycle, embedded-provider privacy declarations, verified policy/consent domain, owner/platform configuration, final signed artifact and physical acceptance. See `docs/release/privacy-inventory.md` and `docs/release/privacy-domain-check.md`; a successful build is not P6 acceptance.

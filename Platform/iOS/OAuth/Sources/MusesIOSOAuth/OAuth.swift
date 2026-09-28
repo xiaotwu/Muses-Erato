@@ -145,8 +145,8 @@ public actor OAuthClient: CatalogCredential {
         let response: TokenResponse
         do { response = try await tokenRequest(["refresh_token":refresh, "client_id":configuration.clientID, "grant_type":"refresh_token"]) }
         catch OAuthFailure.revoked {
-            try store.delete()
-            try await privateData.deletePrivateData()
+            // A locked/failing token store must not skip private-cache cleanup.
+            try await deleteLocalAccount()
             throw OAuthFailure.revoked
         }
         guard let access = response.access_token else { throw OAuthFailure.invalidToken }

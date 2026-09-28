@@ -19,6 +19,34 @@ private final class FailingStore: OAuthTokenStore, @unchecked Sendable {
     func save(_ tokens: OAuthTokens) throws { throw OAuthFailure.storage }
     func delete() throws { deleteAttempted = true; throw OAuthFailure.storage }
 }
+private final class RevokedRefreshStore: OAuthTokenStore, @unchecked Sendable {
+    let failsDeletion: Bool
+    var deleteAttempted = false
+    private var value: OAuthTokens? = OAuthTokens(accessToken: "expired", refreshToken: "revoked-refresh", expiresAt: .distantPast)
+    init(failsDeletion: Bool) { self.failsDeletion = failsDeletion }
+    func load() throws -> OAuthTokens? { value }
+    func save(_ tokens: OAuthTokens) throws { XCTFail("Revoked refresh must not save tokens") }
+    func delete() throws {
+        deleteAttempted = true
+        if failsDeletion { throw OAuthFailure.storage }
+        value = nil
+    }
+}
+private actor RefreshPrivateData: PrivateAccountData {
+    let failsDeletion: Bool
+    var deleteAttempted = false
+    init(failsDeletion: Bool) { self.failsDeletion = failsDeletion }
+    func deletePrivateData() async throws {
+        deleteAttempted = true
+        if failsDeletion { throw OAuthFailure.storage }
+    }
+}
+private struct RevokedRefreshHTTP: HTTPTransport {
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        XCTAssertEqual(request.url?.path, "/token")
+        return HTTPResponse(status: 400, body: Data(#"{"error":"invalid_grant"}"#.utf8))
+    }
+}
 private struct TokenHTTP: HTTPTransport {
     func send(_ request: URLRequest) async throws -> HTTPResponse {
         if request.url?.path == "/revoke" { return HTTPResponse(status: 200, body: Data()) }
@@ -33,6 +61,23 @@ private struct RevokeFailureHTTP: HTTPTransport {
 }
 
 final class OAuthTests: XCTestCase {
+    func testRevokedRefreshAttemptsBothCleanupStepsAndReportsFailures() async throws {
+        let config = try OAuthConfiguration(clientID: "123.apps.googleusercontent.com", redirectURI: URL(string: "com.googleusercontent.apps.123:/oauth2redirect")!)
+        for failsStore in [false, true] {
+            for failsCache in [false, true] {
+                let store = RevokedRefreshStore(failsDeletion: failsStore)
+                let privateData = RefreshPrivateData(failsDeletion: failsCache)
+                let client = OAuthClient(configuration: config, transport: RevokedRefreshHTTP(), store: store, privateData: privateData)
+                do { _ = try await client.accessToken(); XCTFail("Expected revoked or cleanup error") }
+                catch { XCTAssertEqual(error as? OAuthFailure, failsStore || failsCache ? .storage : .revoked) }
+                XCTAssertTrue(store.deleteAttempted)
+                let cacheAttempted = await privateData.deleteAttempted
+                XCTAssertTrue(cacheAttempted)
+                if !failsStore { XCTAssertNil(try store.load()) }
+            }
+        }
+    }
+
     func testTokenStoreFailuresStillAttemptPrivateCacheDeletion() async throws {
         let config = try OAuthConfiguration(clientID: "123.apps.googleusercontent.com", redirectURI: URL(string: "com.googleusercontent.apps.123:/oauth2redirect")!)
         for revoke in [true, false] {
