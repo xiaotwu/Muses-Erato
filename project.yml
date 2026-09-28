@@ -31,10 +31,39 @@ targets:
     type: application
     platform: iOS
     sources:
-      # Public distribution is an allowlist. The inherited implementation stays in
-      # the repository for migration/research, but is never compiled into this app.
+      # Exact old models + read-only snapshot reader share the historical Muses module.
+      # No inherited networking, playback, or application services are linked.
       - path: Sources/Muses/App/PublicYouTubeApp.swift
+      - path: Sources/Muses/App/PublicCredentialDeletion.swift
+      - path: Sources/Muses/App/PublicWebsiteDataDeletion.swift
+      - path: Sources/Muses/Features/Public/PublicMigrationArchiveView.swift
       - path: Sources/Muses/App/PublicStoreLocation.swift
+      - path: Sources/Muses/Domain/Track.swift
+      - path: Sources/Muses/Domain/QueueState.swift
+      - path: Sources/Muses/Domain/Playlist.swift
+      - path: Sources/Muses/Domain/PlaylistItem.swift
+      - path: Sources/Muses/Domain/YouTubeImport.swift
+      - path: Sources/Muses/Domain/YouTubeImportItem.swift
+      - path: Sources/Muses/Domain/NotesModels.swift
+      - path: Sources/Muses/Domain/ListeningEvent.swift
+      - path: Sources/Muses/Domain/ListeningSession.swift
+      - path: Sources/Muses/Domain/InboxItem.swift
+      - path: Sources/Muses/Domain/EQPreset.swift
+      - path: Sources/Muses/Domain/AutomationRule.swift
+      - path: Sources/Muses/Domain/FocusSession.swift
+      - path: Sources/Muses/Domain/YouTubeCatalog.swift
+      - path: Sources/Muses/Domain/YouTubePlaylistSync.swift
+      - path: Sources/Muses/Domain/Enums.swift
+      - path: Sources/Muses/Domain/QueueItem.swift
+      - path: Sources/Muses/Domain/QueueGroup.swift
+      - path: Sources/Muses/Domain/ListeningContext.swift
+      - path: Sources/Muses/Domain/EQBand.swift
+      - path: Sources/Muses/Domain/RecapRange.swift
+      - path: Sources/Muses/Domain/Pagination.swift
+      - path: Sources/Muses/Domain/UserPreferences.swift
+      - path: Sources/Muses/App/L10n.swift
+      - path: Sources/Muses/Persistence/MusesSchema.swift
+      - path: Sources/Muses/Persistence/LegacyMigration
       - path: Sources/Muses/Features/Public/PublicRootView.swift
       - path: Sources/Muses/Features/Public/PublicNotebookModel.swift
       - path: Sources/Muses/Features/Public/PublicNotebookViews.swift
@@ -75,6 +104,8 @@ targets:
     sources:
       - path: Tests/MusesTests/PublicYouTubeFlowTests.swift
       - path: Tests/MusesTests/PublicNotebookTests.swift
+      - path: Tests/MusesTests/PublicUpgradeStartupTests.swift
+      - path: Tests/LegacyMigrationTests/PhysicalLegacyFixture.swift
     dependencies:
       - target: Muses
     settings:

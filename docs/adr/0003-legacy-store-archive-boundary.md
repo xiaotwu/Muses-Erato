@@ -1,10 +1,10 @@
 # ADR 0003: legacy store snapshot and archive boundary
 
-Status: physical original-schema proof passes on macOS and iOS simulator; production upgrade remains blocked, 2026-09-27.
+Status: physical proof and controlled public activation implemented; see ADR 0004 for activation/deletion authority, 2026-09-27.
 
 The inherited `MusesSchema.current` is an unversioned SwiftData autoschema in the app target. It has 19 models. `CatalogRelease` and `CatalogArtist` are rebuildable Innertube caches; the other 17 models carry user state or sync intent. The package cannot instantiate the old SwiftData model graph because those classes belong to the app target and include app-only dependencies. Copying a subset of them into this package would risk SwiftData opening and migrating the source against a different schema.
 
-`LegacyStoreSnapshotter.snapshot(sourceURL:destinationURL:)` opens the source SQLite database read-only, backs up its committed state including WAL pages, and runs `quick_check` on the copy. The app-side reader must open only that copy with the exact inherited model graph, fetch every model, and build `LegacyCompleteBundle`. The original database and WAL/SHM remain together for rollback. A failed snapshot, fetch, decode, inventory check, or import must show recovery and leave the original as authoritative.
+`LegacyStoreSnapshotter.snapshot(sourceURL:destinationURL:)` makes and verifies a stable read-only byte copy of the original main/WAL/SHM files, opens only that disposable copy with SQLite, backs up its committed state including WAL pages, and runs `quick_check` on the result. SQLite never acquires locks on the original SHM; a changing source fails closed. The app-side reader must open only that copy with the exact inherited model graph, fetch every model, and build `LegacyCompleteBundle`. The original database and WAL/SHM remain together for rollback. A failed snapshot, fetch, decode, inventory check, or import must show recovery and leave the original as authoritative.
 
 `LegacyCompleteBundle` contains:
 
@@ -19,6 +19,6 @@ The package tests cover WAL snapshotting, corrupt SQLite input, disk reopening, 
 
 `LegacyStoreReader` constructs the complete bundle, validates the Track inverse and original queue value types, and fails closed on unrepresentable orphan parents or malformed queue data. `LegacyMigrationPreparation` stages a separate V1 store, reopens and validates every imported payload and receipt, and writes an evidence marker last. The original database and settings remain authoritative. Source-contract tests still check model fields and all 52 settings keys. Archive field-name encoding is canonical for stable retries; snapshot destination creation uses atomic exclusive filesystem creation and rejects orphan destination sidecars.
 
-The public recovery gate remains in place. Original-schema read-only rollback and byte preservation are proven; rollback using the previous shipped app binary, crash/termination coverage, signed public integration and public history payload compatibility are not. In particular, public startup currently expects `PlayedVideo.date`, while migrated history supplies `LegacyHistoryEvent.startedAt`. A prepared receipt does not override these release blockers.
+The blanket legacy-presence recovery gate has been replaced by the verified per-library route described in [ADR 0004](0004-public-legacy-upgrade-route.md). Original schemas are linked through an explicit allowlist; history and playlist projections are adapted only on the candidate, then reopened and verified before activation. Failures still show recovery. Original writable reopen and continued edits are tested using an independent fixed-baseline executable, and actual process termination is exercised across migration/deletion boundaries. The previous shipped application binary and final signed-device release still require separate validation.
 
 See [physical migration proof](../legacy-migration-proof.md) for reproducible commands, fixture provenance, test scope and the remaining release checklist.

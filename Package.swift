@@ -4,6 +4,7 @@ import PackageDescription
 // Migration proof compiles the original model files in their historical Muses module.
 // It is independent of the public iOS application's distribution allowlist.
 let package = Package(name: "MusesLegacyProof", platforms: [.macOS(.v14), .iOS(.v18)],
+    products: [.executable(name: "LegacyProcessHarness", targets: ["LegacyProcessHarness"])],
     dependencies: [.package(path: "Packages/MusesPersistence")],
     targets: [
         .target(name: "Muses", dependencies: ["MusesPersistence"], path: "Sources/Muses",
@@ -14,6 +15,8 @@ let package = Package(name: "MusesLegacyProof", platforms: [.macOS(.v14), .iOS(.
                     "App/MusesApp.swift",
                     "App/MusesRuntime.swift",
                     "App/PublicStoreLocation.swift",
+                    "App/PublicCredentialDeletion.swift",
+                    "App/PublicWebsiteDataDeletion.swift",
                     "App/PublicYouTubeApp.swift",
                     "CarPlay",
                     "Domain/ArtistOnlineDiscography.swift",
@@ -58,6 +61,8 @@ let package = Package(name: "MusesLegacyProof", platforms: [.macOS(.v14), .iOS(.
                     "Persistence/MusesSchema.swift",
                     "Persistence/LegacyMigration",
                 ]),
+        .executableTarget(name: "LegacyProcessHarness", dependencies: ["Muses", "MusesPersistence"],
+            path: "Tests/LegacyProcessHarness"),
         .testTarget(name: "LegacyMigrationTests", dependencies: ["Muses", "MusesPersistence"],
                     path: "Tests/LegacyMigrationTests", resources: [.copy("Fixtures")])
     ])

@@ -15,6 +15,7 @@ struct PublicYouTubeApp: App {
         WindowGroup {
             PublicPrivacyGate { PublicConsentedAppView() }
                 .preferredColorScheme(.dark)
+                .modifier(PublicMigrationArchivePresentation(session: session))
         }
     }
 }
@@ -83,6 +84,10 @@ final class PublicYouTubeSession {
     private var oauth: OAuthClient?
     private var oauthConfiguration: OAuthConfiguration?
     private var authorizationSession: IOSAuthorizationSession?
+    private var activeSignIn: Task<Void, Error>?
+    private var activeNetworkCalls = 0
+    private var deletingLocalData = false
+    private var cleanupInFlight = false
     private var accountEpoch: UInt64 = 0
     private var recordedEntryID: UUID?
     @ObservationIgnored lazy var notebook = PublicNotebookModel(repository: { [weak self] in self?.repository })
@@ -90,51 +95,64 @@ final class PublicYouTubeSession {
     private(set) var hasCurrentPlaybackTime = false
     private(set) var bookmarkCueMilliseconds: Double?
 
-    init(storeURL: URL? = nil, catalogOverride: YouTubeDataCatalog? = nil) {
+    private let destinationURL: URL
+    private let legacyURL: URL
+    private let defaults: UserDefaults
+    private let defaultsDomain: String
+    private let deleteCredentials: () throws -> Void
+    private let deleteWebsiteData: () async throws -> Void
+    var showMigrationArchive = false
+    private(set) var hasMigrationArchive = false
+
+    init(storeURL: URL? = nil, catalogOverride: YouTubeDataCatalog? = nil, defaults: UserDefaults = .standard,
+         domainName: String = Bundle.main.bundleIdentifier ?? "com.xiaotwu.muses.erato",
+         deleteCredentials: @escaping () throws -> Void = PublicCredentialDeletion.deleteAppCredentials,
+         deleteWebsiteData: @escaping () async throws -> Void = { try await PublicWebsiteDataDeletion.clear() }) {
+        legacyURL = storeURL?.deletingLastPathComponent().appending(path: "muses-youtube-native.sqlite") ?? musesDefaultStoreURL()
+        destinationURL = storeURL ?? legacyURL.deletingLastPathComponent().appending(path: "muses-public-v1.sqlite")
+        self.defaults = defaults
+        defaultsDomain = domainName
+        self.deleteCredentials = deleteCredentials
+        self.deleteWebsiteData = deleteWebsiteData
         do {
-            // The inherited autoschema remains untouched until full parity migration is verified.
-            let old = storeURL?.deletingLastPathComponent().appending(path: "muses-youtube-native.sqlite") ?? musesDefaultStoreURL()
-            if legacyStoreArtifactsPresent(at: old) {
-                recoveryMessage = "An earlier Muses library was found. This version leaves it intact. Library migration needs verification before opening the new library."
-                return
+            let selected = try PublicStoreRouter.resolve(legacyURL: legacyURL, destinationURL: destinationURL,
+                defaults: defaults, domainName: domainName)
+            try loadLibrary(at: selected)
+            if PublicStoreRouter.deletionNeedsRestart(destinationURL: destinationURL) {
+                failureMessage = "Library cleared. Restart Muses to finish removing retained migration files."
             }
-            let destination = storeURL ?? old.deletingLastPathComponent().appending(path: "muses-public-v1.sqlite")
-            if !FileManager.default.fileExists(atPath: destination.path), legacyStoreArtifactsPresent(at: destination) {
-                recoveryMessage = "An incomplete local library was found. Its remaining files are preserved for recovery."
-                return
+            configureRemoteServices(catalogOverride: catalogOverride)
+        } catch is PublicStoreRouter.ExternalDeletionPending {
+            recoveryMessage = "Finishing local data deletion…"
+            Task { [weak self] in await self?.finishRecordedDeletion() }
+
+        } catch {
+            repository = nil
+            if FileManager.default.fileExists(atPath: destinationURL.appendingPathExtension("upgrade").appendingPathComponent("deleted.json").path) {
+                recoveryMessage = "Local deletion could not finish. Retained data will not be reimported. Error: \(error.localizedDescription)"
+            } else {
+                recoveryMessage = "Library could not be opened. No replacement library was created. Error: \(error.localizedDescription)"
             }
-            try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let container = try SwiftDataSnapshotRepository.container(url: destination)
-            v1Container = container
-            let repo = SwiftDataSnapshotRepository(context: container.mainContext)
-            repository = repo
-            tracks = try repo.list(MusesDomain.Track.self, kind: .track)
-            try expireCatalogMetadata()
-            playedIDs = try repo.list(PlaybackHistoryEntry.self, kind: .history).sorted { $0.date > $1.date }.map(\.trackID)
-            playlists = try repo.localPlaylists()
-            queue = try PlaybackQueue(snapshot: repo.queue() ?? .init())
-            let savedIDs = Set(tracks.map(\.id))
-            guard playlists.allSatisfy({ Set($0.trackIDs).isSubset(of: savedIDs) }),
-                  tracks.allSatisfy({ if case .youtubeVideo = $0.source { return true }; return false }),
-                  ([queue.snapshot.current].compactMap { $0 } + queue.snapshot.upcoming + queue.snapshot.history)
-                    .allSatisfy({ entry in tracks.contains { $0.id == entry.trackID && $0.source == entry.source } }),
-                  Set(playedIDs).isSubset(of: savedIDs) else { throw LocalLibraryError.missingTrack }
-            if let current = queue.snapshot.current {
-                state = PlaybackSnapshot(state: .paused, source: current.source,
-                                         generation: queue.snapshot.generation, intent: .pause)
-            }
-            if let catalogOverride {
-                catalog = catalogOverride; hasPublicAPIKey = true
-                return
-            }
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] != nil,
-               ProcessInfo.processInfo.environment["MUSES_UI_TEST_CATALOG"] == "fixtures" {
-                catalog = YouTubeDataCatalog(apiKey: "ui-fixture", credential: PublicFixtureCredential(), transport: PublicCatalogFixtureTransport())
-                hasPublicAPIKey = true; signedIn = true
-                return
-            }
-            #endif
+        }
+    }
+
+    private func configureRemoteServices(catalogOverride: YouTubeDataCatalog? = nil) {
+        catalog = nil
+        oauth = nil
+        oauthConfiguration = nil
+        hasPublicAPIKey = false
+        if let catalogOverride {
+            catalog = catalogOverride; hasPublicAPIKey = true
+            return
+        }
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] != nil,
+           ProcessInfo.processInfo.environment["MUSES_UI_TEST_CATALOG"] == "fixtures" {
+            catalog = YouTubeDataCatalog(apiKey: "ui-fixture", credential: PublicFixtureCredential(), transport: PublicCatalogFixtureTransport())
+            hasPublicAPIKey = true; signedIn = true
+            return
+        }
+        #endif
             let key = Bundle.main.object(forInfoDictionaryKey: "MusesYouTubeAPIKey") as? String
             let apiKey = key.flatMap { !$0.isEmpty && !$0.hasPrefix("$(") ? $0 : nil }
             hasPublicAPIKey = apiKey != nil
@@ -156,8 +174,11 @@ final class PublicYouTubeSession {
                 Task { await privateData.setCatalog(remote) }
                 let epoch = accountEpoch
                 Task { [weak self] in
-                    if (try? await auth.accessToken()) != nil, self?.accountEpoch == epoch {
-                        self?.signedIn = true
+                    guard let self, !self.deletingLocalData else { return }
+                    self.activeNetworkCalls += 1
+                    defer { self.activeNetworkCalls -= 1 }
+                    if (try? await auth.accessToken()) != nil, self.accountEpoch == epoch {
+                        self.signedIn = true
                     }
                 }
             } else if let apiKey {
@@ -165,10 +186,33 @@ final class PublicYouTubeSession {
                     budget: RequestBudget(searchCallsPerDay: 10, otherUnitsPerDay: 100),
                     clientIdentity: Bundle.main.bundleIdentifier.flatMap { CatalogClientIdentity(iOSBundleID: $0) })
             }
-        } catch {
-            repository = nil
-            recoveryMessage = "Library could not be opened. No replacement library was created. Error: \(error.localizedDescription)"
+    }
+
+    private func loadLibrary(at url: URL) throws {
+        let container = try SwiftDataSnapshotRepository.container(url: url)
+        let repo = SwiftDataSnapshotRepository(context: container.mainContext)
+        let snapshot = try PublicLibrarySnapshot(repository: repo)
+        v1Container = container
+        repository = repo
+        tracks = snapshot.tracks
+        try expireCatalogMetadata()
+        playedIDs = snapshot.history.sorted { $0.date > $1.date }.map(\.trackID)
+        playlists = snapshot.playlists
+        queue = try PlaybackQueue(snapshot: snapshot.queue)
+        hasMigrationArchive = try repo.get(LegacyMigrationReceipt.self, kind: .migration, id: "legacy-complete-v1") != nil
+        if let current = queue.snapshot.current {
+            state = PlaybackSnapshot(state: .paused, source: current.source,
+                generation: queue.snapshot.generation, intent: .pause)
         }
+    }
+
+    func restoreOriginalPlaylist(_ id: UUID) {
+        do {
+            guard let repository else { return }
+            _ = try repository.restoreOriginalPlaylist(id)
+            playlists = try repository.localPlaylists()
+            tracks = try repository.list(MusesDomain.Track.self, kind: .track)
+        } catch { failureMessage = "Could not restore playlist: \(error.localizedDescription)" }
     }
 
     var currentTrack: MusesDomain.Track? {
@@ -186,6 +230,9 @@ final class PublicYouTubeSession {
     var isPlayerVisible: Bool { adapter != nil }
 
     func search(_ input: String) async {
+        guard !deletingLocalData else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
         let query = input.trimmingCharacters(in: .whitespacesAndNewlines)
         if query == submittedSearch, submittedKind == searchKind, searchPages.loading { return }
         submittedSearch = query; submittedKind = searchKind
@@ -222,12 +269,18 @@ final class PublicYouTubeSession {
     }
 
     func loadAccountPlaylists() async {
+        guard !deletingLocalData else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
         await accountPlaylistPages.load { token in
             guard self.signedIn, let catalog = self.catalog else { throw APIError.unauthorized }
             return try await catalog.myPlaylists(pageToken: token)
         }
     }
     func loadAccountChannel() async {
+        guard !deletingLocalData else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
         await accountChannelPages.load { _ in
             guard self.signedIn, let catalog = self.catalog else { throw APIError.unauthorized }
             return try await catalog.myChannel()
@@ -254,6 +307,9 @@ final class PublicYouTubeSession {
 
     private(set) var refreshingMetadata = false
     func refreshSavedMetadata() async {
+        guard !deletingLocalData else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
         guard !refreshingMetadata else { return }
         refreshingMetadata = true
         defer { refreshingMetadata = false }
@@ -283,27 +339,43 @@ final class PublicYouTubeSession {
     }
 
     func signIn() async {
+        guard !deletingLocalData else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
         guard let oauth, let config = oauthConfiguration,
               let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
                 .flatMap(\.windows).first(where: \.isKeyWindow) else {
             failureMessage = "Google iOS OAuth needs a configured client ID, redirect scheme and active window."
             return
         }
-        do {
+        guard activeSignIn == nil else { return }
+        let epoch = accountEpoch
+        let task = Task<Void, Error> { @MainActor in
             let attempt = try OAuthAttempt(configuration: config)
             let browser = IOSAuthorizationSession(anchor: window)
-            authorizationSession = browser
-            defer { authorizationSession = nil }
+            self.authorizationSession = browser
             let callback = try await browser.authorize(attempt)
+            try Task.checkCancellation()
             try await oauth.complete(attempt, callback: callback)
+        }
+        activeSignIn = task
+        defer { activeSignIn = nil; authorizationSession = nil }
+        do {
+            try await task.value
+            guard epoch == accountEpoch else { return }
             accountEpoch &+= 1
             resetAccountCatalog()
             signedIn = true
             await loadSubscriptions()
-        } catch { failureMessage = "Sign in failed: \(error.localizedDescription)" }
+        } catch {
+            if epoch == accountEpoch { failureMessage = "Sign in failed: \(error.localizedDescription)" }
+        }
     }
 
     func loadSubscriptions() async {
+        guard !deletingLocalData else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
         await subscriptionPages.load { token in
             guard self.signedIn, let catalog = self.catalog else { throw APIError.unauthorized }
             return try await catalog.mySubscriptions(pageToken: token)
@@ -311,6 +383,9 @@ final class PublicYouTubeSession {
     }
 
     func signOut() async {
+        guard !deletingLocalData else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
         guard let oauth else { return }
         accountEpoch &+= 1
         signedIn = false
@@ -329,6 +404,9 @@ final class PublicYouTubeSession {
     }
 
     func openLink(_ text: String) async {
+        guard !deletingLocalData else { return }
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
         let generation = UUID(), epoch = accountEpoch
         linkGeneration = generation
         guard let route = YouTubeCatalogLink.parse(text) else {
@@ -346,7 +424,7 @@ final class PublicYouTubeSession {
             title = item.title
             fetchedAt = item.fetchedAt
         }
-        guard generation == linkGeneration, epoch == accountEpoch, !Task.isCancelled else { return }
+        guard !deletingLocalData, generation == linkGeneration, epoch == accountEpoch, !Task.isCancelled else { return }
         open(video, title: title, metadataFetchedAt: fetchedAt)
     }
 
@@ -485,7 +563,7 @@ final class PublicYouTubeSession {
     func enqueuePlaylist(_ id: UUID) {
         guard let playlist = playlists.first(where: { $0.id == id }) else { return }
         editQueue { proposed in
-            for id in playlist.trackIDs {
+            for id in playlist.playbackTrackIDs {
                 guard let track = tracks.first(where: { $0.id == id }) else { throw LocalLibraryError.missingTrack }
                 try proposed.append(QueueEntry(trackID: track.id, source: track.source))
             }
@@ -615,28 +693,98 @@ final class PublicYouTubeSession {
     private func persistQueue() throws { try repository?.saveQueue(queue.snapshot) }
 
     func deleteLocalData() async {
+        if deletingLocalData { await finishRecordedDeletion(); return }
         detach()
         accountEpoch &+= 1
-        signedIn = false
-        resetAccountCatalog()
+        authorizationSession?.cancel()
+        activeSignIn?.cancel()
         do {
-            try await oauth?.deleteLocalAccount()
-            await catalog?.clearPrivateCache()
-            try repository?.deleteAll()
-            notebook.reset()
-            playlists = []
-            recordedEntryID = nil
-            showPlayer = false
-            tracks = []
-            queue = try PlaybackQueue()
-            state = PlaybackSnapshot()
-            localSearchItems = []; searchPages.reset()
-            playedIDs = []
-            resetAccountCatalog()
-            signedIn = false
-            failureMessage = nil
-        } catch { failureMessage = "Local data could not be deleted: \(error.localizedDescription)" }
+            // Record intent before any async cleanup. Restart cannot revive the old library.
+            _ = try PublicStoreRouter.requestDeletion(legacyURL: legacyURL, destinationURL: destinationURL,
+                defaults: defaults, domainName: defaultsDomain, externalCleanupRequired: true)
+            deletingLocalData = true
+            // Best effort immediate erase; old files are unlinked on restart even if this save fails.
+            try? repository?.deleteAll()
+            repository = nil
+            v1Container = nil
+            clearVisibleLibrary()
+            recoveryMessage = "Removing local account and website data…"
+            await finishRecordedDeletion()
+        } catch {
+            failureMessage = "Deletion could not be recorded: \(error.localizedDescription)"
+        }
     }
+
+    private func clearVisibleLibrary() {
+        notebook.reset()
+        bookmarkSeeking.cancel()
+        bookmarkCueMilliseconds = nil
+        resetAccountCatalog()
+        hasMigrationArchive = false
+        showMigrationArchive = false
+        playlists = []
+        recordedEntryID = nil
+        showPlayer = false
+        tracks = []
+        queue = try! PlaybackQueue()
+        state = PlaybackSnapshot()
+        localSearchItems = []
+        searchPages.reset()
+        playedIDs = []
+        subscriptionPages.reset()
+        signedIn = false
+    }
+
+    private func finishRecordedDeletion() async {
+        guard !cleanupInFlight else { return }
+        cleanupInFlight = true
+        defer { cleanupInFlight = false }
+        deletingLocalData = true
+        detach()
+        clearVisibleLibrary()
+        var failures: [String] = []
+        if let task = activeSignIn {
+            task.cancel()
+            _ = try? await task.value
+        }
+        do { try await oauth?.deleteLocalAccount() }
+        catch { failures.append("Account storage: \(error.localizedDescription)") }
+        await catalog?.clearAllCache()
+        do { try await deleteWebsiteData() }
+        catch { failures.append("Website data: \(error.localizedDescription)") }
+        for _ in 0..<100 where activeNetworkCalls > 0 {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        if activeNetworkCalls > 0 { failures.append("Earlier network requests have not finished; cleanup will retry after restart") }
+        // Credentials are deleted last, after cancelled requests can no longer save a refresh token.
+        do { try deleteCredentials() }
+        catch { failures.append("Keychain: \(error.localizedDescription)") }
+        // No old in-flight request can populate the new generation or UI.
+        catalog = nil
+        oauth = nil
+        guard failures.isEmpty else {
+            recoveryMessage = "Deletion is pending. Restart Muses to retry cleanup. " + failures.joined(separator: " · ")
+            failureMessage = recoveryMessage
+            return
+        }
+        do {
+            try PublicStoreRouter.completeExternalDeletion(destinationURL: destinationURL)
+            let fresh = try PublicStoreRouter.resolve(legacyURL: legacyURL, destinationURL: destinationURL,
+                defaults: defaults, domainName: defaultsDomain)
+            try loadLibrary(at: fresh)
+            recoveryMessage = nil
+            deletingLocalData = false
+            failureMessage = PublicStoreRouter.deletionNeedsRestart(destinationURL: destinationURL)
+                ? "Library cleared. Restart Muses to finish removing retained migration files." : nil
+            configureRemoteServices()
+        } catch {
+            repository = nil
+            v1Container = nil
+            recoveryMessage = "Deletion is recorded. Restart Muses to finish cleanup; the old library will not be imported again. \(error.localizedDescription)"
+            failureMessage = recoveryMessage
+        }
+    }
+
 }
 
 private actor PublicPrivateData: PrivateAccountData {

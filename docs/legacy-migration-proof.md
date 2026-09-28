@@ -33,7 +33,7 @@ xcodebuild test \
 
 To export a new real fixture for inspection, set `MUSES_LEGACY_PROOF_OUTPUT` to an empty/nonexistent directory when running the macOS suite. Export does not replace the committed fixture automatically. Temporary test directories are left to OS cleanup because Core Data can close SQLite handles asynchronously; deleting them immediately can unlink a still-open database. The save-failure test intentionally logs Cocoa error 513 for a read-only V1 target. Settings use the `.plist.bin` suffix so Xcode copies their bytes without recompiling the property list. The macOS 27 fixture also produces a Core Data framework-version diagnostic on iOS 26.5 (Persistence-1629 to Persistence-1526); read-only capture and field comparisons still complete. This does not establish arbitrary OS downgrade compatibility.
 
-Release remains blocked. The following evidence/work is still required before changing `PublicYouTubeApp`:
+The original proof milestone left release blocked. The following was its outstanding checklist; [ADR 0004](adr/0004-public-legacy-upgrade-route.md) records the subsequent public integration, independent writable-baseline proof, process-kill tests and explicit deletion protocol:
 
 - Run downgrade/rollback using the actual previous app executable, including a writable reopen and continued editing. Current tests reopen the original schema read-only after failure and success and compare original main/WAL bytes. They do not claim execution of the old app binary.
 - Exercise process termination during import and marker publication, disk-full conditions and restart recovery. The suite proves real save rejection, durable empty-target retry, complete-receipt retry and corrupt/occupied-target rejection; it does not simulate every crash window.
@@ -43,3 +43,5 @@ Release remains blocked. The following evidence/work is still required before ch
 There is no demonstrated need for an unsafe helper binary: the isolated reader compiles without the prohibited legacy playback/network implementations. If distribution constraints later prevent including this allowlist, retain this exact preparation protocol in a controlled transition release; do not substitute simplified model definitions or delete the original store. A prepared directory alone must never bypass the recovery gate.
 
 Validated on 2026-09-27: 5 physical proof tests on macOS, the same 5 tests on the iPhone 17e / iOS 26.5 simulator, and 16 MusesPersistence package tests all passed. Public startup source and its recovery gate were not changed.
+
+Follow-up: public startup now uses the verified durable route, `PlaybackHistoryEntry` mapping and occurrence-preserving local playlists. The signed-device and actual shipped-binary qualifications above still apply; the old blanket gate is no longer the current implementation. Run `python3 scripts/test-legacy-process-upgrade.py` for the independent process/rollback proof.

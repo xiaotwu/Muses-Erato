@@ -67,7 +67,7 @@ extension SwiftDataSnapshotRepository {
 
     /// Import a complete archive in one SwiftData transaction. The caller must read an isolated
     /// copy of the old store and retain the original store files for rollback.
-    public func importLegacyComplete(_ bundle: LegacyCompleteBundle) throws {
+    public func importLegacyComplete(_ bundle: LegacyCompleteBundle, beforeCommit: (() throws -> Void)? = nil) throws {
         let expected: Set<String> = ["Track", "QueueState", "EQPreset", "YouTubeImport",
             "YouTubeImportItem", "Playlist", "PlaylistItem", "ListeningEvent",
             "ListeningSession", "InboxItem", "TrackNote", "TrackBookmark",
@@ -158,7 +158,7 @@ extension SwiftDataSnapshotRepository {
         guard try context.fetch(FetchDescriptor<MusesSchemaV1.Record>()).isEmpty else {
             throw PersistenceError.unsupportedLegacyRecord("target is not empty")
         }
-        try writeLegacy(values, marker: "legacy-complete-v1", markerPayload: try encoder.encode(receipt))
+        try writeLegacy(values, marker: "legacy-complete-v1", markerPayload: try encoder.encode(receipt), beforeCommit: beforeCommit)
     }
 
     private func digest(_ values: [StoredValue]) -> String {
@@ -208,7 +208,7 @@ extension SwiftDataSnapshotRepository {
         return values
     }
 
-    private func writeLegacy(_ values: [StoredValue], marker: String, markerPayload: Data? = nil) throws {
+    private func writeLegacy(_ values: [StoredValue], marker: String, markerPayload: Data? = nil, beforeCommit: (() throws -> Void)? = nil) throws {
         let keys = values.map { $0.kind.rawValue + ":" + $0.id }
         guard Set(keys).count == keys.count else { throw PersistenceError.unsupportedLegacyRecord("duplicate record") }
         try context.transaction {
@@ -218,6 +218,7 @@ extension SwiftDataSnapshotRepository {
             }
             context.insert(MusesSchemaV1.Record(kind: .migration, recordID: marker,
                                                 payload: try markerPayload ?? JSONEncoder().encode(Date())))
+            try beforeCommit?()
             try context.save()
         }
     }

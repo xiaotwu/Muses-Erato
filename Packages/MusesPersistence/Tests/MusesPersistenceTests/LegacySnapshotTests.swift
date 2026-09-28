@@ -17,6 +17,7 @@ final class LegacySnapshotTests: XCTestCase {
         XCTAssertEqual(sqlite3_exec(db, "CREATE TABLE user_truth (value TEXT)", nil, nil, nil), SQLITE_OK)
         XCTAssertEqual(sqlite3_exec(db, "INSERT INTO user_truth VALUES ('from wal')", nil, nil, nil), SQLITE_OK)
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path + "-wal"))
+        let originalSHM = try Data(contentsOf: URL(fileURLWithPath: source.path + "-shm"))
         let originalMain = try Data(contentsOf: source)
         let originalWAL = try Data(contentsOf: URL(fileURLWithPath: source.path + "-wal"))
         XCTAssertEqual(try LegacyStoreSnapshotter.snapshot(sourceURL: source, destinationURL: copy), copy)
@@ -31,6 +32,7 @@ final class LegacySnapshotTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path + "-wal"))
         XCTAssertEqual(try Data(contentsOf: source), originalMain)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: source.path + "-shm")), originalSHM)
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: source.path + "-wal")), originalWAL)
     }
 

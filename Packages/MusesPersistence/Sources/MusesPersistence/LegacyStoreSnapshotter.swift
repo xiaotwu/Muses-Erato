@@ -1,16 +1,19 @@
 import Foundation
 import SQLite3
 import Darwin
+import CryptoKit
 
 public enum LegacySnapshotError: Error, Equatable, Sendable {
     case sourceMissing
     case destinationExists
+    case sourceChanged
     case database(String)
     case integrity(String)
 }
 
 /// Produces a consistent, independent SQLite snapshot from the inherited SwiftData store.
-/// SQLite's backup API includes committed WAL pages without writing to the source database.
+/// A stable byte copy keeps SQLite away from the original WAL/SHM entirely.
+/// SQLite's backup API then incorporates committed WAL pages from that disposable copy.
 /// The app's old-model reader opens only the returned URL. Keep the original store and its
 /// WAL/SHM files together until the user has verified the migrated library.
 public enum LegacyStoreSnapshotter {
@@ -22,13 +25,30 @@ public enum LegacyStoreSnapshotter {
         }
         try manager.createDirectory(at: destinationURL.deletingLastPathComponent(),
                                     withIntermediateDirectories: true)
+        // Startup owns the old app's quiescent store. Do not let SQLite even acquire
+        // source SHM locks: copy all physical files using read-only filesystem operations.
+        let scratch = destinationURL.deletingLastPathComponent().appendingPathComponent("snapshot-input-" + UUID().uuidString)
+        try manager.createDirectory(at: scratch, withIntermediateDirectories: false)
+        defer { try? manager.removeItem(at: scratch) }
+        let input = scratch.appendingPathComponent("legacy.sqlite")
+        let suffixes = ["", "-wal", "-shm"]
+        let before = try suffixes.map { try fileDigest(URL(fileURLWithPath: sourceURL.path + $0)) }
+        for (index, suffix) in suffixes.enumerated() where before[index] != nil {
+            let copied = URL(fileURLWithPath: input.path + suffix)
+            try manager.copyItem(at: URL(fileURLWithPath: sourceURL.path + suffix), to: copied)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: copied.path)
+        }
+        guard before == (try suffixes.map { try fileDigest(URL(fileURLWithPath: sourceURL.path + $0)) }),
+              before == (try suffixes.map { try fileDigest(URL(fileURLWithPath: input.path + $0)) }) else {
+            throw LegacySnapshotError.sourceChanged
+        }
         var source: OpaquePointer?
         var destination: OpaquePointer?
         defer {
             if let destination { sqlite3_close(destination) }
             if let source { sqlite3_close(source) }
         }
-        guard sqlite3_open_v2(sourceURL.path, &source, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(input.path, &source, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
             throw LegacySnapshotError.database(source.map { String(cString: sqlite3_errmsg($0)) } ?? "open source")
         }
         // SQLITE_OPEN_EXCLUSIVE is reserved for the VFS and does not provide
@@ -79,4 +99,13 @@ public enum LegacyStoreSnapshotter {
             throw error
         }
     }
+    private static func fileDigest(_ url: URL) throws -> Data? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        var hash = SHA256()
+        while let data = try handle.read(upToCount: 1_048_576), !data.isEmpty { hash.update(data: data) }
+        return Data(hash.finalize())
+    }
+
 }
