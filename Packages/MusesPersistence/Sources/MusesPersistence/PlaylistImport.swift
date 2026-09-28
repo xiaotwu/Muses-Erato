@@ -4,7 +4,7 @@ import MusesDomain
 
 public extension SwiftDataSnapshotRepository {
     /// IDs are user-selected library membership; API display metadata is never written.
-    func importPlaylist(name: String, videoIDs: [VideoID]) throws -> (LocalPlaylist, [Track]) {
+    func importPlaylist(name: String, videoIDs: [VideoID], remoteSource: RemotePlaylistSource? = nil, userNamed: Bool = false, nameFetchedAt: Date? = nil) throws -> (LocalPlaylist, [Track]) {
         let existing = try list(Track.self, kind: .track)
         var added: [Track] = []
         var ordered: [TrackID] = []
@@ -18,12 +18,12 @@ public extension SwiftDataSnapshotRepository {
             ordered.append(track.id)
         }
         var seen = Set<TrackID>()
-        let playlist = try LocalPlaylist(name: name, trackIDs: ordered.filter { seen.insert($0).inserted }, occurrences: ordered.map { LocalPlaylistOccurrence(id: UUID(), trackID: $0) })
+        let playlist = try LocalPlaylist(name: name, trackIDs: ordered.filter { seen.insert($0).inserted }, occurrences: ordered.map { LocalPlaylistOccurrence(id: UUID(), trackID: $0) }, remoteSource: remoteSource, userNamed: userNamed, nameFetchedAt: nameFetchedAt)
         do {
             for track in added {
                 context.insert(MusesSchemaV1.Record(kind: .track, recordID: track.id.rawValue, payload: try JSONEncoder().encode(track.localPersistenceSnapshot)))
             }
-            context.insert(MusesSchemaV1.Record(kind: .localPlaylist, recordID: playlist.id.uuidString, payload: try JSONEncoder().encode(playlist)))
+            context.insert(MusesSchemaV1.Record(kind: .localPlaylist, recordID: playlist.id.uuidString, payload: try JSONEncoder().encode(playlist.localPersistenceSnapshot)))
             try context.save()
         } catch { context.rollback(); throw error }
         return (playlist, added)

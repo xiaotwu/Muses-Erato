@@ -73,6 +73,9 @@ final class PublicYouTubeSession {
     private var localSearchItems: [MusesCatalog.CatalogItem] = []
     private(set) var playedIDs: [TrackID] = []
     private(set) var playlists: [LocalPlaylist] = []
+    private var refreshingPlaylistNames = false
+    private var lastPlaylistNameAttempt: Date?
+    private(set) var playlistNameRefreshMessage: String?
     var searchError: String? { searchPages.error }
     var searching: Bool { searchPages.loading }
     private(set) var signedIn = false
@@ -182,6 +185,7 @@ final class PublicYouTubeSession {
                     defer { self.activeNetworkCalls -= 1 }
                     if (try? await auth.accessToken()) != nil, self.accountEpoch == epoch {
                         self.signedIn = true
+                        await self.refreshPlaylistNames(force: true)
                     }
                 }
             } else if let apiKey {
@@ -299,9 +303,11 @@ final class PublicYouTubeSession {
         do { try expireCatalogMetadata() } catch { failureMessage = "Could not expire YouTube metadata: \(error.localizedDescription)" }
         searchPages.expire(); subscriptionPages.expire(); accountPlaylistPages.expire(); accountChannelPages.expire()
         await catalog?.purgeExpiredCache()
+        await refreshPlaylistNames()
     }
 
     func expireCatalogMetadata(at date: Date = Date(), force: Bool = false) throws {
+        for index in playlists.indices { playlists[index].expireRemoteName(at: date, force: force) }
         for index in tracks.indices {
             var track = tracks[index]
             track.expireYouTubeMetadata(at: date, force: force)
@@ -312,6 +318,7 @@ final class PublicYouTubeSession {
     private(set) var refreshingMetadata = false
     func refreshSavedMetadata() async {
         guard !deletingLocalData else { return }
+        await refreshPlaylistNames(force: true)
         activeNetworkCalls += 1
         defer { activeNetworkCalls -= 1 }
         guard !refreshingMetadata else { return }
@@ -370,6 +377,7 @@ final class PublicYouTubeSession {
             accountEpoch &+= 1
             resetAccountCatalog()
             signedIn = true
+            await refreshPlaylistNames(force: true)
             await loadSubscriptions()
         } catch {
             if epoch == accountEpoch { failureMessage = "Sign in failed: \(error.localizedDescription)" }
@@ -826,7 +834,15 @@ extension PublicYouTubeSession {
             let saved = try repository.deleteSavedTracks(ids)
             let restored = try PlaybackQueue(snapshot: saved.queue)
             // Retain fresh in-memory metadata for survivors; disk may contain placeholders.
-            tracks.removeAll { ids.contains($0.id) }; playlists = saved.playlists; queue = restored
+            tracks.removeAll { ids.contains($0.id) }
+            playlists = saved.playlists.map { saved in
+                var value = saved
+                if let old = playlists.first(where: { $0.id == saved.id }), let fetchedAt = old.remoteNameFetchedAt {
+                    try? value.updateRemoteName(old.name, fetchedAt: fetchedAt)
+                }
+                return value
+            }
+            queue = restored
             for id in ids { notebook.forget(id) }
             playedIDs = saved.history.sorted { $0.date > $1.date }.map(\.trackID)
             localSearchItems.removeAll { item in !tracks.contains { track in
@@ -890,10 +906,11 @@ extension PublicYouTubeSession {
 }
 
 extension PublicYouTubeSession {
-    func saveImportedPlaylist(name: String, draft: PlaylistImportDraft) throws {
+    func saveImportedPlaylist(name: String, draft: PlaylistImportDraft, remoteSource: RemotePlaylistSource? = nil, originalName: String? = nil, nameFetchedAt: Date? = nil) throws {
         guard draft.complete, let repository, !deletingLocalData else { throw PlaylistImportError.incomplete }
         let ids = try draft.items.map { try VideoID($0.id) }
-        let (playlist, added) = try repository.importPlaylist(name: name, videoIDs: ids)
+        let userNamed = remoteSource != nil && name.trimmingCharacters(in: .whitespacesAndNewlines) != originalName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let (playlist, added) = try repository.importPlaylist(name: name, videoIDs: ids, remoteSource: remoteSource, userNamed: userNamed, nameFetchedAt: nameFetchedAt ?? Date())
         tracks += added
         for index in tracks.indices {
             guard tracks[index].metadataOrigin != .user,
@@ -905,5 +922,50 @@ extension PublicYouTubeSession {
             tracks[index].metadataFetchedAt = item.fetchedAt ?? Date()
         }
         playlists.append(playlist)
+    }
+}
+
+extension PublicYouTubeSession {
+    /// Restores only display names. Playlist membership remains the user's local snapshot.
+    func refreshPlaylistNames(force: Bool = false) async {
+        guard !deletingLocalData, !refreshingPlaylistNames, let catalog, apiConfigured else { return }
+        let now = Date()
+        if !force, let lastPlaylistNameAttempt, now.timeIntervalSince(lastPlaylistNameAttempt) < 60 { return }
+        let candidates = playlists.filter { playlist in
+            playlist.usesRemoteName && (force || playlist.remoteNameFetchedAt.map { now.timeIntervalSince($0) >= 86400 } ?? true)
+        }
+        let sources = candidates.compactMap(\.remoteSource).filter { !$0.requiresAuthorization || signedIn }
+        guard !sources.isEmpty else { return }
+        lastPlaylistNameAttempt = now; refreshingPlaylistNames = true; activeNetworkCalls += 1
+        defer { refreshingPlaylistNames = false; activeNetworkCalls -= 1 }
+        let epoch = accountEpoch
+        playlistNameRefreshMessage = nil
+        var visited = Set<String>()
+        for source in sources {
+            guard visited.insert(source.playlistID + String(source.requiresAuthorization)).inserted else { continue }
+            do {
+                try Task.checkCancellation()
+                let page = try await catalog.playlistMetadata(id: source.playlistID, authorized: source.requiresAuthorization)
+                try Task.checkCancellation()
+                guard epoch == accountEpoch, !deletingLocalData else { return }
+                for index in playlists.indices where playlists[index].remoteSource == source && playlists[index].usesRemoteName {
+                    if let item = page.items.first(where: { $0.kind == .playlist && $0.id == source.playlistID }) {
+                        try playlists[index].updateRemoteName(item.title, fetchedAt: page.fetchedAt)
+                    } else { playlists[index].expireRemoteName(force: true) }
+                }
+            } catch is CancellationError { return }
+            catch {
+                guard epoch == accountEpoch else { return }
+                playlistNameRefreshMessage = "Some playlist names could not refresh. Sign in or retry when online; your local entries are still available."
+                switch error {
+                case APIError.unauthorized, APIError.forbidden, APIError.unavailable:
+                    for index in playlists.indices where playlists[index].remoteSource == source {
+                        playlists[index].expireRemoteName(force: true)
+                    }
+                default: break
+                }
+                if case APIError.quotaExceeded = error { break }
+            }
+        }
     }
 }

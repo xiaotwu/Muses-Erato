@@ -1,0 +1,17 @@
+diff --git a/Packages/MusesPersistence/Sources/MusesPersistence/RunnableArchiveSuccessor.swift b/Packages/MusesPersistence/Sources/MusesPersistence/RunnableArchiveSuccessor.swift
+--- a/Packages/MusesPersistence/Sources/MusesPersistence/RunnableArchiveSuccessor.swift
++++ b/Packages/MusesPersistence/Sources/MusesPersistence/RunnableArchiveSuccessor.swift
+@@ -41,10 +41,12 @@
+     /// Called only by explicit public create/rename input handlers. The name and evidence
+     /// share one transaction; queue/reorder/import/restore writes must not call this method.
+     func saveUserNamedPlaylist(_ playlist: LocalPlaylist) throws {
++        // An unchanged prefilled API name must never acquire user-authorship evidence.
++        guard !playlist.usesRemoteName else { try savePlaylist(playlist); return }
+         try playlist.validated()
+         guard Set(playlist.trackIDs).isSubset(of: Set(try list(Track.self, kind: .track).map(\.id))) else { throw LocalLibraryError.missingTrack }
+         let encoder = JSONEncoder()
+-        let replacements = [(StoreKind.localPlaylist, playlist.id.uuidString, try encoder.encode(playlist)),
++        let replacements = [(StoreKind.localPlaylist, playlist.id.uuidString, try encoder.encode(playlist.localPersistenceSnapshot)),
+             (.migration, "user-playlist-name-v1:" + playlist.id.uuidString, try encoder.encode(ArchiveField.hash(Data(playlist.name.utf8))))]
+         do {
+             for (kind, id, data) in replacements {

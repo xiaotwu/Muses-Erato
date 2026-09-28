@@ -57,6 +57,8 @@ public enum MusesMigrationPlan: SchemaMigrationPlan {
         let data: Data
         if kind == .track, let track = value as? Track {
             data = try JSONEncoder().encode(track.localPersistenceSnapshot)
+        } else if kind == .localPlaylist, let playlist = value as? LocalPlaylist {
+            data = try JSONEncoder().encode(playlist.localPersistenceSnapshot)
         } else {
             data = try JSONEncoder().encode(value)
         }

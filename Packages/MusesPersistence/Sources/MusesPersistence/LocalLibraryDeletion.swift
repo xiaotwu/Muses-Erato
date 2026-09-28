@@ -81,7 +81,7 @@ extension SwiftDataSnapshotRepository {
         _ = try PlaybackQueue(snapshot: queue)
         for index in playlists.indices { for id in ids { playlists[index].remove(id) } }
         let encoder = JSONEncoder()
-        let replacements = try playlists.map { (StoreKind.localPlaylist, $0.id.uuidString, try encoder.encode($0)) }
+        let replacements = try playlists.map { (StoreKind.localPlaylist, $0.id.uuidString, try encoder.encode($0.localPersistenceSnapshot)) }
             + [(.queue, "main", try encoder.encode(queue))]
         do {
             for id in ids { try stageVideoNotebookDeletion(trackID: id) }

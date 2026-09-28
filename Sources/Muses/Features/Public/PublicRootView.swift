@@ -916,6 +916,10 @@ private struct PublicPlaylistCollection: View {
                 .accessibilityIdentifier("public.createPlaylist")
             Text("Stored on this device. These playlists do not change your YouTube account.")
                 .font(.footnote).foregroundStyle(.secondary)
+            if session.playlists.contains(where: { $0.usesRemoteName && $0.remoteNameFetchedAt == nil }) {
+                Text("Original playlist names refresh when online. Account playlists may require sign-in.").font(.footnote).foregroundStyle(.secondary)
+            }
+            if let message = session.playlistNameRefreshMessage { Text(message).font(.footnote).foregroundStyle(.secondary) }
             if session.playlists.isEmpty {
                 PublicEmptyState(symbol: "music.note.list", title: "No local playlists", detail: "Create a playlist, then add videos from your saved collection.")
             }
@@ -925,6 +929,7 @@ private struct PublicPlaylistCollection: View {
                 }
             }
         }
+        .task { await session.refreshPlaylistNames() }
         .sheet(isPresented: $importing) { PublicPlaylistImportView(session: session) }
         .alert("Create local playlist", isPresented: $creating) {
             TextField("Playlist name", text: $name)

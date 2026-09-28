@@ -1,7 +1,7 @@
 import XCTest
 
 @MainActor final class PublicPlaylistImportUITests: XCTestCase {
-    func testMusicLinkImportRequiresAllPagesAndUserName() {
+    func testAccountAndMusicLinkAutomaticallyLoadAllPagesAndKeepOriginalName() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
@@ -25,22 +25,21 @@ import XCTest
         app.buttons["playlistImport.accountLoad"].tap()
         let owned = app.buttons["playlistImport.account.PLfixture"]
         XCTAssertTrue(owned.waitForExistence(timeout: 5)); owned.tap()
-        XCTAssertTrue(app.buttons["playlistImport.loadAll"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["playlistImport.save"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["playlistImport.save"].isEnabled)
+        XCTAssertEqual(app.textFields["playlistImport.name"].value as? String, "Fixture public playlist")
         app.buttons["Choose another playlist"].tap()
         let link = app.textFields["playlistImport.link"]
         link.tap(); link.typeText("https://music.youtube.com/playlist?list=PLfixture")
         app.buttons["playlistImport.readLink"].tap()
         if app.buttons["playlistImport.readLink"].exists { app.buttons["playlistImport.readLink"].tap() }
-        let next = app.buttons["playlistImport.loadPage"]
-        XCTAssertTrue(next.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertFalse(app.buttons["playlistImport.save"].exists)
-        app.buttons["playlistImport.loadAll"].tap()
         let save = app.buttons["playlistImport.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 5)); XCTAssertFalse(save.isEnabled)
-        let name = app.textFields["playlistImport.name"]
-        name.tap(); name.typeText("My imported music")
+        XCTAssertTrue(save.waitForExistence(timeout: 5)); XCTAssertTrue(save.isEnabled)
+        XCTAssertFalse(app.buttons["playlistImport.loadPage"].exists)
+        XCTAssertFalse(app.buttons["playlistImport.loadAll"].exists)
+        XCTAssertEqual(app.textFields["playlistImport.name"].value as? String, "Fixture public playlist")
         save.tap()
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS 'My imported music'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS 'Fixture public playlist'")).firstMatch.waitForExistence(timeout: 5))
         app.terminate(); app.launch()
         app.buttons["Library"].firstMatch.tap()
         for _ in 0..<6 {
@@ -48,6 +47,6 @@ import XCTest
             rail.swipeLeft(velocity: .slow)
         }
         playlists.tap()
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS 'My imported music'")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS 'Fixture public playlist'")).firstMatch.waitForExistence(timeout: 5))
     }
 }

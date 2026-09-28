@@ -3,6 +3,7 @@ import SwiftData
 import MusesCatalog
 import MusesDomain
 import MusesPersistence
+import MusesNetworking
 @testable import Muses
 
 @MainActor final class PublicPlaylistImportTests: XCTestCase {
@@ -53,5 +54,75 @@ extension PublicPlaylistImportTests {
         reopened.clearUpcoming()
         reopened.enqueuePlaylist(original.id)
         XCTAssertEqual(reopened.queue.snapshot.upcoming.map(\.trackID), [entries[1].trackID!, entries[2].trackID!])
+    }
+}
+
+private actor PlaylistNameHTTP: HTTPTransport {
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        HTTPResponse(status: 200, body: Data(#"{"items":[{"id":"PLremote","snippet":{"title":"Original remote name"}}]}"#.utf8))
+    }
+}
+extension PublicPlaylistImportTests {
+    func testDefaultNameRestoresOnlineAfterRestartAndCustomRenamePersists() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "library.sqlite")
+        let catalog = YouTubeDataCatalog(apiKey: "fixture", transport: PlaylistNameHTTP())
+        let session = PublicYouTubeSession(storeURL: url, catalogOverride: catalog)
+        var draft = PlaylistImportDraft()
+        let item = CatalogItem(kind: .video, id: "dQw4w9WgXcQ", title: "Video temporary title", channelID: nil, thumbnailURL: nil, listEntryID: "one")
+        try draft.append(.init(items: [item], nextPageToken: "next"))
+        XCTAssertThrowsError(try session.saveImportedPlaylist(name: "Partial", draft: draft))
+        XCTAssertTrue(session.playlists.isEmpty)
+        XCTAssertTrue(try session.repository!.localPlaylists().isEmpty)
+        try draft.append(.init(items: [], nextPageToken: nil))
+        try session.saveImportedPlaylist(name: "Original remote name", draft: draft, remoteSource: .init(playlistID: "PLremote", requiresAuthorization: false), originalName: "Original remote name")
+        XCTAssertEqual(session.playlists[0].name, "Original remote name")
+        let rows = try session.repository!.context.fetch(FetchDescriptor<MusesSchemaV1.Record>())
+        XCTAssertFalse(rows.contains { String(data: $0.payload, encoding: .utf8)?.contains("Original remote name") == true })
+        let reopened = PublicYouTubeSession(storeURL: url, catalogOverride: catalog)
+        XCTAssertEqual(reopened.playlists[0].name, LocalPlaylist.remoteNamePlaceholder)
+        await reopened.maintainCatalogData()
+        XCTAssertEqual(reopened.playlists[0].name, "Original remote name")
+        try reopened.expireCatalogMetadata(force: true)
+        XCTAssertEqual(reopened.playlists[0].name, LocalPlaylist.remoteNamePlaceholder)
+        await reopened.refreshPlaylistNames(force: true)
+        XCTAssertEqual(reopened.playlists[0].name, "Original remote name")
+        XCTAssertTrue(reopened.editPlaylist(reopened.playlists[0].id) { try $0.rename("My own name") })
+        let custom = PublicYouTubeSession(storeURL: url, catalogOverride: catalog)
+        await custom.refreshPlaylistNames(force: true)
+        XCTAssertEqual(custom.playlists[0].name, "My own name")
+        try custom.expireCatalogMetadata(force: true)
+        XCTAssertEqual(custom.playlists[0].name, "My own name")
+    }
+}
+
+extension PublicPlaylistImportTests {
+    func testFailedAndCancelledReadsCannotWritePartialLibrary() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = PublicYouTubeSession(storeURL: directory.appending(path: "library.sqlite"))
+        for cancelled in [false, true] {
+            let reader = PlaylistImportReader()
+            let task = Task { @MainActor in
+                try await reader.readAll(playlistID: "PLremote") { contents, token in
+                    if !contents {
+                        return .init(items: [.init(kind: .playlist, id: "PLremote", title: "Original", channelID: nil, thumbnailURL: nil)], nextPageToken: nil)
+                    }
+                    if token != nil {
+                        if cancelled { withUnsafeCurrentTask { $0?.cancel() } }
+                        else { throw URLError(.notConnectedToInternet) }
+                    }
+                    return .init(items: [.init(kind: .video, id: "dQw4w9WgXcQ", title: "Video", channelID: nil, thumbnailURL: nil, listEntryID: token ?? "first")], nextPageToken: token == nil ? "next" : nil)
+                }
+            }
+            do { try await task.value; XCTFail("Expected read failure") } catch { }
+            XCTAssertFalse(reader.draft.complete)
+            XCTAssertThrowsError(try session.saveImportedPlaylist(name: "Original", draft: reader.draft, remoteSource: .init(playlistID: "PLremote", requiresAuthorization: false), originalName: "Original"))
+            XCTAssertTrue(try session.repository!.localPlaylists().isEmpty)
+            XCTAssertTrue(try session.repository!.list(Track.self, kind: .track).isEmpty)
+        }
     }
 }

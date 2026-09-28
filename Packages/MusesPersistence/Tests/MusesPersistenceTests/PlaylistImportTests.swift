@@ -40,3 +40,38 @@ extension PlaylistImportTests {
         try playlist.validated()
     }
 }
+
+extension PlaylistImportTests {
+    func testRemoteNameNeverEntersPersistedPayloadThroughAnyWritePath() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "remote-name.sqlite")
+        let container = try SwiftDataSnapshotRepository.container(url: url)
+        let repo = SwiftDataSnapshotRepository(context: container.mainContext)
+        let apiTitle = "REMOTE_API_NAME_MUST_NOT_PERSIST"
+        let source = RemotePlaylistSource(playlistID: "PLremote", requiresAuthorization: true)
+        let (playlist, added) = try repo.importPlaylist(name: apiTitle, videoIDs: [try VideoID("dQw4w9WgXcQ")], remoteSource: source, nameFetchedAt: Date())
+        XCTAssertEqual(playlist.name, apiTitle)
+        XCTAssertTrue(playlist.usesRemoteName)
+        try repo.put(playlist, kind: .localPlaylist, id: playlist.id.uuidString)
+        try repo.savePlaylist(playlist)
+        _ = try repo.deleteSavedTrack(added[0].id)
+        let rows = try container.mainContext.fetch(FetchDescriptor<MusesSchemaV1.Record>())
+        XCTAssertFalse(rows.contains { String(data: $0.payload, encoding: .utf8)?.contains(apiTitle) == true })
+        let reopened = try SwiftDataSnapshotRepository.container(url: url)
+        let read = SwiftDataSnapshotRepository(context: reopened.mainContext)
+        var restored = try XCTUnwrap(read.localPlaylists().first)
+        XCTAssertEqual(restored.name, LocalPlaylist.remoteNamePlaceholder)
+        XCTAssertEqual(restored.remoteSource, source)
+        try restored.updateRemoteName(apiTitle)
+        try restored.rename(apiTitle) // Confirming the unchanged prefilled value is not authorship.
+        XCTAssertTrue(restored.usesRemoteName)
+        try restored.rename("My actual custom name")
+        try read.savePlaylist(restored)
+        XCTAssertFalse(restored.usesRemoteName)
+        try restored.updateRemoteName("Remote renamed again")
+        XCTAssertEqual(restored.name, "My actual custom name")
+        XCTAssertEqual(try read.localPlaylists().first?.name, "My actual custom name")
+    }
+}
