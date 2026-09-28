@@ -124,7 +124,7 @@ struct PublicPlaylistImportView: View {
         }
         importButton("Choose another", icon: "arrow.uturn.backward") {
             self.selected = nil; reader = .init(); error = nil; name = ""
-        }
+        }.accessibilityIdentifier("playlistImport.chooseAnother")
     }
     private func select(_ id: String, authorized: Bool) {
         selected = id; self.authorized = authorized; reader = .init(); name = ""; error = nil
