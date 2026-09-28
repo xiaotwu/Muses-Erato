@@ -558,7 +558,7 @@ struct PublicRootView: View {
             }
             Section("Local data") {
                 Button("Refresh saved YouTube metadata") { Task { await session.refreshSavedMetadata() } }.disabled(session.refreshingMetadata)
-                Text("YouTube titles expire after 29 days. Your video IDs, favorites and local playlists remain.").font(.footnote)
+                Text("YouTube titles refresh for this app session. Your saved selections, favorites and local playlists remain.").font(.footnote)
                 Button("Delete videos, playlists, queue and history", role: .destructive) { confirmDelete = true }
                 Text("This removes data stored by Muses on this device. It does not delete YouTube data.")
                     .font(.footnote)
