@@ -127,33 +127,62 @@ public actor OAuthClient: CatalogCredential {
     private let transport: any HTTPTransport
     private let store: any OAuthTokenStore
     private let privateData: any PrivateAccountData
+    private var accountGeneration: UInt64 = 0
+    private var deletionOperations = 0
+    private var refreshRequest: (id: UUID, generation: UInt64, task: Task<TokenResponse, Error>)?
+    // Fail closed in this process even when Keychain deletion fails.
+    private var credentialsInvalidated = false
     public init(configuration: OAuthConfiguration, transport: any HTTPTransport = URLSessionTransport(), store: any OAuthTokenStore, privateData: any PrivateAccountData) {
         self.configuration = configuration; self.transport = transport; self.store = store; self.privateData = privateData
     }
     public func complete(_ attempt: OAuthAttempt, callback: URL) async throws {
+        try Task.checkCancellation()
+        guard deletionOperations == 0 else { throw OAuthFailure.revoked }
         guard attempt.redirectURI == configuration.redirectURI else { throw OAuthFailure.invalidConfiguration }
         let code = try attempt.code(from: callback)
+        accountGeneration &+= 1
+        let generation = accountGeneration
         let response = try await tokenRequest(["code":code, "client_id":configuration.clientID, "redirect_uri":configuration.redirectURI.absoluteString, "grant_type":"authorization_code", "code_verifier":attempt.verifier])
+        try validate(generation)
         guard let access = response.access_token else { throw OAuthFailure.invalidToken }
-        if try store.load() != nil { try await privateData.deletePrivateData() }
+        let hasExistingAccount = try store.load() != nil
+        if credentialsInvalidated || hasExistingAccount { try await privateData.deletePrivateData() }
+        try validate(generation)
         try store.save(OAuthTokens(accessToken: access, refreshToken: response.refresh_token, expiresAt: Date().addingTimeInterval(TimeInterval(response.expires_in ?? 3600))))
+        credentialsInvalidated = false
     }
     public func accessToken() async throws -> String {
+        try Task.checkCancellation()
+        guard deletionOperations == 0, !credentialsInvalidated else { throw OAuthFailure.revoked }
+        let generation = accountGeneration
         guard let saved = try store.load() else { throw OAuthFailure.revoked }
         if saved.expiresAt > Date().addingTimeInterval(60) { return saved.accessToken }
         guard let refresh = saved.refreshToken else { throw OAuthFailure.revoked }
+        let request: (id: UUID, generation: UInt64, task: Task<TokenResponse, Error>)
+        if let pending = refreshRequest, pending.generation == generation { request = pending }
+        else {
+            let values = ["refresh_token":refresh, "client_id":configuration.clientID, "grant_type":"refresh_token"]
+            request = (UUID(), generation, Task { try await self.tokenRequest(values) })
+            refreshRequest = request
+        }
+        defer { if refreshRequest?.id == request.id { refreshRequest = nil } }
         let response: TokenResponse
-        do { response = try await tokenRequest(["refresh_token":refresh, "client_id":configuration.clientID, "grant_type":"refresh_token"]) }
+        do { response = try await request.task.value }
         catch OAuthFailure.revoked {
+            // A response for an older account must not delete a newer grant.
+            try validate(generation)
             // A locked/failing token store must not skip private-cache cleanup.
             try await deleteLocalAccount()
             throw OAuthFailure.revoked
         }
+        try validate(generation)
         guard let access = response.access_token else { throw OAuthFailure.invalidToken }
         try store.save(OAuthTokens(accessToken: access, refreshToken: response.refresh_token ?? refresh, expiresAt: Date().addingTimeInterval(TimeInterval(response.expires_in ?? 3600))))
         return access
     }
     public func revokeAndDelete() async throws {
+        beginDeletion()
+        defer { deletionOperations -= 1 }
         let tokens: OAuthTokens?
         var storageFailed = false
         do { tokens = try store.load() }
@@ -175,10 +204,22 @@ public actor OAuthClient: CatalogCredential {
         if let revokeError { throw revokeError }
     }
     public func deleteLocalAccount() async throws {
+        beginDeletion()
+        defer { deletionOperations -= 1 }
         var storageFailed = false
         do { try store.delete() } catch { storageFailed = true }
         do { try await privateData.deletePrivateData() } catch { storageFailed = true }
         if storageFailed { throw OAuthFailure.storage }
+    }
+    private func beginDeletion() {
+        accountGeneration &+= 1
+        deletionOperations += 1
+        credentialsInvalidated = true
+        refreshRequest?.task.cancel()
+    }
+    private func validate(_ generation: UInt64) throws {
+        try Task.checkCancellation()
+        guard generation == accountGeneration, deletionOperations == 0 else { throw OAuthFailure.revoked }
     }
     private func tokenRequest(_ values: [String: String]) async throws -> TokenResponse {
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
@@ -195,7 +236,7 @@ public actor OAuthClient: CatalogCredential {
     }
 }
 
-private struct TokenResponse: Decodable { let access_token: String?; let refresh_token: String?; let expires_in: Int? }
+private struct TokenResponse: Decodable, Sendable { let access_token: String?; let refresh_token: String?; let expires_in: Int? }
 private struct TokenFailure: Decodable { let error: String }
 private func form(_ values: [String: String]) -> Data {
     var parts = URLComponents(); parts.queryItems = values.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }

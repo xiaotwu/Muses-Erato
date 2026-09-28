@@ -90,3 +90,7 @@ After the eb36a02 source review identified the revoked-refresh early-exit defect
 | Exact release artifact / submission | Current Release static audit and current-version local App Store IPA export/signature/static-audit passes are coordinator-reported. Attach their exact artifact hash and logs to the final release record; they were not independently inspected here. No upload, TestFlight/App Review acceptance or final P6 sign-off is asserted. |
 
 This document closes a **current-source evidence inventory**, not the release gates. Existing functional acceptance stands; layout refinement stays deferred. Historical audit files, product code, project files, the release website, platform settings and the original workspace's owner-reported 65 uncommitted changes were left untouched.
+
+## Later follow-up: OAuth account generation
+
+After `7065a17`, the [OAuth late-response validation](oauth-generation-validation.md) records generation/cancellation checks, shared refresh, deletion barriers, session sign-out cancellation and 14 passing package tests. These close specific in-process races that could restore deleted tokens or erase a newer grant. Durable sign-out retry/startup gating, retained identifiers, historical copies and physical/provider evidence remain open. The historical snapshot and earlier defect descriptions above retain their original source scope.

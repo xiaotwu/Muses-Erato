@@ -92,6 +92,7 @@ final class PublicYouTubeSession {
     private var oauthConfiguration: OAuthConfiguration?
     private var authorizationSession: IOSAuthorizationSession?
     private var activeSignIn: Task<Void, Error>?
+    private var signingOut = false
     private var activeNetworkCalls = 0
     private var deletingLocalData = false
     private var cleanupInFlight = false
@@ -352,7 +353,7 @@ final class PublicYouTubeSession {
     }
 
     func signIn() async {
-        guard !deletingLocalData else { return }
+        guard !deletingLocalData, !signingOut else { return }
         activeNetworkCalls += 1
         defer { activeNetworkCalls -= 1 }
         guard let oauth, let config = oauthConfiguration,
@@ -397,7 +398,11 @@ final class PublicYouTubeSession {
     }
 
     func signOut() async {
-        guard !deletingLocalData else { return }
+        guard !deletingLocalData, !signingOut else { return }
+        signingOut = true
+        defer { signingOut = false }
+        authorizationSession?.cancel()
+        activeSignIn?.cancel()
         activeNetworkCalls += 1
         defer { activeNetworkCalls -= 1 }
         guard let oauth else { return }
