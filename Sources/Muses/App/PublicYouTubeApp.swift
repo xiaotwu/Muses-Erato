@@ -883,3 +883,22 @@ extension PublicYouTubeSession {
         await catalog?.clearAllCache()
     }
 }
+
+extension PublicYouTubeSession {
+    func saveImportedPlaylist(name: String, draft: PlaylistImportDraft) throws {
+        guard draft.complete, let repository, !deletingLocalData else { throw PlaylistImportError.incomplete }
+        let ids = try draft.items.map { try VideoID($0.id) }
+        let (playlist, added) = try repository.importPlaylist(name: name, videoIDs: ids)
+        tracks += added
+        for index in tracks.indices {
+            guard tracks[index].metadataOrigin != .user,
+                  case .youtubeVideo(let video) = tracks[index].source,
+                  let item = draft.items.first(where: { $0.id == video.rawValue }) else { continue }
+            tracks[index].title = item.title
+            tracks[index].artist = "YouTube"
+            tracks[index].metadataOrigin = .youtubeDataAPI
+            tracks[index].metadataFetchedAt = item.fetchedAt ?? Date()
+        }
+        playlists.append(playlist)
+    }
+}

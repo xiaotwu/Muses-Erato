@@ -140,7 +140,9 @@ public actor YouTubeDataCatalog {
         catch { throw APIError.network }
         if let error = APIError.classify(response) { throw error }
         guard let decoded = try? JSONDecoder().decode(ListResponse.self, from: response.body) else { throw APIError.invalidResponse }
-        let page = CatalogPage(items: decoded.items.compactMap { $0.catalogItem(endpoint: endpoint) }, nextPageToken: decoded.nextPageToken)
+        let items = decoded.items.compactMap { $0.catalogItem(endpoint: endpoint) }
+        if endpoint == .playlistItems, items.count != decoded.items.count { throw PlaylistImportError.incomplete }
+        let page = CatalogPage(items: items, nextPageToken: decoded.nextPageToken)
         guard epoch == cacheEpoch else { throw CancellationError() }
         cache[identity] = (page, Date().addingTimeInterval(ttl))
         return page

@@ -898,11 +898,17 @@ private struct PublicPlayerView: View {
 
 private struct PublicPlaylistCollection: View {
     let session: PublicYouTubeSession
+    @State private var importing = false
     @State private var creating = false
     @State private var name = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            Button { importing = true } label: {
+                Image(systemName: "square.and.arrow.down").frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+                .accessibilityLabel("Import YouTube Music or account playlist")
+                .accessibilityIdentifier("library.importPlaylist")
             Button("Create local playlist", systemImage: "plus") { name = ""; creating = true }
                 .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                 .accessibilityIdentifier("public.createPlaylist")
@@ -917,6 +923,7 @@ private struct PublicPlaylistCollection: View {
                 }
             }
         }
+        .sheet(isPresented: $importing) { PublicPlaylistImportView(session: session) }
         .alert("Create local playlist", isPresented: $creating) {
             TextField("Playlist name", text: $name)
             Button("Create") { session.createPlaylist(name) }
