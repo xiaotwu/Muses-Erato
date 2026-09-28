@@ -15,14 +15,16 @@ struct PublicYouTubeApp: App {
         WindowGroup {
             PublicPrivacyGate { PublicConsentedAppView() }
                 .preferredColorScheme(.dark)
-                .modifier(PublicMigrationArchivePresentation(session: session))
         }
     }
 }
 
 private struct PublicConsentedAppView: View {
     @State private var session = PublicYouTubeSession()
-    var body: some View { PublicRootView(session: session) }
+    var body: some View {
+        PublicRootView(session: session)
+            .modifier(PublicMigrationArchivePresentation(session: session))
+    }
 }
 
 @main

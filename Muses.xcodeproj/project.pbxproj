@@ -14,6 +14,7 @@
 		0D63CD4DBD09C5C2DD3DAB50 /* QueueState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E335EA81A28FBFD4731F05F3 /* QueueState.swift */; };
 		109B68E82A26267834BF227E /* KeyboardDismissalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */; };
 		12FCB8FBCBFF65678994C6E9 /* EQPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B307C7EDD580A924EC5DE4 /* EQPreset.swift */; };
+		148812AC812C5E6C11391E93 /* PublicLibraryHeroViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF5A2EC815611F2FABC3A082 /* PublicLibraryHeroViews.swift */; };
 		1691B322D0E2E4A124CA3976 /* MusesNetworking in Frameworks */ = {isa = PBXBuildFile; productRef = B6C839E616E7ADEBC1EA86EE /* MusesNetworking */; };
 		1BEA681DD9C2D4B70CB11A42 /* QueueGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0696E1BFCAC74C13EC4D12E0 /* QueueGroup.swift */; };
 		1C27C5D773A2CDC521C36A06 /* PublicCatalogFixtureTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77EBF9643B9DA73DE6077ACB /* PublicCatalogFixtureTransport.swift */; };
@@ -29,6 +30,7 @@
 		48E5884910C6DC3E956F633D /* PublicPrivacyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */; };
 		4EDB33612B874029CF89E5E8 /* PublicWebsiteDataDeletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F76861EC868C4EAACB514F9 /* PublicWebsiteDataDeletion.swift */; };
 		54F7E4C136C06E1CC21E8C4E /* PublicCatalogViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */; };
+		56065018CE92DE951A466C0A /* PublicLibraryHeroUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84A504CC6C82F3DEA644725 /* PublicLibraryHeroUITests.swift */; };
 		56F295D49F84BC6E2847FDB3 /* ListeningSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF70E1E45E8B4C46014602B9 /* ListeningSession.swift */; };
 		582B20A1E2DC666B99D57036 /* MusesSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C5F631496ED3835C3DBFFB /* MusesSchema.swift */; };
 		628EB76BCE37CD0AF7C54CD8 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9029839B4A7936B66EF4E34 /* PlaylistItem.swift */; };
@@ -132,6 +134,7 @@
 		9822313D18A980A1C93BA3D9 /* MusesNetworking */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesNetworking; path = Packages/MusesNetworking; sourceTree = SOURCE_ROOT; };
 		9B2B64ABE3D786015914AD9A /* LegacyStoreReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyStoreReader.swift; sourceTree = "<group>"; };
 		9C8A5E00E87E54C6FDC16B7B /* YouTubeIFrameDemoViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeIFrameDemoViewController.swift; sourceTree = "<group>"; };
+		A84A504CC6C82F3DEA644725 /* PublicLibraryHeroUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicLibraryHeroUITests.swift; sourceTree = "<group>"; };
 		B38C4DF4F5CE19FD4531B992 /* PublicCatalogUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicCatalogUITests.swift; sourceTree = "<group>"; };
 		B38F7FFDCC49F387A86934E8 /* PublicYouTubeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicYouTubeApp.swift; sourceTree = "<group>"; };
 		B4D8A3E3A2F0AB70964281DF /* PublicStoreLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicStoreLocation.swift; sourceTree = "<group>"; };
@@ -145,6 +148,7 @@
 		C81F467A3435C6012A35B541 /* PublicMigrationArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicMigrationArchiveView.swift; sourceTree = "<group>"; };
 		CF062E2BC7A5EF95B22E93C3 /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
 		DB123987A950FCEDAD853C84 /* Muses.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Muses.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DF5A2EC815611F2FABC3A082 /* PublicLibraryHeroViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicLibraryHeroViews.swift; sourceTree = "<group>"; };
 		E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicPrivacyUITests.swift; sourceTree = "<group>"; };
 		E0B307C7EDD580A924EC5DE4 /* EQPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQPreset.swift; sourceTree = "<group>"; };
 		E27064ED6B06E5E99F0815F8 /* NotesModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesModels.swift; sourceTree = "<group>"; };
@@ -221,6 +225,7 @@
 			children = (
 				80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */,
 				619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */,
+				DF5A2EC815611F2FABC3A082 /* PublicLibraryHeroViews.swift */,
 				C81F467A3435C6012A35B541 /* PublicMigrationArchiveView.swift */,
 				B718C354ECFF33EF9D4AD63A /* PublicNotebookModel.swift */,
 				8A3C6FAADDB87FAA89AE2285 /* PublicNotebookViews.swift */,
@@ -237,6 +242,7 @@
 			children = (
 				91A7D6679DFAC0606BC24FBB /* KeyboardDismissalTests.swift */,
 				B38C4DF4F5CE19FD4531B992 /* PublicCatalogUITests.swift */,
+				A84A504CC6C82F3DEA644725 /* PublicLibraryHeroUITests.swift */,
 				FFEABBB343EF659168B63ED0 /* PublicNotebookUITests.swift */,
 				E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */,
 				B88CC19B6BBEFF7A59783565 /* PublicSmokeTests.swift */,
@@ -505,6 +511,7 @@
 				54F7E4C136C06E1CC21E8C4E /* PublicCatalogViews.swift in Sources */,
 				F0BF6BEE1C7B1F9FA77BCB28 /* PublicCredentialDeletion.swift in Sources */,
 				7273935935728720CB6E452E /* PublicKeyboardDismissal.swift in Sources */,
+				148812AC812C5E6C11391E93 /* PublicLibraryHeroViews.swift in Sources */,
 				31FDA48D3F5C7D034F58AB50 /* PublicMigrationArchiveView.swift in Sources */,
 				02245EBDD35D14A0D86817C7 /* PublicNotebookModel.swift in Sources */,
 				6EA15B99732E710FF6701337 /* PublicNotebookViews.swift in Sources */,
@@ -548,6 +555,7 @@
 			files = (
 				109B68E82A26267834BF227E /* KeyboardDismissalTests.swift in Sources */,
 				8525D550E4F0761D9A32B796 /* PublicCatalogUITests.swift in Sources */,
+				56065018CE92DE951A466C0A /* PublicLibraryHeroUITests.swift in Sources */,
 				8AF6B5523E2CB9B7F1A26604 /* PublicNotebookUITests.swift in Sources */,
 				48E5884910C6DC3E956F633D /* PublicPrivacyUITests.swift in Sources */,
 				3CA9C72BA6514C9F43931BD0 /* PublicSmokeTests.swift in Sources */,

@@ -25,7 +25,7 @@ public extension SwiftDataSnapshotRepository {
         var tracks = try list(Track.self, kind: .track)
         let encoder = JSONEncoder()
         for index in tracks.indices { tracks[index].liked = false }
-        let payloads = try tracks.map { ($0.id, try encoder.encode($0)) }
+        let payloads = try tracks.map { ($0.id, try encoder.encode($0.localPersistenceSnapshot)) }
         do {
             for (id, data) in payloads {
                 guard let row = try record(kind: .track, id: id.rawValue), row.payloadVersion == 1 else { throw PersistenceError.corruptRecord(id.rawValue) }
@@ -51,7 +51,7 @@ public extension SwiftDataSnapshotRepository {
     func removeLocalFavorite(_ id: TrackID) throws -> Track {
         guard var track = try track(id: id) else { throw LocalLibraryError.missingTrack }
         track.liked = false
-        let data = try JSONEncoder().encode(track)
+        let data = try JSONEncoder().encode(track.localPersistenceSnapshot)
         do {
             guard let row = try record(kind: .track, id: id.rawValue), row.payloadVersion == 1 else { throw PersistenceError.corruptRecord(id.rawValue) }
             row.payload = data; row.updatedAt = Date()
