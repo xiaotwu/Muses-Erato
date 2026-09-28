@@ -19,6 +19,7 @@
 		1BEA681DD9C2D4B70CB11A42 /* QueueGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0696E1BFCAC74C13EC4D12E0 /* QueueGroup.swift */; };
 		1C27C5D773A2CDC521C36A06 /* PublicCatalogFixtureTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77EBF9643B9DA73DE6077ACB /* PublicCatalogFixtureTransport.swift */; };
 		1C9CDF738ED2298F36CF3394 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 14D40A8955CC50AB87F7462D /* PrivacyInfo.xcprivacy */; };
+		1D0CA1D0E368F1B20741F402 /* PublicCollectionDeck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18679B1E3B1EE371E4E2174A /* PublicCollectionDeck.swift */; };
 		21FFC3D5C065537765A08A93 /* YouTubeIFrameContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DBD23204B11D9B81CB4880E /* YouTubeIFrameContract.swift */; };
 		27019D7DA05EF8F43D7C1096 /* PublicRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027F187DCE7E94BA6D2C5B03 /* PublicRootView.swift */; };
 		2C348C4AB65DF0A3EE212A73 /* YouTubeImportItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53C5D2DAAE6B5194B0777348 /* YouTubeImportItem.swift */; };
@@ -105,6 +106,7 @@
 		13AD923E4A632D1FDA065F07 /* PublicPlaylistImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicPlaylistImportView.swift; sourceTree = "<group>"; };
 		14D40A8955CC50AB87F7462D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		18429725DF2EDAD606C8F793 /* OAuth */ = {isa = PBXFileReference; lastKnownFileType = folder; name = OAuth; path = Platform/iOS/OAuth; sourceTree = SOURCE_ROOT; };
+		18679B1E3B1EE371E4E2174A /* PublicCollectionDeck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicCollectionDeck.swift; sourceTree = "<group>"; };
 		2479010E573AFE3D23E4E15E /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		24F28D830AFA6AA5972A1D3A /* QueueItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueItem.swift; sourceTree = "<group>"; };
 		27D48D0063152B94B2CA0707 /* MusesCatalog */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesCatalog; path = Packages/MusesCatalog; sourceTree = SOURCE_ROOT; };
@@ -232,6 +234,7 @@
 			isa = PBXGroup;
 			children = (
 				80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */,
+				18679B1E3B1EE371E4E2174A /* PublicCollectionDeck.swift */,
 				619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */,
 				DF5A2EC815611F2FABC3A082 /* PublicLibraryHeroViews.swift */,
 				C81F467A3435C6012A35B541 /* PublicMigrationArchiveView.swift */,
@@ -522,6 +525,7 @@
 				3A0D00F3C26616A6B32B661E /* PublicArchiveSuccessorRouter.swift in Sources */,
 				1C27C5D773A2CDC521C36A06 /* PublicCatalogFixtureTransport.swift in Sources */,
 				54F7E4C136C06E1CC21E8C4E /* PublicCatalogViews.swift in Sources */,
+				1D0CA1D0E368F1B20741F402 /* PublicCollectionDeck.swift in Sources */,
 				F0BF6BEE1C7B1F9FA77BCB28 /* PublicCredentialDeletion.swift in Sources */,
 				7273935935728720CB6E452E /* PublicKeyboardDismissal.swift in Sources */,
 				148812AC812C5E6C11391E93 /* PublicLibraryHeroViews.swift in Sources */,

@@ -16,6 +16,8 @@ public struct QueueSnapshot: Codable, Equatable, Sendable {
     public var history: [QueueEntry]
     /// Opaque route or collection identifier, never a display title.
     public var sourceContext: String?
+    /// Occurrence IDs distinguish a collection continuation from explicit Up Next additions.
+    public var collectionEntryIDs: [UUID]? = nil
     public var repeatMode: QueueRepeat
     public var shuffleEnabled: Bool
     public var shuffleSeed: UInt64
@@ -60,7 +62,10 @@ public struct PlaybackQueue: Sendable {
         if let current = snapshot.current { snapshot.history.append(current) }
         snapshot.history.append(contentsOf: entries.prefix(index))
         snapshot.current = entries[index]
+        let oldCollectionIDs = Set(snapshot.collectionEntryIDs ?? [])
+        snapshot.upcoming.removeAll { oldCollectionIDs.contains($0.id) }
         snapshot.upcoming.insert(contentsOf: entries.dropFirst(index + 1), at: 0)
+        snapshot.collectionEntryIDs = ids
         snapshot.sourceContext = context
         snapshot.positionMilliseconds = 0
         snapshot.intent = .play

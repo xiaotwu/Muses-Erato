@@ -78,6 +78,9 @@ extension PublicPlaylistImportTests {
         let reopened = PublicYouTubeSession(storeURL: url)
         XCTAssertEqual(reopened.queue.snapshot.current?.id, session.queue.snapshot.current?.id)
         XCTAssertEqual(reopened.queue.snapshot.upcoming, session.queue.snapshot.upcoming)
+        XCTAssertTrue(reopened.playPlaylist(playlist.id, startingAtOccurrenceIndex: 0))
+        XCTAssertEqual(reopened.queue.snapshot.upcoming.map(\.trackID), playlist.playbackTrackIDs.dropFirst().map { $0 } + [first.id])
+        XCTAssertEqual(reopened.queue.snapshot.upcoming.last?.id, explicit.id)
     }
 
     func testOccurrenceEditsSurviveRestartAndQueueKeepsRepeatedOrder() throws {
