@@ -65,7 +65,7 @@ struct PublicLibraryHeroShelf: View {
             ForEach(PublicLibraryPresentation.allCases, id: \.self) { mode in
                 Button { presentation = mode } label: {
                     Label(mode.rawValue, systemImage: mode == .cards ? "rectangle.stack" : "list.bullet")
-                        .font(.subheadline.weight(.semibold)).padding(.horizontal, 10).frame(minHeight: 44)
+                        .font(.subheadline.weight(.semibold)).padding(.horizontal, 10).frame(minHeight: 44).contentShape(Rectangle())
                         .background(presentation == mode ? Color(uiColor: .tertiarySystemBackground) : .clear, in: Capsule())
                 }.buttonStyle(.plain)
                     .accessibilityAddTraits(presentation == mode ? .isSelected : [])
@@ -115,10 +115,10 @@ struct PublicCollectionRow: View {
     private var actions: some View {
         HStack(spacing: 0) {
             Button { if let video = track.publicVideoID { session.open(video, title: track.title) } } label: {
-                Label("Play \(track.title)", systemImage: "play.fill").labelStyle(.iconOnly).frame(width: 44, height: 44)
+                Label("Play \(track.title)", systemImage: "play.fill").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
             }.disabled(track.publicVideoID == nil).accessibilityIdentifier("library.play.\(track.id.rawValue)")
             Button { session.enqueueTrack(track) } label: {
-                Label("Add \(track.title) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44)
+                Label("Add \(track.title) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
             }
             PublicTrackActions(session: session, track: track, category: category)
         }.buttonStyle(.plain)
@@ -149,7 +149,7 @@ struct PublicTrackActions: View {
             }
             Button("Delete saved video", systemImage: "trash", role: .destructive) { deleting = true }
         } label: {
-            Label("Actions for \(track.title)", systemImage: "ellipsis").labelStyle(.iconOnly).frame(width: 44, height: 44)
+            Label("Actions for \(track.title)", systemImage: "ellipsis").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
         }.accessibilityIdentifier("library.actions.\(track.id.rawValue)")
             .confirmationDialog(category == .favorites ? "Remove this favorite?" : "Remove this video's local history?", isPresented: $removing, titleVisibility: .visible) {
                 Button("Remove", role: .destructive) {

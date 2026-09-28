@@ -49,7 +49,9 @@ struct PublicCollectionDeck: View {
             } else { move(distance) }
         } label: {
             PublicDeckArtworkCard(track: track, width: width, footer: footer, focused: selected)
+                .contentShape(RoundedRectangle(cornerRadius: 22))
         }.buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
             .scaleEffect(scale)
             .rotationEffect(.degrees(Double(distance) * 8))
             .offset(x: offsetX, y: offsetY)
@@ -80,20 +82,19 @@ struct PublicCollectionDeck: View {
                 .frame(height: stageHeight)
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
                 .clipped()
-                .accessibilityIdentifier("collection.deck")
                 HStack(spacing: 4) {
-                    Button { move(-1) } label: { Label("Previous card", systemImage: "chevron.left").labelStyle(.iconOnly).frame(width: 44, height: 44) }
+                    Button { move(-1) } label: { Label("Previous card", systemImage: "chevron.left").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .disabled(index == 0).accessibilityIdentifier("collection.previous")
                     Text("\(index + 1) / \(tracks.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                         .frame(minWidth: 62).accessibilityIdentifier("collection.position")
-                    Button { move(1) } label: { Label("Next card", systemImage: "chevron.right").labelStyle(.iconOnly).frame(width: 44, height: 44) }
+                    Button { move(1) } label: { Label("Next card", systemImage: "chevron.right").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .disabled(index == tracks.count - 1).accessibilityIdentifier("collection.next")
                     Spacer(minLength: 0)
                     NavigationLink { PublicVideoDetail(session: session, trackID: tracks[index].id) } label: {
-                        Label("Video details", systemImage: "info.circle").labelStyle(.iconOnly).frame(width: 44, height: 44)
+                        Label("Video details", systemImage: "info.circle").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
                     }.accessibilityIdentifier("library.detail.\(tracks[index].id.rawValue)")
                     Button { session.enqueueTrack(tracks[index]) } label: {
-                        Label("Add to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44)
+                        Label("Add to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
                     }
                     PublicTrackActions(session: session, track: tracks[index], category: category)
                 }.buttonStyle(.plain)
@@ -181,17 +182,19 @@ struct PublicPlaylistBlock: View {
                                 let track = entries[index].flatMap { id in session.tracks.first { $0.id == id } }
                                 Button { session.playPlaylist(playlist.id, startingAtOccurrenceIndex: index) } label: {
                                     PublicDeckArtworkCard(track: track, width: typeSize.isAccessibilitySize ? 210 : 142, footer: typeSize.isAccessibilitySize ? 116 : 62, focused: track != nil)
+                                        .contentShape(RoundedRectangle(cornerRadius: 22))
                                 }.buttonStyle(.plain).disabled(track == nil)
+                                    .accessibilityElement(children: .ignore)
                                     .id(index).accessibilityLabel("Entry \(index + 1), \(track?.title ?? "Unavailable")")
                                     .accessibilityIdentifier("playlist.entry.\(playlist.id).\(index)")
                             }
                         }.scrollTargetLayout().padding(.vertical, 6)
                     }.scrollPosition(id: $focusedEntry, anchor: .leading).scrollIndicators(.hidden).accessibilityIdentifier("playlist.entries.\(playlist.id)")
                     HStack(spacing: 0) {
-                        Button { browse(-1, proxy: proxy) } label: { Label("Previous entries in \(playlist.name)", systemImage: "chevron.left").labelStyle(.iconOnly).frame(width: 44, height: 44) }
+                        Button { browse(-1, proxy: proxy) } label: { Label("Previous entries in \(playlist.name)", systemImage: "chevron.left").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
                             .disabled(entries.isEmpty || (focusedEntry ?? 0) == 0)
                         Spacer()
-                        Button { browse(1, proxy: proxy) } label: { Label("Next entries in \(playlist.name)", systemImage: "chevron.right").labelStyle(.iconOnly).frame(width: 44, height: 44) }
+                        Button { browse(1, proxy: proxy) } label: { Label("Next entries in \(playlist.name)", systemImage: "chevron.right").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
                             .disabled(entries.isEmpty || (focusedEntry ?? 0) >= entries.count - 1)
                     }.buttonStyle(.plain)
                 }
@@ -208,6 +211,7 @@ struct PublicPlaylistBlock: View {
         VStack(alignment: .leading, spacing: 2) {
             NavigationLink { PublicPlaylistDetail(session: session, playlistID: playlist.id) } label: {
                 Text(playlist.name).font(.headline).lineLimit(2)
+                    .frame(minHeight: 44, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).frame(minHeight: 44, alignment: .leading)
                 .accessibilityIdentifier("playlist.open.\(playlist.id)")
             Text("\(playlist.entryCount) entries").font(.caption).foregroundStyle(.secondary)
@@ -216,17 +220,17 @@ struct PublicPlaylistBlock: View {
     private var actions: some View {
         HStack(spacing: 0) {
             Button { if let index = firstPlayable { session.playPlaylist(playlist.id, startingAtOccurrenceIndex: index) } } label: {
-                Label("Play \(playlist.name)", systemImage: "play.fill").labelStyle(.iconOnly).frame(width: 44, height: 44)
+                Label("Play \(playlist.name)", systemImage: "play.fill").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
             }.disabled(firstPlayable == nil)
             Button { session.enqueuePlaylist(playlist.id) } label: {
-                Label("Add \(playlist.name) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44)
+                Label("Add \(playlist.name) to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle())
             }.disabled(firstPlayable == nil)
             Menu {
                 NavigationLink { PublicPlaylistDetail(session: session, playlistID: playlist.id) } label: { Label("Open details or rename", systemImage: "pencil") }
                 Button("Clear playlist", systemImage: "rectangle.stack.badge.minus", role: .destructive) { clearing = true }
                     .disabled(playlist.entryCount == 0)
                 Button("Delete playlist", systemImage: "trash", role: .destructive) { deleting = true }
-            } label: { Label("Actions for \(playlist.name)", systemImage: "ellipsis").labelStyle(.iconOnly).frame(width: 44, height: 44) }
+            } label: { Label("Actions for \(playlist.name)", systemImage: "ellipsis").labelStyle(.iconOnly).frame(width: 44, height: 44).contentShape(Rectangle()) }
         }.buttonStyle(.plain)
     }
     private func browse(_ step: Int, proxy: ScrollViewProxy) {
