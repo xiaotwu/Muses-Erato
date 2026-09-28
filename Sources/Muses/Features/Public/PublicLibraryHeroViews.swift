@@ -211,7 +211,7 @@ struct PublicLocalPlaylistHero: View {
             NavigationLink { PublicPlaylistDetail(session: session, playlistID: playlist.id) } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(playlist.name).font(.system(.title2, design: .serif, weight: .semibold))
-                    Text("\(playlist.trackIDs.count) videos · On this device").font(.caption)
+                    Text("\(playlist.entryCount) videos · On this device").font(.caption)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain)
                 .accessibilityIdentifier("playlist.open.\(playlist.id)")
@@ -236,12 +236,12 @@ struct PublicPlaylistClearButton: View {
     var body: some View {
         Button("Clear playlist videos", systemImage: "trash") { clearing = true }
             .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
-            .disabled(playlist.trackIDs.isEmpty)
+            .disabled(playlist.entryCount == 0)
             .accessibilityIdentifier("playlist.clear")
             .confirmationDialog("Clear this local playlist?", isPresented: $clearing, titleVisibility: .visible) {
                 Button("Clear playlist videos", role: .destructive) {
                     session.editPlaylist(playlist.id) { value in
-                        for id in value.trackIDs { value.remove(id) }
+                        value.removeAllEntries()
                     }
                 }
             } message: { Text("Saved videos remain. YouTube is unchanged.") }

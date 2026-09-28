@@ -20,3 +20,23 @@ import MusesDomain
         XCTAssertTrue(try repo.list(Track.self, kind: .track).allSatisfy { $0.metadataOrigin == .placeholder })
     }
 }
+
+extension PlaylistImportTests {
+    func testUnavailableOccurrenceAndInvalidReorderPreserveProjection() throws {
+        let a = try TrackID(UUID().uuidString), b = try TrackID(UUID().uuidString)
+        let entries = [LocalPlaylistOccurrence(id: UUID(), trackID: a), .init(id: UUID(), trackID: b), .init(id: UUID(), trackID: a), .init(id: UUID(), trackID: nil)]
+        var playlist = try LocalPlaylist(name: "Legacy", trackIDs: [a, b], occurrences: entries)
+        XCTAssertEqual(playlist.entryCount, 4)
+        XCTAssertThrowsError(try playlist.reorderOccurrences([entries[0].id, entries[0].id, entries[2].id, entries[3].id]))
+        XCTAssertEqual(playlist.occurrences, entries)
+        playlist.removeOccurrence(entries[0].id)
+        XCTAssertEqual(playlist.playbackTrackIDs, [b, a])
+        XCTAssertEqual(playlist.trackIDs, [b, a])
+        playlist.remove(a) // Existing whole-track deletion still removes every occurrence.
+        XCTAssertEqual(playlist.entryCount, 2)
+        playlist.removeAllEntries()
+        XCTAssertEqual(playlist.entryCount, 0)
+        XCTAssertEqual(playlist.occurrences, [])
+        try playlist.validated()
+    }
+}

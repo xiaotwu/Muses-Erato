@@ -949,31 +949,53 @@ struct PublicPlaylistDetail: View {
         List {
             if let playlist {
                 Section {
-                    Text("\(playlist.trackIDs.count) videos · On this device")
+                    Text("\(playlist.entryCount) videos · On this device")
                     Button("Add videos", systemImage: "plus") { adding = true }.labelStyle(.iconOnly)
                     Button("Add playlist to queue", systemImage: "text.badge.plus") { session.enqueuePlaylist(playlistID) }.labelStyle(.iconOnly)
                         .disabled(playlist.trackIDs.isEmpty)
                     PublicPlaylistClearButton(session: session, playlist: playlist)
                 }
                 Section("Videos") {
-                    if playlist.trackIDs.isEmpty {
+                    if playlist.entryCount == 0 {
                         Text("This playlist is empty. Add videos from your saved collection.").foregroundStyle(.secondary)
                     }
-                    ForEach(playlist.trackIDs, id: \.self) { id in
-                        if let track = session.tracks.first(where: { $0.id == id }) {
-                            NavigationLink { PublicVideoDetail(session: session, trackID: id) } label: {
-                                PublicVideoRow(track: track, symbol: "play.rectangle")
+                    if let occurrences = playlist.occurrences {
+                        ForEach(occurrences) { occurrence in
+                            if let id = occurrence.trackID, let track = session.tracks.first(where: { $0.id == id }) {
+                                NavigationLink { PublicVideoDetail(session: session, trackID: id) } label: {
+                                    PublicVideoRow(track: track, symbol: "play.rectangle")
+                                }.accessibilityIdentifier("playlist.occurrence.\(occurrence.id)")
+                            } else {
+                                Label("Unavailable playlist entry", systemImage: "exclamationmark.circle")
+                                    .foregroundStyle(.secondary)
                             }
                         }
-                    }
-                    .onDelete { indices in
-                        let removed = indices.map { playlist.trackIDs[$0] }
-                        session.editPlaylist(playlistID) { value in removed.forEach { value.remove($0) } }
-                    }
-                    .onMove { indices, destination in
-                        var ids = playlist.trackIDs
-                        ids.move(fromOffsets: indices, toOffset: destination)
-                        session.editPlaylist(playlistID) { try $0.reorder(ids) }
+                        .onDelete { indices in
+                            let removed = indices.map { occurrences[$0].id }
+                            session.editPlaylist(playlistID) { value in removed.forEach { value.removeOccurrence($0) } }
+                        }
+                        .onMove { indices, destination in
+                            var ids = occurrences.map(\.id)
+                            ids.move(fromOffsets: indices, toOffset: destination)
+                            session.editPlaylist(playlistID) { try $0.reorderOccurrences(ids) }
+                        }
+                    } else {
+                        ForEach(playlist.trackIDs, id: \.self) { id in
+                            if let track = session.tracks.first(where: { $0.id == id }) {
+                                NavigationLink { PublicVideoDetail(session: session, trackID: id) } label: {
+                                    PublicVideoRow(track: track, symbol: "play.rectangle")
+                                }
+                            }
+                        }
+                        .onDelete { indices in
+                            let removed = indices.map { playlist.trackIDs[$0] }
+                            session.editPlaylist(playlistID) { value in removed.forEach { value.remove($0) } }
+                        }
+                        .onMove { indices, destination in
+                            var ids = playlist.trackIDs
+                            ids.move(fromOffsets: indices, toOffset: destination)
+                            session.editPlaylist(playlistID) { try $0.reorder(ids) }
+                        }
                     }
                 }
                 Section {

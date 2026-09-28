@@ -5,7 +5,7 @@ public enum LocalLibraryError: Error, Equatable, Sendable {
 }
 
 /// Device-local collection. Never represents or mutates a YouTube account playlist.
-/// The editing projection contains unique tracks. Migrated occurrences preserve
+/// trackIDs is the unique membership projection. Occurrence-aware editors preserve
 /// repeated and unavailable entries independently; playback uses their full order.
 public struct LocalPlaylist: Codable, Equatable, Sendable, Identifiable {
     public let id: UUID
@@ -23,6 +23,28 @@ public struct LocalPlaylist: Codable, Equatable, Sendable, Identifiable {
         self.createdAt = createdAt
         self.occurrences = occurrences
         try validated()
+    }
+    public var entryCount: Int { occurrences?.count ?? trackIDs.count }
+    public mutating func removeOccurrence(_ id: UUID) {
+        guard occurrences != nil else { return }
+        occurrences?.removeAll { $0.id == id }
+        rebuildProjection()
+    }
+    public mutating func reorderOccurrences(_ ids: [UUID]) throws {
+        guard let original = occurrences, ids.count == original.count,
+              Set(ids).count == ids.count, Set(ids) == Set(original.map(\.id)) else { throw LocalLibraryError.invalidOrder }
+        let entries = Dictionary(uniqueKeysWithValues: original.map { ($0.id, $0) })
+        occurrences = ids.compactMap { entries[$0] }
+        rebuildProjection()
+    }
+    public mutating func removeAllEntries() {
+        trackIDs = []
+        if occurrences != nil { occurrences = [] }
+    }
+    private mutating func rebuildProjection() {
+        guard let occurrences else { return }
+        var seen = Set<TrackID>()
+        trackIDs = occurrences.compactMap(\.trackID).filter { seen.insert($0).inserted }
     }
     public mutating func rename(_ name: String) throws { self.name = try Self.validName(name) }
     public mutating func add(_ id: TrackID) {
