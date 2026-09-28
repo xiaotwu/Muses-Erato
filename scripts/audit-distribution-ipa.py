@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Verify an exported App Store IPA locally; never upload it."""
+import argparse
+import hashlib
+import json
+import pathlib
+import plistlib
+import subprocess
+import stat
+import tempfile
+import zipfile
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('ipa', type=pathlib.Path)
+parser.add_argument('--team', required=True)
+parser.add_argument('--bundle-id', default='com.xiaotwu.muses.erato')
+args = parser.parse_args()
+ipa = args.ipa.resolve(strict=True)
+
+def run(command):
+    return subprocess.run(command, capture_output=True, check=True)
+
+with zipfile.ZipFile(ipa) as archive:
+    for entry in archive.infolist():
+        path = pathlib.PurePosixPath(entry.filename)
+        if path.is_absolute() or '..' in path.parts:
+            raise SystemExit('FAIL: unsafe archive member path')
+        if stat.S_ISLNK(entry.external_attr >> 16):
+            target = pathlib.PurePosixPath(archive.read(entry).decode('utf-8'))
+            if target.is_absolute() or '..' in target.parts:
+                raise SystemExit('FAIL: unsafe archive symlink')
+with tempfile.TemporaryDirectory(prefix='erato-distribution-audit-') as temporary:
+    run(['ditto', '-x', '-k', str(ipa), temporary])
+    apps = list((pathlib.Path(temporary) / 'Payload').glob('*.app'))
+    if len(apps) != 1:
+        raise SystemExit('FAIL: expected one app in Payload')
+    app = apps[0]
+    info = plistlib.loads((app / 'Info.plist').read_bytes())
+    if info.get('CFBundleIdentifier') != args.bundle_id or 'iPhoneOS' not in info.get('CFBundleSupportedPlatforms', []):
+        raise SystemExit('FAIL: unexpected bundle or platform')
+    run(['codesign', '--verify', '--deep', '--strict', str(app)])
+    entitlements = plistlib.loads(run(['codesign', '-d', '--entitlements', ':-', str(app)]).stdout)
+    profile = plistlib.loads(run(['security', 'cms', '-D', '-i', str(app / 'embedded.mobileprovision')]).stdout)
+    identifier = f'{args.team}.{args.bundle_id}'
+    if entitlements.get('application-identifier') != identifier or entitlements.get('get-task-allow') is not False:
+        raise SystemExit('FAIL: wrong identity or development signing')
+    if profile.get('ProvisionedDevices') or profile.get('ProvisionsAllDevices') or profile['Entitlements'].get('get-task-allow') is not False:
+        raise SystemExit('FAIL: profile is not for App Store distribution')
+    if args.team not in profile.get('TeamIdentifier', []) or profile['Entitlements'].get('application-identifier') != identifier:
+        raise SystemExit('FAIL: provisioning identity mismatch')
+    audit = run(['python3', str(pathlib.Path(__file__).with_name('audit-public-artifact.py')), str(app)])
+    print(audit.stdout.decode())
+    print(json.dumps({'ipaSHA256': hashlib.sha256(ipa.read_bytes()).hexdigest(),
+                      'bundleID': args.bundle_id, 'version': info.get('CFBundleShortVersionString'),
+                      'build': info.get('CFBundleVersion'), 'distributionExportVerified': True,
+                      'uploaded': False}, indent=2))

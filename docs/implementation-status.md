@@ -12,7 +12,7 @@ This file records verified evidence, not completion claims. The original checkou
 | P2 | Domain, queue, V1 persistence and lossless legacy archive contracts | Package tests pass; legacy archive 14 tests pass | Archive provenance/retention release gate; full device upgrade acceptance |
 | P3 | Official Data API catalog, OAuth with PKCE, quota ledger and caching | Package tests pass; Google sign-in succeeded on physical iPhone | Restricted-key device catalog acceptance and production quota evidence |
 | P4 | Public app shell, iPhone/iPad navigation, local history/favorites and visible player route | iPhone simulator app/UI tests pass; iPad layout visually inspected; signed app installed and launched on iPhone | Merged hero/notebook/catalog device acceptance and broader accessibility audit |
-| P6 | Public source allowlist and signed Release archive static audit | Latest merged Release archive passes endpoint/capability/entitlement checks; it uses development provisioning | App Store distribution export, privacy/review packet, TestFlight and App Review |
+| P6 | Public source allowlist and signed Release archive static audit | Latest merged Release archive passes endpoint/capability/entitlement checks; it uses development provisioning | Final-version distribution export, privacy/review packet, TestFlight and App Review |
 
 ## Local device evidence
 
@@ -41,7 +41,7 @@ Reference: https://developers.google.com/youtube/terms/developer-policies#i-addi
 
 ## Current priority: account / YouTube Music playlist import
 
-The owner identified a core gap during device acceptance: browsing a playlist is not adding it to Library. Direct Library account-playlist selection with OAuth and music.youtube.com share-link import are now integrated. One action reads remaining pages (at most 100 pages / 5,000 entries), with cancellation, retry and atomic local commit. Repeated entries display, delete and reorder by occurrence UUID; queues preserve their order. The official account endpoint guarantees owned playlists, not the whole YouTube Music library. API display names remain memory-only; the local playlist uses the user's chosen name. Integrated iPhone import UI and two hosted import tests pass; the worker also verified iPad import. The signed Debug build including imports, occurrence editing and secondary icon controls is installed and launched on the phone. Owner live account/playlist/count/playback acceptance is pending.
+The owner identified a core gap during device acceptance: browsing a playlist is not adding it to Library. Direct Library account-playlist selection with OAuth and music.youtube.com share-link import are now integrated. One action reads remaining pages (at most 100 pages / 5,000 entries), with cancellation, retry and atomic local commit. Repeated entries display, delete and reorder by occurrence UUID; queues preserve their order. The official account endpoint guarantees owned playlists, not the whole YouTube Music library. API display names remain memory-only; the local playlist uses the user's chosen name. Integrated iPhone import UI and two hosted import tests pass; the worker also verified iPad import. The signed Debug build including imports, occurrence editing and secondary icon controls is installed and launched on the phone. The owner confirmed account reading, imported counts and playback work. They requested automatic all-page loading immediately after selection and retaining the original playlist name. Those refinements are the active priority and need a new device build; automatic API naming must retain explicit provenance and the memory-only display boundary.
 
 ## Privacy and release preparation
 
@@ -54,7 +54,10 @@ The owner identified a core gap during device acceptance: browsing a playlist is
 ## Latest archive evidence
 
 - The merged signed Release archive at `/tmp/erato-public-release.xcarchive` built successfully and passed `scripts/audit-public-artifact.py` against its actual app. Expected official endpoints and bundled privacy resources are present; inherited stream routes and obsolete background/extension entitlements are absent.
-- Its provisioning profile is a development wildcard profile, with signed application identifier `9URWGD9Q86.com.xiaotwu.muses.erato` and `get-task-allow = true`. This is **not** an App Store distribution artifact or evidence of TestFlight/App Review acceptance. Distribution export and final artifact verification remain required.
+- Its provisioning profile is a development wildcard profile, with signed application identifier `9URWGD9Q86.com.xiaotwu.muses.erato` and `get-task-allow = true`. This is **not** an App Store distribution artifact or evidence of TestFlight/App Review acceptance. A separate App Store export was subsequently verified as described below; the archive itself retains development signing.
+
+- App Store export for code commit `0488b85` succeeded under team `9URWGD9Q86`. Exported IPA SHA-256: `554d7d07aa253f180506a9b3621fc913c0d878f0e070748682dba502da44e8be`. The exported app has the matching explicit application identifier, `get-task-allow = false`, no provisioned-device/all-device profile, verified signature and passing static audit. Version/build: `1.0.0` / `1`. It has **not** been uploaded. New automatic loading/original-name changes remain in progress and will need a fresh final export.
+- Reproduce the export audit with `python3 scripts/audit-distribution-ipa.py <exported.ipa> --team 9URWGD9Q86`. This verifies the exported IPA rather than assuming archive signing matches distribution signing. It does not establish OAuth production, App Privacy, TestFlight or App Review acceptance.
 
 ## Release decision
 
