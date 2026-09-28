@@ -74,6 +74,7 @@ targets:
         buildPhase: resources
       - path: Sources/Muses/Features/Public/PublicCatalogViews.swift
       - path: Sources/Muses/Features/Public/PublicLibraryHeroViews.swift
+      - path: Sources/Muses/Features/Public/PublicPlaylistImportView.swift
       # Compile-time DEBUG only; activated exclusively by isolated UI fixtures.
       - path: Tests/Support/PublicCatalogFixtureTransport.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameAdapter.swift
@@ -105,6 +106,7 @@ targets:
     sources:
       - path: Tests/MusesTests/PublicYouTubeFlowTests.swift
       - path: Tests/MusesTests/PublicNotebookTests.swift
+      - path: Tests/MusesTests/PublicPlaylistImportTests.swift
       - path: Tests/MusesTests/PublicUpgradeStartupTests.swift
       - path: Tests/LegacyMigrationTests/PhysicalLegacyFixture.swift
     dependencies:
