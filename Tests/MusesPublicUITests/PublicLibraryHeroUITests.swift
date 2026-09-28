@@ -51,16 +51,20 @@ import XCTest
         else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.12)).tap() }
     }
     private func saveVideo(_ app: XCUIApplication) {
+        let entry = app.buttons["public.openLinkEntry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5)); entry.tap()
         reveal(app.textFields["public.link"], app: app)
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText("dQw4w9WgXcQ")
         reveal(app.buttons["public.open"], app: app)
         app.buttons["public.open"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 10))
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
     }
     private func importSongs(_ app: XCUIApplication) {
         category("Playlists", app: app)
+        let add = app.buttons["library.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
         app.buttons["library.importPlaylist"].tap()
         let owned = app.buttons["playlistImport.account.PLfixture"]
         XCTAssertTrue(owned.waitForExistence(timeout: 10)); owned.tap()
@@ -88,7 +92,7 @@ import XCTest
         image.name = "Library hero"; image.lifetime = .keepAlways; add(image)
         play.tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 10))
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
         let actions = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.actions.'")).firstMatch
         reveal(actions, app: app); actions.tap()
         app.buttons["Delete saved video"].tap()

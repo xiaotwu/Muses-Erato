@@ -17,6 +17,8 @@ import XCTest
     }
     func testMadeForKidsShowsRestrictionAndExternalAction() {
         let app = launch()
+        let entry = app.buttons["public.openLinkEntry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5)); entry.tap()
         let link = app.textFields["public.link"]
         XCTAssertTrue(link.waitForExistence(timeout: 5))
         link.tap(); link.typeText("MFKabcdefgh")
@@ -27,13 +29,16 @@ import XCTest
         // The presenting Home and player both show the shared session failure.
         // Check the visible label rather than requiring one global match.
         XCTAssertTrue(notices.allElementsBoundByIndex.contains { $0.isHittable })
-        let external = app.buttons["Open in YouTube"]
-        reveal(external, in: app)
-        XCTAssertTrue(external.isEnabled)
         XCTAssertFalse(app.buttons["Play"].isEnabled)
-        XCTAssertTrue(app.buttons["Close"].isEnabled)
-        app.buttons["Close"].tap()
-        XCTAssertTrue(app.buttons["public.open"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Close player"].isEnabled)
+        app.buttons["Playback actions"].tap()
+        let external = app.buttons["Website playback"]
+        XCTAssertTrue(external.waitForExistence(timeout: 5))
+        XCTAssertTrue(external.isEnabled)
+        // Dismiss the menu without launching the external website.
+        app.navigationBars["Now Playing"].staticTexts["Now Playing"].tap()
+        app.buttons["Close player"].tap()
+        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 5))
     }
 
     func testSearchPaginationIsExplicitAndRetryPreservesRows() {
@@ -53,6 +58,8 @@ import XCTest
     }
     func testPlaylistAndChannelLinkBrowsing() {
         let app = launch()
+        let entry = app.buttons["public.openLinkEntry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5)); entry.tap()
         let link = app.textFields["public.link"]
         link.tap(); link.typeText("https://youtube.com/playlist?list=PLfixture")
         app.buttons["public.open"].tap()
@@ -75,6 +82,8 @@ import XCTest
     func testAccountPlaylistOpensVisiblePlayerFromSettings() {
         let app = launch()
         app.buttons["Settings"].firstMatch.tap()
+        let account = app.buttons["settings.account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
         app.buttons["Account & YouTube collections"].tap()
         app.buttons["Load my YouTube playlists"].tap()
         app.buttons.containing(.staticText, identifier: "Fixture public playlist").firstMatch.tap()
@@ -82,15 +91,22 @@ import XCTest
         app.buttons["Load playlist videos"].tap()
         app.buttons.containing(.staticText, identifier: "Fixture playlist video 1").firstMatch.tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 10))
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
         XCTAssertTrue(app.staticTexts["Fixture playlist description"].waitForExistence(timeout: 5))
     }
     func testReadOnlyAccountCollectionsAndProfileSeparation() {
         let app = launch()
-        app.tabBars.buttons["Discover"].tap()
+        app.buttons["Settings"].firstMatch.tap()
+        let account = app.buttons["settings.account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 5)); account.tap()
+        let channelID = app.staticTexts["account.channelID"]
+        XCTAssertTrue(channelID.waitForExistence(timeout: 5))
+        XCTAssertEqual(channelID.label, "UCabcdefghijklmnopqrstuv")
+        XCTAssertTrue(app.buttons["Copy Channel ID"].isEnabled)
         app.buttons["Account & YouTube collections"].tap()
-        XCTAssertTrue(app.staticTexts["Local Muses profile"].waitForExistence(timeout: 5))
-        app.buttons["Load my YouTube profile"].tap()
+        XCTAssertTrue(app.staticTexts["YouTube collections are read-only."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["0 saved videos · 0 local playlists"].exists)
+        // Settings has already loaded the authenticated channel; collections reuses that page.
         XCTAssertTrue(app.staticTexts["Fixture channel"].waitForExistence(timeout: 5))
         app.buttons["Load my YouTube playlists"].tap()
         XCTAssertTrue(app.staticTexts["Fixture public playlist"].waitForExistence(timeout: 5))

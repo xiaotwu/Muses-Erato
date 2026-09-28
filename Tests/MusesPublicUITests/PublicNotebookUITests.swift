@@ -13,7 +13,7 @@ import XCTest
         let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
         reveal(row, in: app)
         row.tap()
-        XCTAssertTrue(app.navigationBars["Video details"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
     }
     private func replace(_ field: XCUIElement, with value: String) {
         let previous = field.value as? String ?? ""
@@ -30,12 +30,14 @@ import XCTest
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launch()
+        let entry = app.buttons["public.openLinkEntry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText("dQw4w9WgXcQ")
         app.buttons["public.open"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 15))
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
         detail(app)
         reveal(app.buttons["notebook.addNote"], in: app)
         app.buttons["notebook.addNote"].tap()
@@ -74,7 +76,7 @@ import XCTest
         reveal(app.staticTexts["notebook.bookmarkTarget"], in: app)
         XCTAssertTrue(app.staticTexts["notebook.bookmarkTarget"].label.contains("0:25"))
         XCTAssertNotEqual(app.staticTexts["public.playbackState"].label, "Playing")
-        app.buttons["Close"].tap()
+        app.buttons["Close player"].tap()
         app.terminate()
         app.launch()
         detail(app)
@@ -84,16 +86,19 @@ import XCTest
         XCTAssertTrue(openBookmark.label.contains("Updated moment"))
         XCTAssertTrue(openBookmark.label.contains("0:25"))
         let deleteNote = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'notebook.deleteNote.'")).firstMatch
-        // The note precedes bookmarks; reveal it by scrolling back up if needed.
-        for _ in 0..<5 { if deleteNote.isHittable { break }; app.swipeDown() }
-        deleteNote.tap()
+        let noteActions = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'notebook.noteActions.'")).firstMatch
+        // The note precedes bookmarks; scroll to its visible overflow control first.
+        for _ in 0..<5 { if noteActions.isHittable { break }; app.swipeDown() }
+        XCTAssertTrue(noteActions.isHittable); noteActions.tap()
+        XCTAssertTrue(deleteNote.waitForExistence(timeout: 5)); deleteNote.tap()
         app.alerts.buttons["Delete note"].tap()
-        XCTAssertTrue(app.staticTexts["No notes yet. Save your thoughts about this video."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No notes yet."].waitForExistence(timeout: 5))
         let deleteBookmark = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'notebook.deleteBookmark.'")).firstMatch
-        reveal(deleteBookmark, in: app)
-        deleteBookmark.tap()
+        let bookmarkActions = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'notebook.bookmarkActions.'")).firstMatch
+        reveal(bookmarkActions, in: app); bookmarkActions.tap()
+        XCTAssertTrue(deleteBookmark.waitForExistence(timeout: 5)); deleteBookmark.tap()
         app.alerts.buttons["Delete bookmark"].tap()
-        XCTAssertTrue(app.staticTexts["No time bookmarks. Save a moment to return to later."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No bookmarks yet."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["notebook.clearBookmarks"].isEnabled)
         for _ in 0..<5 { if app.buttons["notebook.addNote"].isHittable { break }; app.swipeDown() }
         XCTAssertFalse(app.buttons["notebook.clearNotes"].isEnabled)

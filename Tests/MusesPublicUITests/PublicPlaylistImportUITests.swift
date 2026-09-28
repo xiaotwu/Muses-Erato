@@ -18,6 +18,8 @@ import XCTest
             rail.swipeLeft(velocity: .slow)
         }
         playlists.tap()
+        let add = app.buttons["library.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
         let entry = app.buttons["library.importPlaylist"]
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(entry.frame.width, 44)
@@ -32,6 +34,9 @@ import XCTest
         XCTAssertTrue(app.buttons["playlistImport.save"].isEnabled)
         XCTAssertEqual(app.textFields["playlistImport.name"].value as? String, "Fixture public playlist")
         app.buttons["playlistImport.chooseAnother"].tap()
+        let sources = app.segmentedControls["playlistImport.source"]
+        XCTAssertTrue(sources.waitForExistence(timeout: 5))
+        sources.buttons["Playlist link"].tap()
         let link = app.textFields["playlistImport.link"]
         reveal(link, app: app)
         link.tap(); link.typeText("https://music.youtube.com/playlist?list=PLfixture")
