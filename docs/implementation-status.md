@@ -9,9 +9,9 @@ This file records verified evidence, not completion claims. The original checkou
 | --- | --- | --- | --- |
 | P0 | Source baseline, capability matrix and migration plan | macOS 671 tests; core 3 tests; original iOS baseline had two known failures | Keep parity matrix current |
 | P1 | Visible official YouTube IFrame adapter | Swift typecheck, simulated public UI flow and physical iPhone video playback | Next, embedding error, navigation and interruption on device |
-| P2 | Domain, queue, V1 persistence and lossless legacy archive contracts | Package tests pass; legacy archive 14 tests pass | Physical old SwiftData fixture, app reader, rollback proof |
-| P3 | Official Data API catalog, OAuth with PKCE, quota ledger and caching | Package tests pass; Google sign-in succeeded on physical iPhone | Guest Data API key, live catalog result and quota measurements |
-| P4 | Public app shell, iPhone/iPad navigation, local history/favorites and visible player route | iPhone simulator app/UI tests pass; iPad layout visually inspected; signed app installed and launched on iPhone | Playlists, notes, queue UX, broader parity and accessibility audit |
+| P2 | Domain, queue, V1 persistence and lossless legacy archive contracts | Package tests pass; legacy archive 14 tests pass | Archive provenance/retention release gate; full device upgrade acceptance |
+| P3 | Official Data API catalog, OAuth with PKCE, quota ledger and caching | Package tests pass; Google sign-in succeeded on physical iPhone | Restricted-key device catalog acceptance and production quota evidence |
+| P4 | Public app shell, iPhone/iPad navigation, local history/favorites and visible player route | iPhone simulator app/UI tests pass; iPad layout visually inspected; signed app installed and launched on iPhone | Merged hero/notebook/catalog device acceptance and broader accessibility audit |
 | P6 | Public source allowlist and unsigned archive audit | Release archive audit found no inherited stream resolver/Innertube/Piped/yt-dlp or obsolete background/extension capabilities | Signed release archive, privacy/review packet, TestFlight and App Review |
 
 ## Local device evidence
@@ -31,12 +31,13 @@ The user now wants songs to continue playing in the background. This is a pendin
 
 Reference: https://developers.google.com/youtube/terms/developer-policies#i-additional-prohibitions
 
-## Active work
+## Integrated implementation and verification
 
-- Local playlists, favorites, queue editing, top-level Clear Up Next, notes and time bookmarks are integrated. Thirteen hosted app tests passed after catalog/notebook integration, including timestamp readiness and stale-adapter isolation. Notebook-specific simulator CRUD/clear/relaunch tests passed in its isolated worktree; actual YouTube bookmark capture/cue remains a device gate.
-- Official playlist/channel browsing, account paging, bundle identity headers and API metadata retention are integrated. Ten hosted app tests passed after integration. A signed Debug build was installed and launched on the paired iPhone; the new catalog flows still need device acceptance.
-- Compact Library categories, macOS-style hero cards, icon actions and per-list clear/delete controls are being implemented in the catalog task's next branch.
-- A physical fixture of the inherited 19-model SwiftData store and read-only migration preparation are integrated. Activation, rollback and deletion recovery are being developed in a separate worktree. Until verified, the public app stops at a recovery screen when it detects legacy store files.
+- Local playlists, favorites, queue editing, top-level Clear Up Next, notes and time bookmarks are integrated. Twenty-two hosted app unit tests pass on the merged version. Actual YouTube bookmark capture/cue remains a device gate.
+- Official playlist/channel browsing, explicit paging, account collections and bundle identity headers are integrated. New API display metadata is kept in memory; durable rows preserve selections and proven user labels. Twenty-seven persistence tests pass, including raw stored-payload checks and deletion rollback.
+- Library now has horizontally scrollable categories, adaptive macOS-inspired hero cards, icon actions, per-item removal and scoped list clear controls. Music/audio-only playback classification is not invented from ordinary video data; the official visible player remains the supported playback route.
+- The original 19-model SwiftData fixture, read-only preparation, durable atomic activation, recovery routing, deletion tombstones and external-cleanup retry are integrated. Ten root migration/routing tests pass. The independent baseline executable and eight process termination boundaries pass after integration; original source sidecars remain protected.
+- The full merged iPhone Simulator UI suite is in progress. The phone's previous accepted build predates the privacy gate, notebook, hero and upgrade integration. Simulator/package evidence does not establish physical or release acceptance.
 
 ## Privacy and release preparation
 
@@ -48,4 +49,4 @@ Reference: https://developers.google.com/youtube/terms/developer-policies#i-addi
 
 ## Release decision
 
-**NO GO** for public distribution. The remaining gates above require implementation and evidence. In particular, the existing-user migration cannot be treated as complete from archive package tests alone. The public app may be exercised on a new install but must not replace an existing user's store without rollback proof.
+**NO GO** for public distribution. The remaining gates above require implementation and evidence. Migration activation and process recovery now have integrated test evidence. Public release still requires the archive provenance/retention lifecycle, embedded-provider privacy declarations, verified policy/consent domain, owner/platform configuration, final signed artifact and physical acceptance. See `docs/release/privacy-inventory.md` and `docs/release/privacy-domain-check.md`; a successful build is not P6 acceptance.
