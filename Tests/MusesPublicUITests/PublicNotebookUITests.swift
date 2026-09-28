@@ -10,7 +10,7 @@ import XCTest
     }
     private func detail(_ app: XCUIApplication) {
         app.tabBars.buttons["Library"].tap()
-        let row = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
         reveal(row, in: app)
         row.tap()
         XCTAssertTrue(app.navigationBars["Video details"].waitForExistence(timeout: 5))

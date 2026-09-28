@@ -102,6 +102,7 @@ private struct PublicLibraryHeroCard: View {
                     Text(track.artist).font(.subheadline).foregroundStyle(.secondary)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain)
+                .accessibilityIdentifier("library.detail.\(track.id.rawValue)")
             if presentation == .details {
                 Text("Official embedded video").font(.caption)
                 if let duration = track.durationMilliseconds { Text(Duration.milliseconds(duration).formatted(.time(pattern: .minuteSecond))).font(.caption).monospacedDigit() }
@@ -213,6 +214,7 @@ struct PublicLocalPlaylistHero: View {
                     Text("\(playlist.trackIDs.count) videos · On this device").font(.caption)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain)
+                .accessibilityIdentifier("playlist.open.\(playlist.id)")
             HStack {
                 Spacer()
                 Button { session.enqueuePlaylist(playlist.id) } label: { Label("Add playlist to queue", systemImage: "text.badge.plus").labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44) }

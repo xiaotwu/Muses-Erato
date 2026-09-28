@@ -26,6 +26,22 @@ final class PublicSmokeTests: XCTestCase {
         }
         XCTAssertTrue(element.isHittable)
     }
+    private func selectCategory(_ name: String, app: XCUIApplication) {
+        let rail = app.scrollViews["library.categories"]
+        reveal(rail, in: app)
+        let button = app.buttons["library.category.\(name)"]
+        for direction in 0..<2 {
+            for _ in 0..<8 {
+                if button.isHittable && button.frame.minX >= rail.frame.minX && button.frame.maxX <= rail.frame.maxX {
+                    button.tap()
+                    if button.isSelected { return }
+                }
+                if direction == 0 { rail.swipeRight(velocity: .slow) }
+                else { rail.swipeLeft(velocity: .slow) }
+            }
+        }
+        XCTFail("Category not reachable: \(name)")
+    }
     private func openVideo(_ id: String, app: XCUIApplication) {
         app.launch()
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
@@ -36,9 +52,7 @@ final class PublicSmokeTests: XCTestCase {
     }
     private func playlists(_ app: XCUIApplication) {
         app.tabBars.buttons["Library"].tap()
-        let category = app.buttons["library.category.Playlists"]
-        reveal(category, in: app)
-        category.tap()
+        selectCategory("Playlists", app: app)
         reveal(app.buttons["public.createPlaylist"], in: app)
     }
     func testClearUpNextFromLibraryTopAndPlayer() {
@@ -53,10 +67,12 @@ final class PublicSmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["public.queue"].isHittable)
         XCTAssertTrue(clear.isHittable)
         XCTAssertFalse(clear.isEnabled)
-        let video = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
+        let video = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
         reveal(video, in: app)
         video.tap()
+        reveal(app.buttons["Add to queue"], in: app)
         app.buttons["Add to queue"].tap()
+        reveal(app.buttons["Open visible player"], in: app)
         app.buttons["Open visible player"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 10))
         reveal(clear, in: app)
@@ -70,6 +86,7 @@ final class PublicSmokeTests: XCTestCase {
         XCTAssertFalse(clear.isEnabled)
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].exists)
         app.buttons["Close"].tap()
+        reveal(app.buttons["Add to queue"], in: app)
         app.buttons["Add to queue"].tap()
         app.terminate()
         app.launch()
@@ -100,14 +117,12 @@ final class PublicSmokeTests: XCTestCase {
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
         if app.tabBars.buttons["Library"].exists { app.tabBars.buttons["Library"].tap() }
         else { app.buttons["Library"].firstMatch.tap() }
-        let category = app.buttons["library.category.Playlists"]
-        reveal(category, in: app)
-        category.tap()
+        selectCategory("Playlists", app: app)
         reveal(app.buttons["public.createPlaylist"], in: app)
         app.buttons["public.createPlaylist"].tap()
         app.alerts.textFields.firstMatch.typeText("Empty playlist")
         app.alerts.buttons["Create"].tap()
-        let playlist = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Empty playlist")).firstMatch
+        let playlist = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS %@", "Empty playlist")).firstMatch
         reveal(playlist, in: app)
         playlist.tap()
         XCTAssertTrue(app.staticTexts["This playlist is empty. Add videos from your saved collection."].exists)
@@ -130,7 +145,7 @@ final class PublicSmokeTests: XCTestCase {
         app.buttons["public.createPlaylist"].tap()
         app.alerts.textFields.firstMatch.typeText("Evening")
         app.alerts.buttons["Create"].tap()
-        let evening = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Evening")).firstMatch
+        let evening = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS %@", "Evening")).firstMatch
         reveal(evening, in: app)
         evening.tap()
         app.buttons["Add videos"].tap()
@@ -192,8 +207,8 @@ final class PublicSmokeTests: XCTestCase {
         app.terminate()
         app.launch()
         app.tabBars.buttons["Library"].tap()
-        app.buttons["library.category.Favorites"].tap()
-        let saved = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
+        selectCategory("Favorites", app: app)
+        let saved = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
         reveal(saved, in: app)
         saved.tap()
         XCTAssertTrue(app.buttons["Remove favorite"].exists)

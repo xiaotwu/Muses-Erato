@@ -12,7 +12,7 @@ This file records verified evidence, not completion claims. The original checkou
 | P2 | Domain, queue, V1 persistence and lossless legacy archive contracts | Package tests pass; legacy archive 14 tests pass | Archive provenance/retention release gate; full device upgrade acceptance |
 | P3 | Official Data API catalog, OAuth with PKCE, quota ledger and caching | Package tests pass; Google sign-in succeeded on physical iPhone | Restricted-key device catalog acceptance and production quota evidence |
 | P4 | Public app shell, iPhone/iPad navigation, local history/favorites and visible player route | iPhone simulator app/UI tests pass; iPad layout visually inspected; signed app installed and launched on iPhone | Merged hero/notebook/catalog device acceptance and broader accessibility audit |
-| P6 | Public source allowlist and unsigned archive audit | Release archive audit found no inherited stream resolver/Innertube/Piped/yt-dlp or obsolete background/extension capabilities | Signed release archive, privacy/review packet, TestFlight and App Review |
+| P6 | Public source allowlist and signed Release archive static audit | Latest merged Release archive passes endpoint/capability/entitlement checks; it uses development provisioning | App Store distribution export, privacy/review packet, TestFlight and App Review |
 
 ## Local device evidence
 
@@ -37,15 +37,20 @@ Reference: https://developers.google.com/youtube/terms/developer-policies#i-addi
 - Official playlist/channel browsing, explicit paging, account collections and bundle identity headers are integrated. New API display metadata is kept in memory; durable rows preserve selections and proven user labels. Twenty-seven persistence tests pass, including raw stored-payload checks and deletion rollback.
 - Library now has horizontally scrollable categories, adaptive macOS-inspired hero cards, icon actions, per-item removal and scoped list clear controls. Music/audio-only playback classification is not invented from ordinary video data; the official visible player remains the supported playback route.
 - The original 19-model SwiftData fixture, read-only preparation, durable atomic activation, recovery routing, deletion tombstones and external-cleanup retry are integrated. Ten root migration/routing tests pass. The independent baseline executable and eight process termination boundaries pass after integration; original source sidecars remain protected.
-- The full merged iPhone Simulator UI suite is in progress. The phone's previous accepted build predates the privacy gate, notebook, hero and upgrade integration. Simulator/package evidence does not establish physical or release acceptance.
+- The full merged iPhone Simulator UI suite is in progress. A keyboard test referenced a renamed heading and is being corrected to use the stable accessibility identifier. The latest merged Debug build has been installed and launched on the paired iPhone; owner acceptance is pending. Simulator/package evidence does not establish physical or release acceptance.
 
 ## Privacy and release preparation
 
 - GitHub Issues is the owner-selected public support channel and is enabled. Settings now provides support/provider policy/permissions icon links.
-- The bundled, versioned policy and pre-feature agreement gate are implemented. The app session is constructed after agreement, avoiding account refresh and artwork requests before consent. Simulator UI testing verified the disabled continue state, one-tap agreement, feature access afterwards and persistence across relaunch. Debug fixture libraries can bypass this gate; the bypass is excluded from Release. The new gate has not yet been installed/accepted on the physical phone.
+- The bundled, versioned policy and pre-feature agreement gate are implemented. The app session is constructed after agreement, avoiding account refresh and artwork requests before consent. Simulator UI testing verified the disabled continue state, one-tap agreement, feature access afterwards and persistence across relaunch. Debug fixture libraries can bypass this gate; the bypass is excluded from Release. The new gate is installed on the physical phone; owner acceptance is pending.
 - Repository-managed privacy HTML is prepared by `scripts/build-privacy-site.py`; it has not been published. Final deletion behavior, Google embedded processing/App Privacy answers, domain/consent verification and owner/platform contacts must be reconciled before publication.
 - OAuth token-store load/delete failures now still attempt private-cache removal and report a storage failure rather than falsely claiming successful deletion. Four OAuth tests pass including failure injection.
 - Initial Cloud restriction acceptance failed (all three identity variants returned HTTP 200). After the owner configured restrictions, correct identity returned HTTP 200 and wrong/missing identities returned HTTP 403. The identity restriction negative cases now pass. API allowlist settings and production project quota still need release evidence; the key value is not recorded.
+
+## Latest archive evidence
+
+- The merged signed Release archive at `/tmp/erato-public-release.xcarchive` built successfully and passed `scripts/audit-public-artifact.py` against its actual app. Expected official endpoints and bundled privacy resources are present; inherited stream routes and obsolete background/extension entitlements are absent.
+- Its provisioning profile is a development wildcard profile, with signed application identifier `9URWGD9Q86.com.xiaotwu.muses.erato` and `get-task-allow = true`. This is **not** an App Store distribution artifact or evidence of TestFlight/App Review acceptance. Distribution export and final artifact verification remain required.
 
 ## Release decision
 

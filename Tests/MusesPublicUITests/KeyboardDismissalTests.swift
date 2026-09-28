@@ -16,7 +16,7 @@ final class KeyboardDismissalTests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 3))
         search.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
-        app.staticTexts["FIND A VIDEO"].tap()
+        app.staticTexts["public.pageHeading"].tap()
         expectNoKeyboard(app)
     }
 
