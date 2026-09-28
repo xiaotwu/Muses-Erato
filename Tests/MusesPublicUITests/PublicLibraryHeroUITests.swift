@@ -59,6 +59,16 @@ import XCTest
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 10))
         app.buttons["Close"].tap()
     }
+    private func importSongs(_ app: XCUIApplication) {
+        category("Playlists", app: app)
+        app.buttons["library.importPlaylist"].tap()
+        let owned = app.buttons["playlistImport.account.PLfixture"]
+        XCTAssertTrue(owned.waitForExistence(timeout: 10)); owned.tap()
+        let save = app.buttons["playlistImport.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        XCTAssertTrue(save.isEnabled); save.tap()
+        category("Songs", app: app)
+    }
     func testHorizontalCategoriesAndEmptyClearDisabled() {
         let app = app(); library(app)
         category("Artists", app: app)
@@ -71,7 +81,7 @@ import XCTest
     }
     func testHeroOpensVisiblePlayerAndDeletionSurvivesRestart() {
         let app = app(); saveVideo(app); library(app)
-        let play = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.play.'")).firstMatch
+        let play = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'library.play.'")).firstMatch
         reveal(play, app: app)
         XCTAssertFalse(app.descendants(matching: .any)["public.iframe"].exists)
         let image = XCTAttachment(screenshot: app.screenshot())
@@ -92,9 +102,8 @@ import XCTest
         XCTAssertFalse(app.buttons["library.clear.Videos"].isEnabled)
     }
     func testLargeTextHeroAndCategoriesRemainReachable() {
-        let app = app(largeText: true); saveVideo(app); library(app)
-        category("Songs", app: app)
-        let play = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.play.'")).firstMatch
+        let app = app(largeText: true); library(app); importSongs(app)
+        let play = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'library.play.'")).firstMatch
         reveal(play, app: app)
         XCTAssertFalse(app.descendants(matching: .any)["public.iframe"].exists)
         let image = XCTAttachment(screenshot: app.screenshot())
