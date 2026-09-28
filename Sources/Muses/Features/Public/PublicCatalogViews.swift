@@ -14,7 +14,7 @@ struct PublicCatalogRow: View {
                     Button { session.open(id, title: item.title, metadataFetchedAt: item.fetchedAt) } label: { label }
                         .buttonStyle(.plain)
                     HStack {
-                        Button("Add to queue", systemImage: "text.badge.plus") { session.enqueue(id, title: item.title, metadataFetchedAt: item.fetchedAt) }.labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
+                        Button { session.enqueue(id, title: item.title, metadataFetchedAt: item.fetchedAt) } label: { PublicIconActionLabel(title: "Add to queue", symbol: "text.badge.plus") }
                         if let channel = item.channelID {
                             NavigationLink { PublicCatalogDetail(session: session, route: .channel(channel)) } label: {
                                 Label("Channel", systemImage: "person.crop.rectangle").labelStyle(.iconOnly).frame(width: 44, height: 44)
@@ -54,20 +54,22 @@ struct PublicCatalogPaging: View {
             if let error = page.error { Text(error).foregroundStyle(.secondary).accessibilityIdentifier("catalog.error") }
             if page.loading { ProgressView("Loading YouTube") }
             else if page.error != nil || !page.loaded || page.nextPageToken != nil {
-                Button(page.error != nil ? "Retry" : page.loaded ? "Load next page" : initialTitle, systemImage: page.error != nil ? "arrow.clockwise" : "arrow.down.circle") { Task { await load() } }
+                Button { Task { await load() } } label: {
+                    PublicIconActionLabel(title: page.error != nil ? "Retry" : page.loaded ? "Load next page" : initialTitle, symbol: page.error != nil ? "arrow.clockwise" : "arrow.down.circle")
+                }
                     .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("catalog.load")
             } else if page.items.isEmpty {
                 Text("No available items.").font(.footnote).foregroundStyle(.secondary)
             }
-            Button("Clear loaded items", systemImage: "xmark.circle") { clearing = true }
+            Button { clearing = true } label: { PublicIconActionLabel(title: "Clear loaded items", symbol: "xmark.circle") }
                 .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                 .disabled(page.items.isEmpty && !page.loading)
                 .confirmationDialog("Clear local display?", isPresented: $clearing, titleVisibility: .visible) {
                     Button("Clear display", role: .destructive) { page.reset() }
-                } message: { Text("YouTube is unchanged. No unsubscribe or cloud deletion.") }
+                } message: { Text("Clears only the items shown here. Your YouTube playlists and subscriptions are unchanged.") }
             if let date = page.fetchedAt {
-                Text("YouTube Data API · Updated \(date.formatted(date: .omitted, time: .shortened))")
+                Text("YouTube · Updated \(date.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
@@ -93,7 +95,7 @@ struct PublicCatalogDetail: View {
                     }
                 } else if metadata.loaded {
                     Text("This content is private, deleted or unavailable.")
-                    Button("Retry details") { metadata.reset(); Task { await loadDetails() } }
+                    Button { metadata.reset(); Task { await loadDetails() } } label: { PublicIconActionLabel(title: "Retry details", symbol: "arrow.clockwise") }
                 }
                 PublicCatalogPaging(page: metadata, initialTitle: "Load details") { await loadDetails() }
             }
@@ -167,7 +169,7 @@ struct PublicYouTubeAccountCatalog: View {
             }
         }.navigationTitle("Account & collections")
         .toolbar {
-            Button("Clear local YouTube display", systemImage: "xmark.circle") { clearing = true }
+            Button { clearing = true } label: { PublicIconActionLabel(title: "Clear local YouTube display", symbol: "xmark.circle") }
                 .labelStyle(.iconOnly)
                 .disabled(session.subscriptions.isEmpty && session.accountPlaylistPages.items.isEmpty && session.accountChannelPages.items.isEmpty)
         }

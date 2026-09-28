@@ -32,7 +32,7 @@ struct PublicNotebookSections: View {
             Section {
                 Text(error).foregroundStyle(.red).accessibilityIdentifier("notebook.error")
                 if !page.loaded {
-                    Button("Reload notebook", systemImage: "arrow.clockwise") { model.load(trackID) }
+                    Button { model.load(trackID) } label: { PublicIconActionLabel(title: "Reload notebook", symbol: "arrow.clockwise") }
                         .labelStyle(.iconOnly).accessibilityLabel("Reload notebook")
                 }
             }
@@ -50,10 +50,10 @@ private struct PublicNotebookNoteRow: View {
             Text(note.content).textSelection(.enabled)
             Text(note.updatedAt, format: .dateTime.year().month().day()).font(.caption).foregroundStyle(.secondary)
             HStack {
-                Button("Edit note", systemImage: "pencil") { editing = true }
+                Button { editing = true } label: { PublicIconActionLabel(title: "Edit note", symbol: "pencil") }
                     .accessibilityLabel("Edit note").accessibilityIdentifier("notebook.editNote.\(note.id)")
                 Spacer()
-                Button("Delete note", systemImage: "trash", role: .destructive) { deleting = true }
+                Button(role: .destructive) { deleting = true } label: { PublicIconActionLabel(title: "Delete note", symbol: "trash") }
                     .accessibilityLabel("Delete note").accessibilityIdentifier("notebook.deleteNote.\(note.id)")
             }.buttonStyle(.borderless).labelStyle(.iconOnly).controlSize(.large)
         }
@@ -61,7 +61,7 @@ private struct PublicNotebookNoteRow: View {
         .alert("Delete this note?", isPresented: $deleting) {
             Button("Delete note", role: .destructive) { model.deleteNote(note) }
             Button("Cancel", role: .cancel) {}
-        } message: { Text("Only this local note is deleted. Your video and other entries are kept.") }
+        } message: { Text("Removes this note from your notebook. Your video and other entries are kept. A retained original may remain until you delete all local Muses data.") }
     }
 }
 
@@ -74,13 +74,14 @@ private struct PublicNotebookBookmarkRow: View {
         VStack(alignment: .leading, spacing: 10) {
             Button { session.openBookmark(bookmark) } label: {
                 Label("\(notebookTime(bookmark.timestampMilliseconds)) · \(bookmark.title ?? "Bookmarked moment")", systemImage: "play.rectangle")
+                    .frame(minHeight: 44).contentShape(Rectangle())
             }.buttonStyle(.borderless).accessibilityIdentifier("notebook.openBookmark.\(bookmark.id)")
             if let note = bookmark.note, !note.isEmpty { Text(note).foregroundStyle(.secondary) }
             HStack {
-                Button("Edit bookmark", systemImage: "pencil") { editing = true }
+                Button { editing = true } label: { PublicIconActionLabel(title: "Edit bookmark", symbol: "pencil") }
                     .accessibilityLabel("Edit bookmark").accessibilityIdentifier("notebook.editBookmark.\(bookmark.id)")
                 Spacer()
-                Button("Delete bookmark", systemImage: "trash", role: .destructive) { deleting = true }
+                Button(role: .destructive) { deleting = true } label: { PublicIconActionLabel(title: "Delete bookmark", symbol: "trash") }
                     .accessibilityLabel("Delete bookmark").accessibilityIdentifier("notebook.deleteBookmark.\(bookmark.id)")
             }.buttonStyle(.borderless).labelStyle(.iconOnly).controlSize(.large)
         }
@@ -90,7 +91,7 @@ private struct PublicNotebookBookmarkRow: View {
         .alert("Delete this bookmark?", isPresented: $deleting) {
             Button("Delete bookmark", role: .destructive) { session.notebook.deleteBookmark(bookmark) }
             Button("Cancel", role: .cancel) {}
-        } message: { Text("Only this local bookmark is deleted. Your video and other entries are kept.") }
+        } message: { Text("Removes this bookmark from your notebook. Your video and other entries are kept. A retained original may remain until you delete all local Muses data.") }
     }
 }
 
@@ -109,15 +110,14 @@ private struct PublicNotebookActions: View {
     var body: some View {
         HStack {
             Button { adding = true } label: {
-                Image(systemName: isNotes ? "square.and.pencil" : "bookmark")
-                    .frame(width: 44, height: 44).contentShape(Rectangle())
+                PublicIconActionLabel(title: isNotes ? "Add note" : "Add time bookmark", symbol: isNotes ? "square.and.pencil" : "bookmark")
             }
                 .disabled(!page.loaded)
                 .accessibilityLabel(isNotes ? "Add note" : "Add time bookmark")
                 .accessibilityIdentifier(isNotes ? "notebook.addNote" : "notebook.addBookmark")
             Spacer()
             Button(role: .destructive) { clearing = true } label: {
-                Image(systemName: "trash").frame(width: 44, height: 44).contentShape(Rectangle())
+                PublicIconActionLabel(title: isNotes ? "Clear notes for this video" : "Clear bookmarks for this video", symbol: "trash")
             }
                 .disabled(!page.loaded || (isNotes ? page.notes.isEmpty : page.bookmarks.isEmpty))
                 .accessibilityLabel(isNotes ? "Clear notes for this video" : "Clear bookmarks for this video")
@@ -134,7 +134,7 @@ private struct PublicNotebookActions: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text(isNotes ? "Deletes only this video's local notes. Bookmarks and other videos are kept." : "Deletes only this video's local time bookmarks. Notes and other videos are kept.")
+            Text((isNotes ? "Deletes only this video's local notes. Bookmarks and other videos are kept." : "Deletes only this video's local time bookmarks. Notes and other videos are kept.") + " Retained originals remain until you delete all local Muses data.")
         }
     }
 }
@@ -167,11 +167,11 @@ private struct PublicNoteEditor: View {
             }
             .navigationTitle(original == nil ? "Add note" : "Edit note")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly).accessibilityLabel("Cancel") }
+                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { PublicIconActionLabel(title: "Cancel", symbol: "xmark") }.labelStyle(.iconOnly).accessibilityLabel("Cancel") }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", systemImage: "checkmark") {
+                    Button {
                         if model.saveNote(trackID: trackID, id: original?.id, content: content) { dismiss() }
-                    }.disabled(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    } label: { PublicIconActionLabel(title: "Save", symbol: "checkmark") }.disabled(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .labelStyle(.iconOnly).accessibilityLabel("Save note").accessibilityIdentifier("notebook.saveNote")
                 }
             }
@@ -215,15 +215,15 @@ private struct PublicBookmarkEditor: View {
             }
             .navigationTitle(original == nil ? "Add bookmark" : "Edit bookmark")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly).accessibilityLabel("Cancel") }
+                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { PublicIconActionLabel(title: "Cancel", symbol: "xmark") }.labelStyle(.iconOnly).accessibilityLabel("Cancel") }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", systemImage: "checkmark") {
+                    Button {
                         guard let milliseconds else { return }
                         // Preserve optional nil versus empty values when an unchanged legacy field is edited.
                         let savedTitle = title == (original?.title ?? "") ? original?.title : (title.isEmpty ? nil : title)
                         let savedNote = note == (original?.note ?? "") ? original?.note : (note.isEmpty ? nil : note)
                         if model.saveBookmark(trackID: trackID, id: original?.id, milliseconds: milliseconds, title: savedTitle, note: savedNote) { dismiss() }
-                    }.disabled(milliseconds == nil).labelStyle(.iconOnly).accessibilityLabel("Save bookmark").accessibilityIdentifier("notebook.saveBookmark")
+                    } label: { PublicIconActionLabel(title: "Save", symbol: "checkmark") }.disabled(milliseconds == nil).labelStyle(.iconOnly).accessibilityLabel("Save bookmark").accessibilityIdentifier("notebook.saveBookmark")
                 }
             }
         }.interactiveDismissDisabled()
@@ -236,12 +236,12 @@ struct PublicCurrentBookmarkButton: View {
     let trackID: TrackID
     @State private var draft: BookmarkDraft?
     var body: some View {
-        Button("Bookmark current time", systemImage: "bookmark") {
+        Button {
             let milliseconds = Double(session.state.positionMilliseconds)
             session.pause()
             session.notebook.load(trackID)
             draft = BookmarkDraft(milliseconds: milliseconds)
-        }
+        } label: { PublicIconActionLabel(title: "Bookmark current time", symbol: "bookmark") }
         .disabled(!session.hasCurrentPlaybackTime)
         .labelStyle(.iconOnly).accessibilityLabel("Bookmark current time")
         .accessibilityIdentifier("notebook.bookmarkCurrent")

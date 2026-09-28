@@ -11,11 +11,12 @@ struct PublicMigrationArchivePresentation: ViewModifier {
                 if session.hasMigrationArchive || session.recoveryMessage != nil {
                     Button { session.showMigrationArchive = true } label: {
                         Label(session.hasMigrationArchive ? "Recovered library · Original records" : "Library recovery options", systemImage: "archivebox")
-                            .font(.footnote).frame(maxWidth: .infinity).padding(8)
+                            .font(.footnote).frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
                     }
                     .labelStyle(.iconOnly)
                     .frame(minHeight: 44)
                     .background(.regularMaterial)
+                    .accessibilityLabel(session.hasMigrationArchive ? "Recovered library and original records" : "Library recovery options")
                     .accessibilityIdentifier("migrationArchive")
                 }
             }
@@ -61,9 +62,9 @@ private struct PublicMigrationArchiveView: View {
                                         Text(entry.trackID.flatMap { id in session.tracks.first { $0.id == id }?.title }
                                             ?? "Unavailable original entry")
                                     }
-                                    Button("Restore as a new local playlist", systemImage: "arrow.counterclockwise") {
+                                    Button {
                                         session.restoreOriginalPlaylist(playlist.id)
-                                    }
+                                    } label: { PublicIconActionLabel(title: "Restore as a new local playlist", symbol: "arrow.counterclockwise") }
                                     .labelStyle(.iconOnly)
                                     Text("Restoring keeps repetitions and leaves current playlists unchanged.")
                                 }.navigationTitle(playlist.name)
@@ -84,21 +85,21 @@ private struct PublicMigrationArchiveView: View {
                         NavigationLink("Original queue and settings") { recordText(document.data) }
                     }
                     Section {
-                        Button("Export complete original archive", systemImage: "square.and.arrow.up") { exporting = true }
+                        Button { exporting = true } label: { PublicIconActionLabel(title: "Export complete original archive", symbol: "square.and.arrow.up") }
                             .labelStyle(.iconOnly)
                         Text("The export includes personal notes and old settings. Choose where to save it.")
                     }
                 }
                 Section {
                     if let recovery = session.recoveryMessage { Text(recovery) }
-                    Button("Delete library and retained originals", systemImage: "trash", role: .destructive) { deleting = true }
+                    Button(role: .destructive) { deleting = true } label: { PublicIconActionLabel(title: "Delete library and retained originals", symbol: "trash") }
                         .labelStyle(.iconOnly)
                     Text("If the library cannot be read, this action still removes its retained files after restart. It cannot be undone.")
                 }
                 if let error { Text(error).foregroundStyle(.red) }
             }
             .navigationTitle("Original library")
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly) } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button { dismiss() } label: { PublicIconActionLabel(title: "Done", symbol: "xmark") }.labelStyle(.iconOnly) } }
             .task {
                 do {
                     guard let repo = session.repository else { return }
@@ -114,7 +115,7 @@ private struct PublicMigrationArchiveView: View {
             .confirmationDialog("Delete current data, original library and migration backups?", isPresented: $deleting) {
                 Button("Delete all local library data", role: .destructive) { Task { await session.deleteLocalData() } }
             } message: {
-                Text("Automatic reimport will be disabled immediately. Restart Muses to finish removing retained files. This removes local account credentials; it does not delete your YouTube account.")
+                Text("Deleted items will not be restored automatically. Restart Muses to finish removing retained files. This removes local account credentials; it does not delete your YouTube account.")
             }
         }
     }

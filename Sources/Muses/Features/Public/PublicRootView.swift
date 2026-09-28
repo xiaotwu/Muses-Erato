@@ -533,34 +533,36 @@ struct PublicRootView: View {
             Section("Support & privacy") {
                 PublicServiceLinks()
                 NavigationLink { PublicPrivacyView() } label: {
-                    Label("Muses privacy policy", systemImage: "hand.raised.square")
+                    PublicIconActionLabel(title: "Muses privacy policy", symbol: "hand.raised.square")
                 }
                 .labelStyle(.iconOnly)
             }
             Section("Playback") {
-                Text("YouTube videos play in the visible official player. Playback pauses when you close it.")
+                Text("Playback pauses when you close the player or leave Muses.")
                 Text("Background audio, EQ, spectrum, lock screen controls and CarPlay are unavailable.")
                     .foregroundStyle(PublicStyle.muted)
-                Text("YouTube Music albums and personalized Home are unavailable through the official Data API.")
+                Text("Your personalized YouTube Music home and albums are not available here.")
                     .foregroundStyle(PublicStyle.muted)
             }
             Section("YouTube account") {
                 if session.signedIn {
-                    Text("Signed in for read-only YouTube account data")
-                    NavigationLink("Account & YouTube collections") { PublicYouTubeAccountCatalog(session: session) }
-                    Button("Sign out and revoke access") { Task { await session.signOut() } }
+                    Text("Signed in · Read-only access")
+                    NavigationLink { PublicYouTubeAccountCatalog(session: session) } label: {
+                        PublicIconActionLabel(title: "Account and YouTube collections", symbol: "person.crop.circle")
+                    }
+                    Button { Task { await session.signOut() } } label: { PublicIconActionLabel(title: "Sign out and revoke access", symbol: "rectangle.portrait.and.arrow.right") }
                 } else if session.oauthConfigured {
-                    Button("Sign in with Google") { Task { await session.signIn() } }
+                    Button { Task { await session.signIn() } } label: { PublicIconActionLabel(title: "Sign in with Google", symbol: "person.crop.circle.badge.plus") }
                 } else {
-                    Text("Google sign in requires the app's iOS OAuth client ID and matching redirect scheme.")
+                    Text("Google sign-in is unavailable in this version. You can still use your local library.")
                         .foregroundStyle(PublicStyle.muted)
                 }
             }
             Section("Local data") {
-                Button("Refresh saved YouTube metadata") { Task { await session.refreshSavedMetadata() } }.disabled(session.refreshingMetadata)
+                Button { Task { await session.refreshSavedMetadata() } } label: { PublicIconActionLabel(title: "Refresh saved video details", symbol: "arrow.clockwise") }.disabled(session.refreshingMetadata)
                 Text("YouTube titles refresh for this app session. Your saved selections, favorites and local playlists remain.").font(.footnote)
-                Button("Delete videos, playlists, queue and history", role: .destructive) { confirmDelete = true }
-                Text("This removes data stored by Muses on this device. It does not delete YouTube data.")
+                Button(role: .destructive) { confirmDelete = true } label: { PublicIconActionLabel(title: "Delete all local Muses data", symbol: "trash") }
+                Text("Deletes this device’s library, notes, bookmarks, history, account credentials and retained originals. Your YouTube account is unchanged.")
                     .font(.footnote)
                     .foregroundStyle(PublicStyle.muted)
             }
@@ -572,14 +574,14 @@ struct PublicRootView: View {
         .toolbar {
             if sizeClass != .regular || dynamicTypeSize.isAccessibilitySize {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { showSettings = false }
+                    Button { showSettings = false } label: { PublicIconActionLabel(title: "Done", symbol: "xmark") }
                 }
             }
         }
         .confirmationDialog("Delete local Muses data?", isPresented: $confirmDelete) {
             Button("Delete local data", role: .destructive) { Task { await session.deleteLocalData() } }
         } message: {
-            Text("Your YouTube account and videos are unaffected.")
+            Text("Deletes local videos, playlists, queue, history, notes, bookmarks, account credentials and retained originals. Restart if cleanup is pending. Your YouTube account and videos are unaffected.")
         }
     }
 }
