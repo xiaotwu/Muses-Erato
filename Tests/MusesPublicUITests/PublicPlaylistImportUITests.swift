@@ -69,7 +69,7 @@ import XCTest
         let list = app.buttons["library.presentation.List"]
         for _ in 0..<6 where !list.isHittable { app.swipeDown() }
         list.tap()
-        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.'")).count, 2)
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.row.play.'")).count, 2)
         capture("Library Songs list", app)
         app.terminate(); app.launch()
         app.buttons["Library"].firstMatch.tap()

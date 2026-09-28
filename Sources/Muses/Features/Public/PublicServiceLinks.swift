@@ -55,7 +55,7 @@ struct PublicActionGroup<Content: View>: View {
                 }
             }
         }
-        .buttonStyle(.borderless)
+        .modifier(PublicGlassActions())
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -71,5 +71,15 @@ struct PublicTextActionLabel: View {
             .frame(minWidth: 44, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
             .accessibilityLabel(title)
+    }
+}
+
+/// Native glass belongs to the functional controls, with an opaque accessibility fallback.
+struct PublicGlassActions: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *), !reduceTransparency {
+            GlassEffectContainer(spacing: 12) { content.buttonStyle(.glass) }
+        } else { content.buttonStyle(.borderless) }
     }
 }

@@ -4,6 +4,7 @@ import AVKit
 
 struct PublicMiniPlayer: View {
     let session: PublicYouTubeSession
+    var systemAccessory = false
     var body: some View {
         HStack(spacing: 12) {
             Button { session.showPlayer = true } label: {
@@ -25,9 +26,7 @@ struct PublicMiniPlayer: View {
             Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.title3).frame(width: 44, height: 44) }
                 .disabled(!session.hasNext).accessibilityLabel("Next")
         }.padding(.horizontal, 12).padding(.vertical, 8)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-            .overlay { RoundedRectangle(cornerRadius: 18).stroke(.primary.opacity(0.06)) }
-            .padding(.horizontal, 12).padding(.vertical, 6)
+            .modifier(PublicFloatingPlayerSurface(systemAccessory: systemAccessory))
     }
 }
 
@@ -81,7 +80,14 @@ struct PublicNativePlayerView: View {
                                 else { Image(systemName: playing ? "pause.fill" : "play.fill").font(.system(size: 44)).frame(width: 64, height: 64) }
                             }.accessibilityLabel(playing ? "Pause" : "Play").accessibilityIdentifier("player.toggle")
                             Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.system(size: 28)).frame(width: 52, height: 52) }.disabled(!session.hasNext).accessibilityLabel("Next")
-                        }.buttonStyle(.plain)
+                        }.modifier(PublicGlassActions())
+                        if let message = session.nativePlayback.loadingMessage {
+                            HStack {
+                                Text(message).font(.subheadline).foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Retry", systemImage: "arrow.clockwise") { session.nativePlayback.retry() }
+                            }
+                        }
                         PublicSystemVolume().frame(height: 40).accessibilityLabel("System volume")
                         HStack {
                             Button { showingNotebook = true } label: { Image(systemName: "text.bubble").font(.title2).frame(width: 52, height: 52) }.accessibilityLabel("Notes and bookmarks")
@@ -154,7 +160,7 @@ struct PublicPlayerArtwork: View {
                     let (data, response) = try await URLSession.shared.data(from: url)
                     guard !Task.isCancelled else { return }
                     if (response as? HTTPURLResponse)?.statusCode == 200, data.count < 4_000_000, let image = UIImage(data: data) {
-                        artwork = image; return
+                        artwork = PublicArtworkCrop.removingLetterbox(image); return
                     }
                 } catch { if Task.isCancelled { return } }
             }
@@ -168,4 +174,55 @@ private struct PublicSystemVolume: UIViewRepresentable {
 private struct PublicAudioRoutePicker: UIViewRepresentable {
     func makeUIView(context: Context) -> AVRoutePickerView { let view = AVRoutePickerView(); view.prioritizesVideoDevices = false; view.tintColor = UIColor(PublicStyle.gold); return view }
     func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+}
+
+/// Remove uniform black bars that are already baked into Google's thumbnail pixels.
+/// Paired edges only; bounded trimming avoids removing dark subjects or entire covers.
+enum PublicArtworkCrop {
+    static func removingLetterbox(_ image: UIImage) -> UIImage {
+        guard let source = image.cgImage, source.width >= 64, source.height >= 36 else { return image }
+        let width = 64, height = 36
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let rendered = pixels.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(data: bytes.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height)); return true
+        }
+        guard rendered else { return image }
+        func black(_ x: Int, _ y: Int) -> Bool {
+            let i = (y * width + x) * 4
+            return Int(pixels[i]) + Int(pixels[i + 1]) + Int(pixels[i + 2]) < 48
+        }
+        // A uniformly dark photograph is content, not letterboxing.
+        guard (12..<24).contains(where: { y in (20..<44).contains(where: { x in !black(x, y) }) }) else { return image }
+        func row(_ y: Int) -> Bool { (0..<width).filter { black($0, y) }.count >= (width * 97 + 99) / 100 }
+        func column(_ x: Int) -> Bool { (0..<height).filter { black(x, $0) }.count >= (height * 97 + 99) / 100 }
+        var top = 0, bottom = 0, left = 0, right = 0
+        while top < 5 && row(top) { top += 1 }
+        while bottom < 5 && row(height - 1 - bottom) { bottom += 1 }
+        while left < 9 && column(left) { left += 1 }
+        while right < 9 && column(width - 1 - right) { right += 1 }
+        if top == 0 || bottom == 0 { top = 0; bottom = 0 }
+        if left == 0 || right == 0 { left = 0; right = 0 }
+        guard top + bottom + left + right > 0 else { return image }
+        let x = CGFloat(source.width) * CGFloat(left) / CGFloat(width)
+        let y = CGFloat(source.height) * CGFloat(top) / CGFloat(height)
+        let crop = CGRect(x: x, y: y, width: CGFloat(source.width) * CGFloat(width - left - right) / CGFloat(width), height: CGFloat(source.height) * CGFloat(height - top - bottom) / CGFloat(height)).integral
+        guard let cropped = source.cropping(to: crop) else { return image }
+        return UIImage(cgImage: cropped, scale: image.scale, orientation: image.imageOrientation)
+    }
+}
+
+private struct PublicFloatingPlayerSurface: ViewModifier {
+    let systemAccessory: Bool
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    func body(content: Content) -> some View {
+        if systemAccessory { content }
+        else if #available(iOS 26, *), !reduceTransparency {
+            content.glassEffect(.regular, in: .rect(cornerRadius: 24))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+        } else {
+            content.background(reduceTransparency ? AnyShapeStyle(PublicStyle.surface) : AnyShapeStyle(.regularMaterial), in: RoundedRectangle(cornerRadius: 18))
+                .padding(.horizontal, 12).padding(.vertical, 6)
+        }
+    }
 }

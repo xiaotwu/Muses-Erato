@@ -72,8 +72,8 @@ final class PublicSmokeTests: XCTestCase {
         app.buttons["Close player"].tap()
         addSavedVideosToLocalPlaylist(app, name: "Queue collection")
         app.buttons["library.presentation.List"].tap()
-        let video = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.'")).firstMatch
-        reveal(video, in: app); video.tap()
+        let video = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.actions.'")).firstMatch
+        reveal(video, in: app); video.tap(); app.buttons["Video details"].tap()
         app.buttons["video.actions"].tap()
         reveal(app.buttons["Add to queue"], in: app); app.buttons["Add to queue"].tap()
         app.navigationBars.buttons.firstMatch.tap()
@@ -203,9 +203,9 @@ final class PublicSmokeTests: XCTestCase {
         addSavedVideosToLocalPlaylist(app, name: "Favorites collection")
         selectCategory("Favorites", app: app)
         app.buttons["library.presentation.List"].tap()
-        let saved = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
+        let saved = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.actions.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
         reveal(saved, in: app)
-        saved.tap()
+        saved.tap(); app.buttons["Video details"].tap()
         XCTAssertTrue(app.buttons["Remove favorite"].exists)
         app.buttons["Remove favorite"].tap()
         app.alerts.buttons["Remove favorite"].tap()

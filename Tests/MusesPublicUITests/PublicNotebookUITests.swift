@@ -13,9 +13,9 @@ import XCTest
         let list = app.buttons["library.presentation.List"]
         XCTAssertTrue(list.waitForExistence(timeout: 5))
         list.tap()
-        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.detail.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.actions.' AND label CONTAINS %@", "YouTube video dQw4w9WgXcQ")).firstMatch
         reveal(row, in: app)
-        row.tap()
+        row.tap(); app.buttons["Video details"].tap()
         XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
     }
     private func replace(_ field: XCUIElement, with value: String) {

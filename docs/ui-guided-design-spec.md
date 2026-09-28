@@ -102,3 +102,11 @@ All page-layout choices above have been selected by the user. The unified UI imp
 ### 2026-09-28 — confirmations and experimental music playback
 
 The user requested deletion/cloud-sync confirmation, edge-to-edge hero artwork, music-style playback controls, background/lock-screen playback, and readable song/creator labels in queue/history. The native IPA prototype now has an explicit playback choice; public Release keeps its visible-player route. Implementation boundaries, tests and remaining physical acceptance are maintained in `docs/native-audio-and-confirmation-acceptance.md`. Physical background testing was deferred by the user; it must not be marked passed.
+
+## Latest feedback: direct playback and native Liquid Glass
+
+Home, history and list-row taps initiate playback, while details are secondary info/menu actions. Queue/history artwork uses passive portrait hero covers with filled, black-edge-trimmed imagery. Playlist hero deck composition remains intact.
+
+Functional chrome adopts native Liquid Glass: tab bottom accessory for the mini player on iOS 26.1+, floating glass mini player on other iOS 26 layouts, glass action groups/playback buttons, and a single glass Library selection capsule. Standard settings/navigation/sheets follow the current system appearance. Prior-system and Reduce Transparency fallbacks remain supported. Full-image surfaces remain content rather than glass.
+
+See native-audio-and-confirmation-acceptance.md for startup/transition fixes and evidence. Foreground audio startup tests do not close the pending background/lock-screen acceptance gate.

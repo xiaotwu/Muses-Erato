@@ -36,16 +36,34 @@ final class ExperimentalNativePlayback {
     private(set) var loaded = false
     private(set) var wantsPlayback = false
     private var metadata: [String: Any] = [:]
+    private(set) var loadingMessage: String?
+    private var retryCount = 0
+    private var playbackStarted = false
+    private var lastProgressPosition = 0.0
+    private var lastRequest: (id: String, title: String, artist: String, start: Double)?
+    private var loadingBackgroundTask: UIBackgroundTaskIdentifier = .invalid
+    private let startupTimeout: Duration
+    private static var streamCache: [String: (urls: [URL], expires: Date)] = [:]
+    private static var rejectedFormats: [String: Set<String>] = [:]
+    private static func formatKey(_ url: URL) -> String {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "itag" })?.value ?? url.absoluteString
+    }
 
-    init(resolveStream: @escaping @MainActor (String) async throws -> URL = ExperimentalNativePlayback.resolveLocalStream) {
+    init(startupTimeout: Duration = .seconds(15), resolveStream: @escaping @MainActor (String) async throws -> URL = ExperimentalNativePlayback.resolveLocalStream) {
+        self.startupTimeout = startupTimeout
+        player.automaticallyWaitsToMinimizeStalling = false
         self.resolveStream = resolveStream
         statusObservation = Self.observePlayer(player) { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, self.loaded else { return }
                 switch self.player.timeControlStatus {
-                case .playing: self.onEvent?(.playing)
+                case .playing:
+                    // timeControlStatus alone can become playing before a byte is decoded.
+                    if self.playbackStarted { self.onEvent?(.playing) }
                 case .paused: self.onEvent?(.paused)
-                case .waitingToPlayAtSpecifiedRate: self.onEvent?(.buffering)
+                case .waitingToPlayAtSpecifiedRate:
+                    self.onEvent?(.buffering)
+                    if self.deadline == nil { self.watchStartup(ticket: self.generation) }
                 @unknown default: break
                 }
                 self.publish()
@@ -57,6 +75,12 @@ final class ExperimentalNativePlayback {
                 let position = self.player.currentTime().seconds
                 let duration = self.player.currentItem?.duration.seconds ?? 0
                 guard position.isFinite else { return }
+                if self.wantsPlayback && position > self.lastProgressPosition + 0.05 {
+                    self.lastProgressPosition = position
+                    self.deadline?.cancel(); self.deadline = nil; self.loadingMessage = nil
+                    self.endLoadingBackgroundTask()
+                    if !self.playbackStarted { self.playbackStarted = true; self.onEvent?(.playing) }
+                }
                 self.onEvent?(.time(max(0, position), duration.isFinite ? max(0, duration) : 0))
                 self.publish()
             }
@@ -90,9 +114,23 @@ final class ExperimentalNativePlayback {
     }
 
     func load(videoID: String, title: String, artist: String, start: Double = 0, autoplay: Bool = true) {
-        stop()
+        beginLoad(videoID: videoID, title: title, artist: artist, start: start, autoplay: autoplay, attempt: 0)
+    }
+
+    private func beginLoad(videoID: String, title: String, artist: String, start: Double, autoplay: Bool, attempt: Int) {
+        // Keep the established audio session across queue transitions while locked.
+        stop(deactivateSession: false)
+        retryCount = attempt; playbackStarted = false; lastProgressPosition = start
+        lastRequest = (videoID, title, artist, start)
+        loadingMessage = attempt == 0 ? "Preparing audio…" : "Retrying audio…"
         let ticket = generation
         wantsPlayback = autoplay
+        loadingBackgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Muses audio startup") { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.generation == ticket else { return }
+                self.fail("Audio preparation exceeded background time. Open Muses and retry.")
+            }
+        }
         metadata = [MPMediaItemPropertyTitle: title, MPMediaItemPropertyArtist: artist]
         deadline = Task { @MainActor [weak self] in
             do { try await Task.sleep(for: .seconds(25)) } catch { return }
@@ -102,44 +140,82 @@ final class ExperimentalNativePlayback {
         task = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
+                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
+                if autoplay { try AVAudioSession.sharedInstance().setActive(true) }
                 let url = try await self.resolveStream(videoID)
                 guard !Task.isCancelled, self.generation == ticket else { return }
-                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, policy: .longFormAudio)
-                let item = AVPlayerItem(url: url)
+                let asset = AVURLAsset(url: url, options: [AVURLAssetHTTPUserAgentKey: "Mozilla/5.0"])
+                let item = AVPlayerItem(asset: asset)
                 self.itemObservation = Self.observeItem(item) { [weak self] item in
                     let failed = item.status == .failed
                     Task { @MainActor [weak self] in
-                        guard let self, self.generation == ticket, item === self.player.currentItem, failed else { return }
-                        self.fail("Audio stream could not be played. Use website playback.")
+                        guard let self, self.generation == ticket, item === self.player.currentItem else { return }
+                        if failed {
+                            let error = item.error as NSError?
+                            let status = item.errorLog()?.events.last?.errorStatusCode ?? 0
+                            let diagnostic = Self.errorCodes(error)
+                            self.retryOrFail("Audio stream could not be played (\(diagnostic), status \(status)). Retry or use website playback.")
+                        } else if item.status == .readyToPlay && !self.wantsPlayback {
+                            self.deadline?.cancel(); self.deadline = nil; self.loadingMessage = nil
+                            self.endLoadingBackgroundTask()
+                        }
                     }
                 }
+                // Small startup buffer: begin decoding promptly rather than waiting for
+                // AVPlayer's conservative entire-network-stall prediction.
+                item.preferredForwardBufferDuration = 2
                 self.player.replaceCurrentItem(with: item)
-                self.loaded = true; self.deadline?.cancel(); self.deadline = nil
+                self.loaded = true
+                self.watchStartup(ticket: ticket)
                 self.registerCommands()
                 self.loadArtwork(videoID: videoID, ticket: ticket)
                 if start > 0 { self.seek(start) }
                 if self.wantsPlayback { self.play() } else { self.onEvent?(.paused); self.publish() }
             } catch {
                 guard !Task.isCancelled, self.generation == ticket else { return }
-                self.fail("Native playback unavailable: \(error.localizedDescription). Open website playback or switch to the YouTube player.")
+                let detail = error as NSError
+                self.fail("Native playback unavailable: \(detail.localizedDescription) (\(detail.domain), \(detail.code)). Retry or use website playback.")
             }
         }
     }
 
     static func resolveLocalStream(_ videoID: String) async throws -> URL {
         #if MUSES_NATIVE_PLAYBACK
+        if let cached = streamCache[videoID], cached.expires > Date(),
+           let url = cached.urls.first(where: { !(rejectedFormats[videoID] ?? []).contains(formatKey($0)) }) { return url }
+        if streamCache[videoID]?.expires ?? .distantPast <= Date() { rejectedFormats.removeValue(forKey: videoID) }
         let streams = try await YouTube(videoID: videoID, useOAuth: false, allowOAuthCache: false, methods: [.local]).streams
-        guard let stream = streams.filterAudioOnly().filter({ $0.fileExtension == .m4a && $0.isNativelyPlayable }).highestAudioBitrateStream()
-            ?? streams.filterVideoAndAudio().filter({ $0.isNativelyPlayable }).highestAudioBitrateStream() else {
+        let audio = streams.filterAudioOnly().filter { $0.fileExtension == .m4a && $0.isNativelyPlayable }
+            .sorted { ($0.averageBitrate ?? $0.bitrate ?? 0) > ($1.averageBitrate ?? $1.bitrate ?? 0) }
+        // If an audio-only format is rejected by the CDN/player, retry a different
+        // compatible representation, preferring the smallest progressive stream.
+        let progressive = streams.filterVideoAndAudio().filter { $0.isNativelyPlayable }
+            .sorted { ($0.videoResolution ?? Int.max) < ($1.videoResolution ?? Int.max) }
+        let urls = (audio + progressive).map(\.url)
+        guard let url = urls.first(where: { !(rejectedFormats[videoID] ?? []).contains(formatKey($0)) }) else {
             throw NSError(domain: "MusesNative", code: 1, userInfo: [NSLocalizedDescriptionKey: "No compatible audio stream"])
         }
-        return stream.url
+        if streamCache.count >= 32 { streamCache.removeAll(); rejectedFormats.removeAll() }
+        streamCache[videoID] = (urls, Date().addingTimeInterval(300))
+        return url
         #else
         throw NSError(domain: "MusesNative", code: 2, userInfo: [NSLocalizedDescriptionKey: "Native playback requires an experimental IPA build"])
         #endif
     }
+    private static func errorCodes(_ error: NSError?) -> String {
+        var codes: [String] = []
+        var current = error
+        for _ in 0..<5 {
+            guard let value = current else { break }
+            codes.append("\(value.domain) \(value.code)")
+            current = value.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return codes.isEmpty ? "AVPlayer" : codes.joined(separator: "/")
+    }
     func updateDisplayInfo(title: String, artist: String) {
-        metadata[MPMediaItemPropertyTitle] = title; metadata[MPMediaItemPropertyArtist] = artist; publish()
+        metadata[MPMediaItemPropertyTitle] = title; metadata[MPMediaItemPropertyArtist] = artist
+        if let request = lastRequest { lastRequest = (request.id, title, artist, request.start) }
+        publish()
     }
     func updateQueueAvailability(hasNext: Bool) {
         self.hasNext = hasNext
@@ -149,24 +225,71 @@ final class ExperimentalNativePlayback {
     func play() {
         wantsPlayback = true
         guard loaded else { return }
-        do { try AVAudioSession.sharedInstance().setActive(true); player.play(); publish() }
-        catch { fail("Audio session could not start: \(error.localizedDescription)") }
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+            if deadline == nil {
+                let position = player.currentTime().seconds
+                lastProgressPosition = position.isFinite ? position : 0
+                watchStartup(ticket: generation)
+            }
+            player.playImmediately(atRate: 1); publish()
+        }
+        catch {
+            let detail = error as NSError
+            fail("Audio session could not start (\(detail.domain), \(detail.code)). Open Muses and retry.")
+        }
     }
-    func pause() { wantsPlayback = false; player.pause(); onEvent?(.paused); publish() }
+    func pause() {
+        wantsPlayback = false; player.pause()
+        if player.currentItem?.status == .readyToPlay { deadline?.cancel(); deadline = nil; loadingMessage = nil; endLoadingBackgroundTask() }
+        onEvent?(.paused); publish()
+    }
+    func retry() {
+        guard let request = lastRequest else { return }
+        Self.streamCache.removeValue(forKey: request.id)
+        Self.rejectedFormats.removeValue(forKey: request.id)
+        beginLoad(videoID: request.id, title: request.title, artist: request.artist, start: request.start, autoplay: true, attempt: 0)
+    }
+    private func watchStartup(ticket: UUID) {
+        deadline?.cancel()
+        deadline = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do { try await Task.sleep(for: self.startupTimeout) } catch { return }
+            guard self.generation == ticket else { return }
+            self.retryOrFail("Audio loading timed out. Retry or use website playback.")
+        }
+    }
+    private func retryOrFail(_ message: String) {
+        guard retryCount == 0, let request = lastRequest else { fail(message); return }
+        let current = player.currentTime().seconds
+        let position = current.isFinite ? max(request.start, current) : request.start
+        if let asset = player.currentItem?.asset as? AVURLAsset {
+            Self.rejectedFormats[request.id, default: []].insert(Self.formatKey(asset.url))
+        }
+        let autoplay = wantsPlayback
+        beginLoad(videoID: request.id, title: request.title, artist: request.artist, start: position, autoplay: autoplay, attempt: 1)
+        onEvent?(.buffering)
+    }
     func seek(_ seconds: Double) {
         guard loaded, seconds.isFinite, seconds >= 0 else { return }
         let duration = player.currentItem?.duration.seconds ?? .infinity
         let target = duration.isFinite ? min(seconds, duration) : seconds
+        lastProgressPosition = target
         player.seek(to: CMTime(seconds: target, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
     }
-    func stop() {
+    func stop(deactivateSession: Bool = true) {
+        endLoadingBackgroundTask()
         generation = UUID(); deadline?.cancel(); deadline = nil; task?.cancel(); task = nil; artworkTask?.cancel(); artworkTask = nil
-        loaded = false; wantsPlayback = false; resumeAfterInterruption = false; itemObservation = nil
+        loaded = false; wantsPlayback = false; resumeAfterInterruption = false; itemObservation = nil; loadingMessage = nil
         player.pause(); player.replaceCurrentItem(with: nil)
         for (command, token) in commandTokens { command.removeTarget(token); command.isEnabled = false }
         commandTokens = []; metadata = [:]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        if deactivateSession { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+    }
+    private func endLoadingBackgroundTask() {
+        guard loadingBackgroundTask != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(loadingBackgroundTask); loadingBackgroundTask = .invalid
     }
     private func fail(_ message: String) { stop(); onEvent?(.failed(message)) }
     private func publish() {

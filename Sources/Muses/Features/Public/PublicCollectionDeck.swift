@@ -263,3 +263,17 @@ private struct PublicDeckPan: UIGestureRecognizerRepresentable {
         }
     }
 }
+
+/// Portrait cover only: row actions stay separate from the image.
+struct PublicCompactHeroCover: View {
+    let videoID: String?
+    var width: CGFloat = 56
+    var body: some View {
+        PublicPlayerArtwork(videoID: videoID)
+            .frame(width: width, height: width * 1.28)
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 11).stroke(.primary.opacity(0.08)) }
+            .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+            .accessibilityHidden(true).allowsHitTesting(false)
+    }
+}

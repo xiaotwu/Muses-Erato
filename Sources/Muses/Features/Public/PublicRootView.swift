@@ -88,16 +88,13 @@ struct PublicRootView: View {
                     NavigationStack { destinationContent.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer } }
                 }
             } else {
-                TabView(selection: $selection) {
-                    NavigationStack { home.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer } }
-                        .tabItem { Label("Home", systemImage: "house") }
-                        .tag(PublicDestination.home)
-                    NavigationStack { search.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer } }
-                        .tabItem { Label("Search", systemImage: "magnifyingglass") }
-                        .tag(PublicDestination.search)
-                    NavigationStack { library.safeAreaInset(edge: .bottom, spacing: 0) { miniPlayer } }
-                        .tabItem { Label("Library", systemImage: "square.stack") }
-                        .tag(PublicDestination.library)
+                if #available(iOS 26.1, *) {
+                    compactTabs(systemAccessory: true)
+                        .tabViewBottomAccessory(isEnabled: session.currentTrack != nil && !session.showPlayer) {
+                            PublicMiniPlayer(session: session, systemAccessory: true)
+                        }
+                } else {
+                    compactTabs(systemAccessory: false)
                 }
             }
         }
@@ -141,6 +138,17 @@ struct PublicRootView: View {
         }
     }
 
+    private func compactTabs(systemAccessory: Bool) -> some View {
+        TabView(selection: $selection) {
+            NavigationStack { home.safeAreaInset(edge: .bottom, spacing: 0) { if !systemAccessory { miniPlayer } } }
+                .tabItem { Label("Home", systemImage: "house") }.tag(PublicDestination.home)
+            NavigationStack { search.safeAreaInset(edge: .bottom, spacing: 0) { if !systemAccessory { miniPlayer } } }
+                .tabItem { Label("Search", systemImage: "magnifyingglass") }.tag(PublicDestination.search)
+            NavigationStack { library.safeAreaInset(edge: .bottom, spacing: 0) { if !systemAccessory { miniPlayer } } }
+                .tabItem { Label("Library", systemImage: "square.stack") }.tag(PublicDestination.library)
+        }
+    }
+
     @ViewBuilder private var miniPlayer: some View {
         if session.currentTrack != nil && !session.showPlayer { PublicMiniPlayer(session: session) }
     }
@@ -160,7 +168,7 @@ struct PublicRootView: View {
                 if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
                 if let current = session.currentTrack {
                     sectionHeading("Continue", detail: "")
-                    Button { session.showPlayer = true } label: {
+                    Button { session.play(); session.showPlayer = true } label: {
                         PublicVideoRow(track: current, symbol: "play.fill")
                     }
                     .buttonStyle(.plain).accessibilityIdentifier("public.resume")
@@ -525,12 +533,12 @@ struct PublicRootView: View {
     private func videoShelf<S: Sequence>(_ tracks: S) -> some View where S.Element == MusesDomain.Track {
         LazyVStack(spacing: 10) {
             ForEach(Array(tracks), id: \.id) { track in
-                NavigationLink {
-                    PublicVideoDetail(session: session, trackID: track.id)
+                Button {
+                    session.playTracks(Array(tracks), startingAt: Array(tracks).firstIndex(where: { $0.id == track.id }) ?? 0, context: "home")
                 } label: {
                     PublicVideoRow(track: track, symbol: track.liked ? "heart.fill" : "play.rectangle")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plain).accessibilityIdentifier("home.play." + track.id.rawValue)
             }
         }
     }
@@ -645,24 +653,7 @@ private struct PublicEmptyState: View {
 
 private struct PublicVideoArtwork: View {
     let videoID: String
-
-    var body: some View {
-        AsyncImage(url: URL(string: "https://i.ytimg.com/vi/\(videoID)/mqdefault.jpg")) { phase in
-            if let image = phase.image {
-                image.resizable().scaledToFill()
-            } else {
-                Rectangle()
-                    .fill(PublicStyle.gold.opacity(0.15))
-                    .overlay {
-                        Image(systemName: "play.rectangle")
-                            .foregroundStyle(PublicStyle.gold)
-                    }
-            }
-        }
-        .frame(width: 88, height: 56)
-        .clipShape(RoundedRectangle(cornerRadius: 9))
-        .accessibilityHidden(true)
-    }
+    var body: some View { PublicCompactHeroCover(videoID: videoID) }
 }
 
 private struct PublicVideoRow: View {
@@ -970,7 +961,7 @@ struct PublicPlaylistDetail: View {
                     if let occurrences = playlist.occurrences {
                         ForEach(occurrences) { occurrence in
                             if let id = occurrence.trackID, let track = session.tracks.first(where: { $0.id == id }) {
-                                NavigationLink { PublicVideoDetail(session: session, trackID: id) } label: {
+                                Button { if let video = track.publicVideoID { session.open(video, title: track.title, artist: track.artist) } } label: {
                                     PublicVideoRow(track: track, symbol: "play.rectangle")
                                 }.accessibilityIdentifier("playlist.occurrence.\(occurrence.id)")
                             } else {
@@ -989,7 +980,7 @@ struct PublicPlaylistDetail: View {
                     } else {
                         ForEach(playlist.trackIDs, id: \.self) { id in
                             if let track = session.tracks.first(where: { $0.id == id }) {
-                                NavigationLink { PublicVideoDetail(session: session, trackID: id) } label: {
+                                Button { if let video = track.publicVideoID { session.open(video, title: track.title, artist: track.artist) } } label: {
                                     PublicVideoRow(track: track, symbol: "play.rectangle")
                                 }
                             }
@@ -1246,9 +1237,12 @@ private struct PublicQueueTrackLabel: View {
     let track: MusesDomain.Track?
     var identifier = ""
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(track?.displayTitle ?? "Unavailable song").font(.subheadline.weight(.medium)).lineLimit(2).accessibilityIdentifier(identifier)
-            Text(track?.displayArtist ?? "Unknown artist").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        HStack(spacing: 12) {
+            PublicCompactHeroCover(videoID: track?.publicVideoID?.rawValue)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(track?.displayTitle ?? "Unavailable song").font(.subheadline.weight(.medium)).lineLimit(2).accessibilityIdentifier(identifier)
+                Text(track?.displayArtist ?? "Unknown artist").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }.frame(maxWidth: .infinity, alignment: .leading)
         }.frame(maxWidth: .infinity, alignment: .leading)
     }
 }

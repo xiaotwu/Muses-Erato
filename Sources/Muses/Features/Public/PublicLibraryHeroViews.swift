@@ -6,22 +6,28 @@ import MusesDomain
 struct PublicLibraryCategories: View {
     @Bindable var session: PublicYouTubeSession
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Namespace private var categoryGlass
+    @ViewBuilder private func categoryLabel(_ category: LibraryCategory) -> some View {
+        let label = Text(category.rawValue)
+            .font(.subheadline.weight(session.selectedCategory == category ? .semibold : .regular))
+            .foregroundStyle(.primary).padding(.horizontal, 14).frame(minHeight: 44)
+        if session.selectedCategory == category {
+            if #available(iOS 26, *), !reduceTransparency {
+                label.glassEffect(.regular.interactive(), in: .capsule)
+                    .glassEffectID("library.category.selection", in: categoryGlass)
+            } else { label.background(PublicStyle.surface, in: Capsule()) }
+        } else { label }
+    }
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(LibraryCategory.allCases.filter { $0 != .subscriptions }) { category in
                         Button {
-                            session.selectedCategory = category
+                            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) { session.selectedCategory = category }
                         } label: {
-                            Text(category.rawValue)
-                                .font(.subheadline.weight(session.selectedCategory == category ? .semibold : .regular))
-                                .foregroundStyle(session.selectedCategory == category ? Color.accentColor : Color.primary)
-                                .padding(.horizontal, 6).frame(minHeight: 44)
-                                .contentShape(Rectangle())
-                                .overlay(alignment: .bottom) {
-                                    if session.selectedCategory == category { Rectangle().fill(Color.accentColor).frame(height: 2) }
-                                }
+                            categoryLabel(category)
                         }
                         .buttonStyle(.plain).id(category)
                         .accessibilityAddTraits(session.selectedCategory == category ? .isSelected : [])
@@ -104,16 +110,18 @@ struct PublicCollectionRow: View {
     let category: LibraryCategory
     @Environment(\.dynamicTypeSize) private var typeSize
     private var navigation: some View {
-        NavigationLink { PublicVideoDetail(session: session, trackID: track.id) } label: {
+        Button {
+            if let onPlay { onPlay() }
+            else if let video = track.publicVideoID { session.open(video, title: track.title, artist: track.artist) }
+        } label: {
             HStack(spacing: 10) {
-                PublicHeroArtwork(videoID: track.publicVideoID?.rawValue).frame(width: 48, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                PublicCompactHeroCover(videoID: track.publicVideoID?.rawValue)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(track.displayTitle).font(.body.weight(.medium)).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                     Text(track.displayArtist).font(.caption).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityIdentifier("library.detail.\(track.id.rawValue)")
+        }.buttonStyle(.plain).accessibilityIdentifier("library.row.play.\(track.id.rawValue)")
     }
     private var actions: some View {
         HStack(spacing: 0) {

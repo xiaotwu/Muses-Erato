@@ -37,6 +37,7 @@
 		56065018CE92DE951A466C0A /* PublicLibraryHeroUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84A504CC6C82F3DEA644725 /* PublicLibraryHeroUITests.swift */; };
 		56F295D49F84BC6E2847FDB3 /* ListeningSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF70E1E45E8B4C46014602B9 /* ListeningSession.swift */; };
 		582B20A1E2DC666B99D57036 /* MusesSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C5F631496ED3835C3DBFFB /* MusesSchema.swift */; };
+		59EA75962C5A01244B899C64 /* NativeLivePlaybackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E30DA83A3CE54C02D1A531A /* NativeLivePlaybackTests.swift */; };
 		628EB76BCE37CD0AF7C54CD8 /* PlaylistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9029839B4A7936B66EF4E34 /* PlaylistItem.swift */; };
 		69EE898D898F89B921474BF9 /* QueueItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F28D830AFA6AA5972A1D3A /* QueueItem.swift */; };
 		6AD86ACD407ABD8164EC2547 /* PublicNativePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97B5F8B067C1B37F41FCF926 /* PublicNativePlayerView.swift */; };
@@ -94,6 +95,13 @@
 			remoteGlobalIDString = 7FB55BBCFFD5CEACD7552488;
 			remoteInfo = Muses;
 		};
+		6E41BDFF718F3DDCEA6C886D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B9CD43186256EFCB65325E8E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7FB55BBCFFD5CEACD7552488;
+			remoteInfo = Muses;
+		};
 		9ED71E1E4A5E4F7D28A06253 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B9CD43186256EFCB65325E8E /* Project object */;
@@ -118,6 +126,7 @@
 		2479010E573AFE3D23E4E15E /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		24F28D830AFA6AA5972A1D3A /* QueueItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueItem.swift; sourceTree = "<group>"; };
 		27D48D0063152B94B2CA0707 /* MusesCatalog */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MusesCatalog; path = Packages/MusesCatalog; sourceTree = SOURCE_ROOT; };
+		2E30DA83A3CE54C02D1A531A /* NativeLivePlaybackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeLivePlaybackTests.swift; sourceTree = "<group>"; };
 		3110C2C5E0C83478DD2E99AE /* Playlist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Playlist.swift; sourceTree = "<group>"; };
 		35C372D00C4DFD71B7A0830F /* YouTubePlaylistSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePlaylistSync.swift; sourceTree = "<group>"; };
 		3649F5A754B687EE1BBFC459 /* ListeningContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningContext.swift; sourceTree = "<group>"; };
@@ -170,6 +179,7 @@
 		C4E97E1E9375F46A52CD77C7 /* EQBand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQBand.swift; sourceTree = "<group>"; };
 		C81F467A3435C6012A35B541 /* PublicMigrationArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicMigrationArchiveView.swift; sourceTree = "<group>"; };
 		CF062E2BC7A5EF95B22E93C3 /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
+		D561A5DBB2DCCE642BC7C73B /* MusesNativeLiveTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusesNativeLiveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DB123987A950FCEDAD853C84 /* Muses.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Muses.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF5A2EC815611F2FABC3A082 /* PublicLibraryHeroViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicLibraryHeroViews.swift; sourceTree = "<group>"; };
 		E057C9750664FB5D6847C6BD /* PublicPrivacyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicPrivacyUITests.swift; sourceTree = "<group>"; };
@@ -207,6 +217,7 @@
 			isa = PBXGroup;
 			children = (
 				DB123987A950FCEDAD853C84 /* Muses.app */,
+				D561A5DBB2DCCE642BC7C73B /* MusesNativeLiveTests.xctest */,
 				120CD27C0FCFF0CCB913A7F0 /* MusesPublicUITests.xctest */,
 				876106BAA6581C1CB6DDDB90 /* MusesTests.xctest */,
 			);
@@ -286,6 +297,15 @@
 			path = Tests/MusesPublicUITests;
 			sourceTree = "<group>";
 		};
+		538A7F88147EAB1919C79DF2 /* MusesNativeLiveTests */ = {
+			isa = PBXGroup;
+			children = (
+				2E30DA83A3CE54C02D1A531A /* NativeLivePlaybackTests.swift */,
+			);
+			name = MusesNativeLiveTests;
+			path = Tests/MusesNativeLiveTests;
+			sourceTree = "<group>";
+		};
 		5AD86F7EC7D9BEA8C77778ED /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -349,6 +369,7 @@
 				DACDED0C0A96DF9FC7703818 /* Domain */,
 				7CC245F35E8A351260A39B54 /* LegacyMigration */,
 				C9A96C0B234537FD13A98B0A /* LegacyMigrationTests */,
+				538A7F88147EAB1919C79DF2 /* MusesNativeLiveTests */,
 				4737C6BAEEB8FD2F13916204 /* MusesPublicUITests */,
 				B457E8459AD93ED6DBECDDE9 /* MusesTests */,
 				2E819485AA4CB0C44E3F3B90 /* Packages */,
@@ -422,6 +443,24 @@
 			);
 			productName = MusesTests;
 			productReference = 876106BAA6581C1CB6DDDB90 /* MusesTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		729F310339425884E80CBDE8 /* MusesNativeLiveTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5EE4A2D5A01946BB8863FC68 /* Build configuration list for PBXNativeTarget "MusesNativeLiveTests" */;
+			buildPhases = (
+				33705829C05B16652CE50EB7 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BD611F7EDFAF5F9DE99AB47B /* PBXTargetDependency */,
+			);
+			name = MusesNativeLiveTests;
+			packageProductDependencies = (
+			);
+			productName = MusesNativeLiveTests;
+			productReference = D561A5DBB2DCCE642BC7C73B /* MusesNativeLiveTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		7FB55BBCFFD5CEACD7552488 /* Muses */ = {
@@ -507,6 +546,7 @@
 			targets = (
 				7FB55BBCFFD5CEACD7552488 /* Muses */,
 				2F053DF18EBFB1C20F73AA07 /* MusesTests */,
+				729F310339425884E80CBDE8 /* MusesNativeLiveTests */,
 				B3200D40FE7C4C96FB7493D5 /* MusesPublicUITests */,
 			);
 		};
@@ -586,6 +626,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		33705829C05B16652CE50EB7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				59EA75962C5A01244B899C64 /* NativeLivePlaybackTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		899429184666EB0E75A15599 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -622,6 +670,11 @@
 			target = 7FB55BBCFFD5CEACD7552488 /* Muses */;
 			targetProxy = 40CF9BE0741CD98917E6731A /* PBXContainerItemProxy */;
 		};
+		BD611F7EDFAF5F9DE99AB47B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7FB55BBCFFD5CEACD7552488 /* Muses */;
+			targetProxy = 6E41BDFF718F3DDCEA6C886D /* PBXContainerItemProxy */;
+		};
 		D71FC268733075F957D69581 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 7FB55BBCFFD5CEACD7552488 /* Muses */;
@@ -630,6 +683,24 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		1862234875B46B5E35279ED2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaotwu.muses.erato.nativelivetests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses";
+			};
+			name = Debug;
+		};
 		1B97008385C921D8E30F43B3 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -855,6 +926,24 @@
 			};
 			name = Debug;
 		};
+		A692D34716F5810732B38293 /* Native */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaotwu.muses.erato.nativelivetests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses";
+			};
+			name = Native;
+		};
 		BB39C5EA21DC487D12C54053 /* Native */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -936,6 +1025,24 @@
 			};
 			name = Debug;
 		};
+		E0BB41029A56898EA8E988EF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiaotwu.muses.erato.nativelivetests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses";
+			};
+			name = Release;
+		};
 		E2DFA989B07BBFA9C8DD0AB5 /* Native */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1002,6 +1109,16 @@
 				3A47C27FC8EC3E45D21FE3BF /* Debug */,
 				36963886F7F5F5FADD721F9B /* Native */,
 				E5AA96952A2448654A42B613 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5EE4A2D5A01946BB8863FC68 /* Build configuration list for PBXNativeTarget "MusesNativeLiveTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1862234875B46B5E35279ED2 /* Debug */,
+				A692D34716F5810732B38293 /* Native */,
+				E0BB41029A56898EA8E988EF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

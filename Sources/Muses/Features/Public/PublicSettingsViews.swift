@@ -18,10 +18,10 @@ struct PublicSettingsView: View {
             }
             Section {
                 NavigationLink { PublicLibraryDataSettingsView(session: session) } label: {
-                    Text("Library & data")
+                    Label("Library & data", systemImage: "square.stack")
                 }
                 NavigationLink { PublicPlaybackSettingsView(session: session) } label: {
-                    Text("Playback")
+                    Label("Playback", systemImage: "play.circle")
                 }
                 NavigationLink {
                     List {
@@ -33,7 +33,7 @@ struct PublicSettingsView: View {
                     .navigationTitle("Privacy & support")
                     .navigationBarTitleDisplayMode(.inline)
                 } label: {
-                    Text("Privacy & support")
+                    Label("Privacy & support", systemImage: "hand.raised")
                 }
             }
         }
