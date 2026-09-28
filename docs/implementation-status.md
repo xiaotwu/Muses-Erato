@@ -12,7 +12,7 @@ This file records verified evidence, not completion claims. The original checkou
 | P2 | Domain, queue, V1 persistence and lossless legacy archive contracts | Package tests pass; legacy archive 14 tests pass | Archive provenance/retention release gate; full device upgrade acceptance |
 | P3 | Official Data API catalog, OAuth with PKCE, quota ledger and caching | Package tests; physical sign-in/search/account import; correct bundle header 200 and wrong/missing headers 403 | OAuth public production/verification, API allowlist and quota evidence |
 | P4 | Public app shell, compact Library, local collections and visible player route | Integrated phone/tablet and maximum-text flows; owner confirmed current physical UI functions | Layout refinement deferred by owner; manual accessibility and broader device acceptance |
-| P6 | Public source allowlist, signed Release archive and local App Store IPA | eb36a02 archive/export pass static and distribution-signing audits; IPA not uploaded | Privacy/retention, domain/OAuth approval, release packet, TestFlight and App Review |
+| P6 | Public source allowlist, signed Release archive and local App Store IPA | 79eff2e archive/export pass static and distribution-signing audits; IPA not uploaded | Privacy/retention, domain/OAuth approval, release packet, TestFlight and App Review |
 
 ## Current UI delivery (2026-09-27)
 
@@ -71,12 +71,23 @@ The public composition owns one playback adapter, account cache and store projec
 - App Store export for code commit `0488b85` succeeded under team `9URWGD9Q86`. Exported IPA SHA-256: `554d7d07aa253f180506a9b3621fc913c0d878f0e070748682dba502da44e8be`. The exported app has the matching explicit application identifier, `get-task-allow = false`, no provisioned-device/all-device profile, verified signature and passing static audit. Version/build: `1.0.0` / `1`. It has **not** been uploaded. This export is historical and predates the single-scene and compact Library delivery; use the eb36a02 export below for current artifact evidence.
 - Reproduce the export audit with `python3 scripts/audit-distribution-ipa.py <exported.ipa> --team 9URWGD9Q86`. This verifies the exported IPA rather than assuming archive signing matches distribution signing. It does not establish OAuth production, App Privacy, TestFlight or App Review acceptance.
 
-## Current distribution artifact (eb36a02)
+## Earlier UI distribution artifact (eb36a02)
 
 - Release archive: `/tmp/erato-release-eb36a02.xcarchive`; log: `/tmp/erato-release-eb36a02.log`. Local App Store export: `/tmp/erato-app-store-eb36a02/Muses.ipa`; export log: `/tmp/erato-app-store-eb36a02-export.log`.
 - `audit-public-artifact.py` passed on the archive. `audit-distribution-ipa.py` passed on the actual exported app: explicit bundle/team identity, valid signature, `get-task-allow = false`, distribution profile without device lists, single scene and public-source/capability checks. Audit log: `/tmp/erato-app-store-eb36a02-audit.log`.
 - IPA SHA-256: `079bc78eb985f36ffcabb9a7e8eedd0200268b9e23513946efe2c68357690842`; version/build `1.0.0` / `1`. No upload, TestFlight acceptance or App Review acceptance occurred. This artifact can be superseded by later product or release-configuration changes.
 - Generated public pages still pass `build-privacy-site.py --check`; they remain unpublished and this check performs no remote verification.
+
+## Revoked-refresh cleanup repair
+
+Current-source privacy review exposed a Keychain deletion failure skipping private-cache cleanup when refresh returns `invalid_grant`. Commit `00181ba` reuses the all-attempts local-account deletion path. All five OAuth tests passed, including all four token/cache failure combinations, in `/tmp/erato-oauth-revoked-cleanup-tests.log`. The eb36a02 artifact above predates this repair; the 79eff2e artifact below supersedes it. The [current-source privacy evidence](release/current-source-privacy-evidence.md) records the remaining retention, provider and content-status boundaries.
+
+## Current distribution artifact (79eff2e)
+
+- Source commit `79eff2e` includes the revoked-refresh repair. Signed Release archive `/tmp/erato-release-79eff2e.xcarchive` and local App Store export `/tmp/erato-app-store-79eff2e/Muses.ipa` succeeded. No upload occurred.
+- Archive audit `/tmp/erato-release-79eff2e-audit.log` and actual IPA audit `/tmp/erato-app-store-79eff2e-audit.log` passed the same public-source/single-scene, signature, explicit identity and distribution-profile checks. Build/export logs: `/tmp/erato-release-79eff2e.log`, `/tmp/erato-app-store-79eff2e-export.log`.
+- IPA SHA-256: `b259ef40f7699dc1e5e8cad7b90d3d453aff442e2e3b35ee7d4ddb99f7150546`; version/build `1.0.0` / `1`. This supersedes the earlier UI export. It remains a locally validated artifact, not TestFlight/App Review approval or closure of P6.
+- Later documentation-only commits do not change this binary. Product/configuration changes still require updated artifact evidence. The owner-confirmed physical UI build predates this small OAuth repair; the repair has targeted package and Release compilation evidence, not a new physical revoked-token acceptance claim.
 
 ## Confirmed OAuth release blocker
 
