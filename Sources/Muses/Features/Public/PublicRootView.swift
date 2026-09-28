@@ -40,6 +40,7 @@ private enum PublicDestination: Int, CaseIterable, Identifiable {
 struct PublicRootView: View {
     @Bindable var session: PublicYouTubeSession
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selection: PublicDestination = .home
@@ -49,7 +50,7 @@ struct PublicRootView: View {
     @FocusState private var searchFocused: Bool
     @State private var query = ""
     @State private var confirmDelete = false
-    @State private var confirmClearHistory = false
+    @State private var didRefreshLibraryMetadata = false
 
     var body: some View {
         Group {
@@ -60,7 +61,7 @@ struct PublicRootView: View {
                     description: Text(recovery)
                 )
                 .padding()
-            } else if sizeClass == .regular {
+            } else if sizeClass == .regular && !dynamicTypeSize.isAccessibilitySize {
                 NavigationSplitView {
                     List {
                         ForEach(PublicDestination.allCases) { destination in
@@ -221,6 +222,7 @@ struct PublicRootView: View {
                 .accessibilityIdentifier("public.link")
             Button(action: openLink) {
                 Label("Open link", systemImage: "arrow.up.right")
+                    .labelStyle(.iconOnly)
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
@@ -324,9 +326,17 @@ struct PublicRootView: View {
                     Text("Channels").tag(MusesCatalog.CatalogItem.Kind.channel)
                 }.pickerStyle(.segmented)
                 Text("Each search page uses search quota. More results load only when requested.").font(.footnote).foregroundStyle(.secondary)
-                Button("Search YouTube", action: submitSearch)
+                HStack {
+                    Button("Search YouTube", systemImage: "magnifyingglass", action: submitSearch)
+                    .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                     .buttonStyle(.borderedProminent)
                     .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
+                    Button {
+                        query = ""; session.clearSearchResults()
+                    } label: { Label("Clear search results", systemImage: "xmark.circle").labelStyle(.iconOnly).frame(width: 44, height: 44) }
+                    .disabled(query.isEmpty && session.searchItems.isEmpty && !session.searching)
+                    .accessibilityIdentifier("public.clearSearch")
+                }
                 if session.searching {
                     ProgressView("Searching YouTube")
                 }
@@ -380,61 +390,31 @@ struct PublicRootView: View {
                 PublicPageHeading(
                     eyebrow: "YOUR COLLECTION",
                     title: "Library.",
-                    subtitle: "Saved videos, favorites and listening history live on this device.",
+                    subtitle: "On this device.",
                     identifier: "public.libraryHeader"
                 )
 
-                VStack(alignment: .leading, spacing: 12) {
+                PublicLibraryCategories(session: session)
+                HStack {
                     NavigationLink { PublicQueueView(session: session) } label: {
                         Label("Queue (\(session.queue.snapshot.upcoming.count) upcoming)", systemImage: "list.bullet")
                     }
+                    .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("public.queue")
+                    Spacer()
+                    Button("Refresh saved metadata", systemImage: "arrow.clockwise") { Task { await session.refreshSavedMetadata() } }
+                        .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
+                        .disabled(!session.apiConfigured || session.refreshingMetadata || session.tracks.isEmpty)
+                        .accessibilityIdentifier("library.refresh")
                     PublicClearUpNextButton(session: session)
-                    Text("Clears only upcoming videos. Your current video stays in the player.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 16))
-
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 135), spacing: 10)], spacing: 10) {
-                    ForEach(LibraryCategory.allCases) { category in
-                        Button {
-                            if reduceMotion {
-                                session.selectedCategory = category
-                            } else {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    session.selectedCategory = category
-                                }
-                            }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Image(systemName: category.symbol)
-                                    .font(.title3)
-                                    .foregroundStyle(PublicStyle.gold)
-                                Text(category.rawValue)
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(PublicStyle.ink)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .padding(14)
-                            .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
-                            .background(
-                                session.selectedCategory == category ? PublicStyle.gold.opacity(0.15) : PublicStyle.surface,
-                                in: RoundedRectangle(cornerRadius: 16)
-                            )
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(session.selectedCategory == category ? PublicStyle.gold : .clear, lineWidth: 1)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(session.selectedCategory == category ? .isSelected : [])
-                        .accessibilityIdentifier("library.category.\(category.rawValue)")
-                    }
                 }
                 if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
-                sectionHeading(session.selectedCategory.rawValue, detail: categoryDetail)
+                HStack {
+                    sectionHeading(session.selectedCategory.rawValue, detail: categoryDetail)
+                    if [.videos, .songs, .favorites, .playlists, .history].contains(session.selectedCategory) {
+                        PublicLibraryClearButton(session: session, category: session.selectedCategory)
+                    }
+                }
                 categoryContent
             }
             .frame(maxWidth: 900, alignment: .leading)
@@ -444,6 +424,11 @@ struct PublicRootView: View {
         }
         .background(PublicStyle.background)
         .navigationTitle("Library")
+        .task(id: session.apiConfigured) {
+            guard session.apiConfigured, !didRefreshLibraryMetadata else { return }
+            didRefreshLibraryMetadata = true
+            await session.refreshSavedMetadata()
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { settingsToolbar }
     }
@@ -466,27 +451,21 @@ struct PublicRootView: View {
             if session.tracks.isEmpty {
                 PublicEmptyState(symbol: "play.rectangle", title: "No saved videos", detail: "Open a YouTube link on Home to start your collection.")
             } else {
-                videoShelf(session.tracks)
+                PublicLibraryHeroShelf(session: session, tracks: session.tracks, category: session.selectedCategory)
             }
         case .favorites:
             if session.favorites.isEmpty {
                 PublicEmptyState(symbol: "heart", title: "No favorites yet", detail: "Open a saved video and choose Favorite.")
             } else {
-                videoShelf(session.favorites)
+                PublicLibraryHeroShelf(session: session, tracks: session.favorites, category: .favorites)
             }
         case .playlists:
             PublicPlaylistCollection(session: session)
         case .history:
-            if !session.history.isEmpty {
-                Button("Clear history", role: .destructive) { confirmClearHistory = true }
-                    .confirmationDialog("Clear playback history?", isPresented: $confirmClearHistory, titleVisibility: .visible) {
-                        Button("Clear history", role: .destructive) { session.clearHistory() }
-                    } message: { Text("Saved videos, favorites and playlists will remain.") }
-            }
             if session.history.isEmpty {
                 PublicEmptyState(symbol: "clock", title: "No listening history", detail: "Videos appear after the official player confirms playback.")
             } else {
-                videoShelf(session.history)
+                PublicLibraryHeroShelf(session: session, tracks: session.history, category: .history)
             }
         case .subscriptions:
             if session.signedIn {
@@ -591,7 +570,7 @@ struct PublicRootView: View {
         }
         .navigationTitle("Settings")
         .toolbar {
-            if sizeClass != .regular {
+            if sizeClass != .regular || dynamicTypeSize.isAccessibilitySize {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { showSettings = false }
                 }
@@ -605,7 +584,7 @@ struct PublicRootView: View {
     }
 }
 
-private extension LibraryCategory {
+extension LibraryCategory {
     var symbol: String {
         switch self {
         case .artists: "person.2"
@@ -925,21 +904,16 @@ private struct PublicPlaylistCollection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Button("Create local playlist", systemImage: "plus") { name = ""; creating = true }
+                .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                 .accessibilityIdentifier("public.createPlaylist")
             Text("Stored on this device. These playlists do not change your YouTube account.")
                 .font(.footnote).foregroundStyle(.secondary)
             if session.playlists.isEmpty {
                 PublicEmptyState(symbol: "music.note.list", title: "No local playlists", detail: "Create a playlist, then add videos from your saved collection.")
             }
-            ForEach(session.playlists) { playlist in
-                NavigationLink {
-                    PublicPlaylistDetail(session: session, playlistID: playlist.id)
-                } label: {
-                    HStack {
-                        Label(playlist.name, systemImage: "music.note.list")
-                        Spacer()
-                        Text("\(playlist.trackIDs.count) videos").foregroundStyle(.secondary)
-                    }.padding(.vertical, 10)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 16)], spacing: 16) {
+                ForEach(session.playlists) { playlist in
+                    PublicLocalPlaylistHero(session: session, playlist: playlist)
                 }
             }
         }
@@ -952,7 +926,7 @@ private struct PublicPlaylistCollection: View {
     }
 }
 
-private struct PublicPlaylistDetail: View {
+struct PublicPlaylistDetail: View {
     let session: PublicYouTubeSession
     let playlistID: UUID
     @Environment(\.dismiss) private var dismiss
@@ -967,9 +941,10 @@ private struct PublicPlaylistDetail: View {
             if let playlist {
                 Section {
                     Text("\(playlist.trackIDs.count) videos · On this device")
-                    Button("Add videos", systemImage: "plus") { adding = true }
-                    Button("Add playlist to queue", systemImage: "text.badge.plus") { session.enqueuePlaylist(playlistID) }
+                    Button("Add videos", systemImage: "plus") { adding = true }.labelStyle(.iconOnly)
+                    Button("Add playlist to queue", systemImage: "text.badge.plus") { session.enqueuePlaylist(playlistID) }.labelStyle(.iconOnly)
                         .disabled(playlist.trackIDs.isEmpty)
+                    PublicPlaylistClearButton(session: session, playlist: playlist)
                 }
                 Section("Videos") {
                     if playlist.trackIDs.isEmpty {
@@ -993,8 +968,8 @@ private struct PublicPlaylistDetail: View {
                     }
                 }
                 Section {
-                    Button("Rename playlist") { name = playlist.name; renaming = true }
-                    Button("Delete playlist", role: .destructive) { deleting = true }
+                    Button("Rename playlist", systemImage: "pencil") { name = playlist.name; renaming = true }.labelStyle(.iconOnly)
+                    Button("Delete playlist", systemImage: "trash", role: .destructive) { deleting = true }.labelStyle(.iconOnly)
                 }
             }
             if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
@@ -1055,7 +1030,7 @@ private struct PublicAddToPlaylistMenu: View {
     }
 }
 
-private struct PublicVideoDetail: View {
+struct PublicVideoDetail: View {
     let session: PublicYouTubeSession
     let trackID: TrackID
     private var track: MusesDomain.Track? { session.tracks.first { $0.id == trackID } }
@@ -1139,6 +1114,7 @@ private struct PublicClearUpNextButton: View {
 
     var body: some View {
         Button("Clear Up Next", systemImage: "trash", role: .destructive) { confirming = true }
+            .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
             .disabled(!session.hasNext)
             .accessibilityIdentifier("public.clearUpNext")
             .alert("Clear all upcoming videos?", isPresented: $confirming) {

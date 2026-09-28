@@ -229,3 +229,105 @@ extension PublicLocalLibraryFlowTests {
         XCTAssertTrue(session.tracks.dropLast().allSatisfy { $0.metadataFetchedAt != nil })
     }
 }
+
+extension PublicLocalLibraryFlowTests {
+    func testDeleteCurrentVideoCleansReferencesAndSurvivesRelaunch() throws {
+        let url = try store()
+        let session = PublicYouTubeSession(storeURL: url)
+        session.open(try VideoID("abcdefghijk"), title: "First")
+        let first = try XCTUnwrap(session.currentTrack)
+        session.open(try VideoID("lmnopqrstuv"), title: "Second")
+        let second = try XCTUnwrap(session.currentTrack)
+        session.toggleFavorite(second.id)
+        session.enqueueTrack(second)
+        session.enqueueTrack(first)
+        XCTAssertTrue(session.createPlaylist("Keep list", trackIDs: [first.id, second.id]))
+        let history = PlaybackHistoryEntry(trackID: second.id)
+        try session.repository?.put(history, kind: .history, id: history.id.uuidString)
+        XCTAssertTrue(session.deleteSavedTrack(second.id))
+        XCTAssertFalse(session.showPlayer)
+        XCTAssertNil(session.currentTrack)
+        XCTAssertEqual(session.tracks.map(\.id), [first.id])
+        let restored = PublicYouTubeSession(storeURL: url)
+        XCTAssertNil(restored.recoveryMessage)
+        XCTAssertEqual(restored.playlists.first?.trackIDs, [first.id])
+        XCTAssertTrue(restored.favorites.isEmpty); XCTAssertTrue(restored.history.isEmpty)
+        XCTAssertEqual(restored.queue.snapshot.upcoming.map(\.trackID), [first.id])
+        XCTAssertFalse(restored.queue.snapshot.history.contains { $0.trackID == second.id })
+    }
+    func testFailedDeletionDoesNotPublishSuccessOrDismissCurrent() throws {
+        let session = PublicYouTubeSession(storeURL: try store())
+        session.open(try VideoID("abcdefghijk"), title: "First")
+        let first = try XCTUnwrap(session.currentTrack)
+        try session.repository?.put("invalid queue payload", kind: .queue, id: "main")
+        XCTAssertFalse(session.deleteSavedTrack(first.id))
+        XCTAssertEqual(session.tracks.map(\.id), [first.id])
+        XCTAssertEqual(session.currentTrack?.id, first.id)
+        XCTAssertTrue(session.showPlayer)
+        XCTAssertNotNil(session.failureMessage)
+        XCTAssertNotNil(try session.repository?.track(id: first.id))
+    }
+    func testBatchClearScopeAndRestart() throws {
+        let url = try store()
+        let session = PublicYouTubeSession(storeURL: url)
+        session.open(try VideoID("abcdefghijk"), title: "First")
+        let first = try XCTUnwrap(session.currentTrack)
+        session.toggleFavorite(first.id)
+        XCTAssertTrue(session.createPlaylist("Keep", trackIDs: [first.id]))
+        session.clearLibraryItems(.favorites)
+        XCTAssertTrue(session.favorites.isEmpty)
+        XCTAssertEqual(session.tracks.count, 1)
+        XCTAssertEqual(session.playlists.first?.trackIDs, [first.id])
+        session.clearLibraryItems(.videos)
+        let restored = PublicYouTubeSession(storeURL: url)
+        XCTAssertNil(restored.recoveryMessage)
+        XCTAssertTrue(restored.tracks.isEmpty)
+        XCTAssertEqual(restored.playlists.first?.name, "Keep")
+        XCTAssertEqual(restored.playlists.first?.trackIDs, [])
+        XCTAssertNil(restored.queue.snapshot.current)
+        restored.clearLibraryItems(.playlists)
+        XCTAssertTrue(PublicYouTubeSession(storeURL: url).playlists.isEmpty)
+    }
+}
+
+extension PublicLocalLibraryFlowTests {
+    func testClearingCatalogDisplayLeavesLocalCollectionsIntact() async throws {
+        let session = PublicYouTubeSession(storeURL: try store())
+        session.open(try VideoID("abcdefghijk"), title: "Local reference")
+        let id = try XCTUnwrap(session.currentTrack?.id)
+        XCTAssertTrue(session.createPlaylist("My list", trackIDs: [id]))
+        let item = MusesCatalog.CatalogItem(kind: .channel, id: "UCfixture", title: "Cloud", channelID: nil, thumbnailURL: nil)
+        await session.subscriptionPages.load { _ in MusesCatalog.CatalogPage(items: [item], nextPageToken: "next") }
+        await session.accountPlaylistPages.load { _ in MusesCatalog.CatalogPage(items: [item], nextPageToken: nil) }
+        await session.searchPages.load { _ in MusesCatalog.CatalogPage(items: [item], nextPageToken: nil) }
+        session.clearSearchResults()
+        XCTAssertTrue(session.searchItems.isEmpty)
+        XCTAssertEqual(session.subscriptions.count, 1)
+        await session.clearCatalogDisplay()
+        XCTAssertTrue(session.subscriptions.isEmpty)
+        XCTAssertNil(session.subscriptionPages.nextPageToken)
+        XCTAssertTrue(session.accountPlaylistPages.items.isEmpty)
+        XCTAssertEqual(session.tracks.map(\.id), [id])
+        XCTAssertEqual(session.playlists.first?.trackIDs, [id])
+    }
+}
+
+extension PublicLocalLibraryFlowTests {
+    func testFavoriteAndDeletionDoNotReplaceFreshDisplayWithDiskPlaceholder() throws {
+        let session = PublicYouTubeSession(storeURL: try store())
+        session.open(try VideoID("abcdefghijk"), title: "Fresh API display", metadataFetchedAt: Date())
+        let id = try XCTUnwrap(session.currentTrack?.id)
+        session.toggleFavorite(id)
+        var persisted = try XCTUnwrap(session.currentTrack)
+        persisted.expireYouTubeMetadata(force: true)
+        try session.repository?.saveTrack(persisted)
+        XCTAssertTrue(session.removeFavorite(id))
+        XCTAssertEqual(session.tracks.first?.title, "Fresh API display")
+        session.clearLibraryItems(.favorites)
+        XCTAssertEqual(session.tracks.first?.title, "Fresh API display")
+        session.open(try VideoID("lmnopqrstuv"), title: "Other")
+        let other = try XCTUnwrap(session.currentTrack?.id)
+        XCTAssertTrue(session.deleteSavedTrack(other))
+        XCTAssertEqual(session.tracks.first?.title, "Fresh API display")
+    }
+}

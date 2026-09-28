@@ -14,9 +14,11 @@ struct PublicCatalogRow: View {
                     Button { session.open(id, title: item.title, metadataFetchedAt: item.fetchedAt) } label: { label }
                         .buttonStyle(.plain)
                     HStack {
-                        Button("Add to queue", systemImage: "text.badge.plus") { session.enqueue(id, title: item.title, metadataFetchedAt: item.fetchedAt) }
+                        Button("Add to queue", systemImage: "text.badge.plus") { session.enqueue(id, title: item.title, metadataFetchedAt: item.fetchedAt) }.labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                         if let channel = item.channelID {
-                            NavigationLink("Channel") { PublicCatalogDetail(session: session, route: .channel(channel)) }
+                            NavigationLink { PublicCatalogDetail(session: session, route: .channel(channel)) } label: {
+                                Label("Channel", systemImage: "person.crop.rectangle").labelStyle(.iconOnly).frame(width: 44, height: 44)
+                            }
                         }
                     }.font(.caption)
                 }
@@ -46,16 +48,24 @@ struct PublicCatalogPaging: View {
     let page: CatalogPager
     var initialTitle = "Load from YouTube"
     let load: () async -> Void
+    @State private var clearing = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let error = page.error { Text(error).foregroundStyle(.secondary).accessibilityIdentifier("catalog.error") }
             if page.loading { ProgressView("Loading YouTube") }
             else if page.error != nil || !page.loaded || page.nextPageToken != nil {
-                Button(page.error != nil ? "Retry" : page.loaded ? "Load next page" : initialTitle) { Task { await load() } }
+                Button(page.error != nil ? "Retry" : page.loaded ? "Load next page" : initialTitle, systemImage: page.error != nil ? "arrow.clockwise" : "arrow.down.circle") { Task { await load() } }
+                    .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("catalog.load")
-            } else {
-                Text(page.items.isEmpty ? "No available items." : "All available items loaded.").font(.footnote).foregroundStyle(.secondary)
+            } else if page.items.isEmpty {
+                Text("No available items.").font(.footnote).foregroundStyle(.secondary)
             }
+            Button("Clear loaded items", systemImage: "xmark.circle") { clearing = true }
+                .labelStyle(.iconOnly).frame(minWidth: 44, minHeight: 44)
+                .disabled(page.items.isEmpty && !page.loading)
+                .confirmationDialog("Clear local display?", isPresented: $clearing, titleVisibility: .visible) {
+                    Button("Clear display", role: .destructive) { page.reset() }
+                } message: { Text("YouTube is unchanged. No unsubscribe or cloud deletion.") }
             if let date = page.fetchedAt {
                 Text("YouTube Data API · Updated \(date.formatted(date: .omitted, time: .shortened))")
                     .font(.caption2).foregroundStyle(.secondary)
@@ -132,6 +142,7 @@ struct PublicCatalogDetail: View {
 
 struct PublicYouTubeAccountCatalog: View {
     let session: PublicYouTubeSession
+    @State private var clearing = false
     var body: some View {
         List {
             Section("Local Muses profile") {
@@ -155,5 +166,13 @@ struct PublicYouTubeAccountCatalog: View {
                 Section("YouTube account") { Text("Sign in from Settings to browse your YouTube profile, playlists and subscriptions.") }
             }
         }.navigationTitle("Account & collections")
+        .toolbar {
+            Button("Clear local YouTube display", systemImage: "xmark.circle") { clearing = true }
+                .labelStyle(.iconOnly)
+                .disabled(session.subscriptions.isEmpty && session.accountPlaylistPages.items.isEmpty && session.accountChannelPages.items.isEmpty)
+        }
+        .confirmationDialog("Clear local YouTube display and cache?", isPresented: $clearing, titleVisibility: .visible) {
+            Button("Clear display and cache", role: .destructive) { Task { await session.clearCatalogDisplay() } }
+        } message: { Text("Your YouTube playlists and subscriptions stay unchanged.") }
     }
 }

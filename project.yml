@@ -73,6 +73,7 @@ targets:
       - path: Sources/Muses/Resources/PublicPrivacyPolicy.md
         buildPhase: resources
       - path: Sources/Muses/Features/Public/PublicCatalogViews.swift
+      - path: Sources/Muses/Features/Public/PublicLibraryHeroViews.swift
       # Compile-time DEBUG only; activated exclusively by isolated UI fixtures.
       - path: Tests/Support/PublicCatalogFixtureTransport.swift
       - path: Sources/Muses/Platform/iOS/YouTubeIFrame/YouTubeIFrameAdapter.swift

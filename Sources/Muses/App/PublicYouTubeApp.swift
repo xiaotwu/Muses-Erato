@@ -805,3 +805,79 @@ private struct PublicFixtureCredential: CatalogCredential {
     func accessToken() async throws -> String { "ui-fixture-token" }
 }
 #endif
+
+// Library deletion publishes only after the complete public graph has committed.
+extension PublicYouTubeSession {
+    @discardableResult
+    func deleteSavedTrack(_ id: TrackID) -> Bool { deleteSavedTracks([id]) }
+
+    @discardableResult
+    func deleteSavedTracks(_ ids: Set<TrackID>) -> Bool {
+        guard let repository else { failureMessage = "Local library is unavailable."; return false }
+        do {
+            let wasCurrent = queue.snapshot.current.map { ids.contains($0.trackID) } == true
+            let saved = try repository.deleteSavedTracks(ids)
+            let restored = try PlaybackQueue(snapshot: saved.queue)
+            // Retain fresh in-memory metadata for survivors; disk may contain placeholders.
+            tracks.removeAll { ids.contains($0.id) }; playlists = saved.playlists; queue = restored
+            for id in ids { notebook.forget(id) }
+            playedIDs = saved.history.sorted { $0.date > $1.date }.map(\.trackID)
+            localSearchItems.removeAll { item in !tracks.contains { track in
+                if case .youtubeVideo(let video) = track.source { return video.rawValue == item.id }; return false
+            } }
+            if wasCurrent {
+                bookmarkSeeking.cancel(); bookmarkCueMilliseconds = nil; hasCurrentPlaybackTime = false
+                adapter?.teardown(); adapter = nil; adapterGeneration = 0
+                recordedEntryID = nil; showPlayer = false; state = PlaybackSnapshot()
+            } else { state.generation = queue.snapshot.generation }
+            failureMessage = nil
+            return true
+        } catch { failureMessage = "Could not delete the saved video. Your library was not changed: \(error.localizedDescription)"; return false }
+    }
+
+    @discardableResult
+    func removeHistoryItem(_ id: TrackID) -> Bool {
+        guard let repository else { failureMessage = "Local library is unavailable."; return false }
+        do {
+            let history = try repository.removeLocalHistory(for: id)
+            playedIDs = history.sorted { $0.date > $1.date }.map(\.trackID)
+            failureMessage = nil; return true
+        } catch { failureMessage = "Could not remove local history: \(error.localizedDescription)"; return false }
+    }
+
+    @discardableResult
+    func removeFavorite(_ id: TrackID) -> Bool {
+        guard let repository, let index = tracks.firstIndex(where: { $0.id == id }) else { return false }
+        do {
+            _ = try repository.removeLocalFavorite(id)
+            tracks[index].liked = false
+            failureMessage = nil; return true
+        } catch { failureMessage = "Could not remove favorite: \(error.localizedDescription)"; return false }
+    }
+}
+
+
+extension PublicYouTubeSession {
+    func clearLibraryItems(_ category: LibraryCategory) {
+        guard let repository else { failureMessage = "Local library is unavailable."; return }
+        do {
+            switch category {
+            case .videos, .songs: _ = deleteSavedTracks(Set(tracks.map(\.id))); return
+            case .favorites:
+                _ = try repository.clearLocalFavorites()
+                for index in tracks.indices { tracks[index].liked = false }
+            case .playlists: try repository.deleteAll(kind: .localPlaylist); playlists = []
+            case .history: try repository.deleteAll(kind: .history); playedIDs = []
+            default: return
+            }
+            failureMessage = nil
+        } catch { failureMessage = "Could not clear local items: \(error.localizedDescription)" }
+    }
+    func clearSearchResults() {
+        searchPages.reset(); localSearchItems = []; submittedSearch = ""
+    }
+    func clearCatalogDisplay() async {
+        resetAccountCatalog()
+        await catalog?.clearAllCache()
+    }
+}
