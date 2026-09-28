@@ -110,7 +110,7 @@ struct PublicRootView: View {
             if phase == .active { Task { await session.maintainCatalogData() } }
         }
         .tint(PublicStyle.gold)
-        .background(PublicKeyboardDismissal())
+        .background(PublicKeyboardDismissal { linkFocused = false; searchFocused = false })
         .sheet(isPresented: $showSettings) {
             NavigationStack { settings }
                 .fullScreenCover(isPresented: $session.showPlayer) {

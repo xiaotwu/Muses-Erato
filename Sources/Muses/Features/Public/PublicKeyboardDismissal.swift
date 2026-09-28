@@ -3,12 +3,18 @@ import UIKit
 
 /// Dismiss text input on an outside tap without consuming the tapped control's action.
 struct PublicKeyboardDismissal: UIViewRepresentable {
-    func makeUIView(context: Context) -> KeyboardDismissalView { KeyboardDismissalView() }
-    func updateUIView(_ uiView: KeyboardDismissalView, context: Context) {}
+    var onDismiss: () -> Void = {}
+    func makeUIView(context: Context) -> KeyboardDismissalView {
+        let view = KeyboardDismissalView()
+        view.onDismiss = onDismiss
+        return view
+    }
+    func updateUIView(_ uiView: KeyboardDismissalView, context: Context) { uiView.onDismiss = onDismiss }
     static func dismantleUIView(_ uiView: KeyboardDismissalView, coordinator: ()) { uiView.detach() }
 }
 
 final class KeyboardDismissalView: UIView, UIGestureRecognizerDelegate {
+    var onDismiss: () -> Void = {}
     private weak var observedWindow: UIWindow?
     private lazy var outsideTap: UITapGestureRecognizer = {
         let gesture = UITapGestureRecognizer(target: self, action: #selector(dismissInput))
@@ -31,7 +37,10 @@ final class KeyboardDismissalView: UIView, UIGestureRecognizerDelegate {
         observedWindow = nil
     }
 
-    @objc private func dismissInput() { observedWindow?.endEditing(true) }
+    @objc private func dismissInput() {
+        observedWindow?.endEditing(true)
+        onDismiss()
+    }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         // Ending editing can move an alert before its button receives touch-up.

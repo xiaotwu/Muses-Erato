@@ -62,10 +62,10 @@ struct PublicPrivacyGate<Content: View>: View {
                             Button {
                                 acceptedVersion = PublicPrivacyPolicy.version
                             } label: {
-                                Label("Agree and continue", systemImage: "checkmark")
-                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                Label("Continue", systemImage: "checkmark")
+                                    .frame(minHeight: 44)
                             }
-                            .labelStyle(.iconOnly)
+                            .labelStyle(.titleAndIcon)
                             .buttonStyle(.borderedProminent)
                             .disabled(!agrees || PublicPrivacyPolicy.text == nil)
                             .accessibilityIdentifier("privacy.continue")
