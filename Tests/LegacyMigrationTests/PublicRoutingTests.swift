@@ -12,6 +12,36 @@ final class PublicRoutingTests: XCTestCase {
         try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
         return path
     }
+    func testLifecycleStagesPhysicalArchiveWithoutChangingOriginalOrReceipt() throws {
+        let directory = try root()
+        let fixture = try PhysicalLegacyFixture(url: directory.appendingPathComponent("old.sqlite"))
+        defer { fixture.closePinAndSettings() }
+        let original = try PublicStoreRouter.fingerprint(fixture.url)
+        let destination = directory.appendingPathComponent("new.sqlite")
+        let target = try PublicStoreRouter.resolve(legacyURL: fixture.url, destinationURL: destination,
+            defaults: fixture.defaults, domainName: fixture.domain)
+        let repo = SwiftDataSnapshotRepository(context: ModelContext(try SwiftDataSnapshotRepository.container(url: target)))
+        let archive = try repo.legacyArchive()
+        let digest = try repo.legacyArchiveDigest()
+        let fields = try ArchiveLifecycle.inventory(archive)
+        XCTAssertTrue(fields.contains { $0.address.hasSuffix("/itemsJSON") })
+        XCTAssertTrue(fields.contains { $0.address.contains("/syncBatch/") && $0.address.hasSuffix("/desiredSnapshotData") })
+        let note = try XCTUnwrap(fields.first { $0.address.contains("/trackNote/") && $0.address.hasSuffix("/content") })
+        let evidence = ArchiveEvidence(field: note, origin: .userInput, reference: "synthetic fixture explicit user content")
+        let successor = try ArchiveLifecycle.successor(fields: fields, evidence: [evidence],
+            originalReceipt: archive.receipt, parentArchiveDigest: digest,
+            now: Date(timeIntervalSince1970: 2_000_000_000), maximumAPIAge: 29 * 86_400)
+        XCTAssertEqual(successor.userFields, [note])
+        XCTAssertTrue(successor.hasUnresolvedFields)
+        try repo.stageArchiveSuccessor(successor)
+        XCTAssertThrowsError(try repo.restoreOriginalPlaylist(fixture.playlistID))
+        XCTAssertEqual(try PublicStoreRouter.resolve(legacyURL: fixture.url, destinationURL: destination,
+            defaults: fixture.defaults, domainName: fixture.domain), target)
+        XCTAssertEqual(try repo.legacyArchive().receipt, archive.receipt)
+        XCTAssertEqual(try repo.legacyArchiveDigest(), digest)
+        XCTAssertEqual(try PublicStoreRouter.fingerprint(fixture.url), original)
+    }
+
     func testNewUserAndIncompleteLegacyFailClosed() throws {
         let directory = try root()
         let source = directory.appendingPathComponent("old.sqlite")

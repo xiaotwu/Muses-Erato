@@ -88,6 +88,7 @@ public struct PublicLibrarySnapshot {
     }
 
     func restoreOriginalPlaylist(_ id: UUID) throws -> LocalPlaylist {
+        try requireOriginalArchiveRestoreAllowed()
         let referenced = Set(try list(LegacyPlaylistItem.self, kind: .playlistItem)
             .filter { $0.playlistID == id }.compactMap(\.trackID))
         var recovered: LocalPlaylist?
