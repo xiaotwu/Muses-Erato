@@ -55,6 +55,7 @@ struct PublicRootView: View {
     @State private var query = ""
     @State private var musicHome = PublicMusicHomeModel()
     @State private var confirmingSync = false
+    @State private var libraryPresentation: PublicLibraryPresentation = .cards
 
     var body: some View {
         Group {
@@ -164,53 +165,21 @@ struct PublicRootView: View {
 
     private var home: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            LazyVStack(alignment: .leading, spacing: 28) {
                 if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
-                if let current = session.currentTrack {
-                    sectionHeading("Continue", detail: "")
-                    Button { session.play(); session.showPlayer = true } label: {
-                        PublicVideoRow(track: current, symbol: "play.fill")
-                    }
-                    .buttonStyle(.plain).accessibilityIdentifier("public.resume")
+                PublicHomeMoodRail { phrase in
+                    query = phrase; selection = .search
+                    Task { await session.search(phrase) }
                 }
-                if !session.libraryHistory.isEmpty {
-                    HStack {
-                        sectionHeading("Recently played", detail: "")
-                        Button("See all") { session.selectedCategory = .history; selection = .library }
-                            .font(.subheadline).frame(minHeight: 44)
-                    }
-                    videoShelf(session.libraryHistory.prefix(6))
-                } else if session.libraryTracks.isEmpty {
-                    PublicEmptyState(symbol: "square.stack", title: "Your Muses Home", detail: "Open a YouTube link or import a playlist to get started.")
-                }
-                if !session.libraryFavorites.isEmpty {
-                    sectionHeading("Favorites", detail: "")
-                    videoShelf(session.libraryFavorites.prefix(6))
-                }
-                if !session.libraryTracks.isEmpty {
-                    sectionHeading("From your playlists", detail: "")
-                    videoShelf(session.libraryTracks.prefix(6))
-                }
-                if session.signedIn {
-                    if !session.accountPlaylistPages.items.isEmpty {
-                        sectionHeading("Your YouTube playlists", detail: "")
-                        ForEach(session.accountPlaylistPages.items.prefix(6), id: \.rowID) {
-                            PublicCatalogRow(session: session, item: $0, authorized: true)
-                        }
-                    }
-                    if session.accountPlaylistPages.loading { ProgressView("Loading account playlists") }
-                    if let error = session.accountPlaylistPages.error {
-                        PublicNotice(message: error, symbol: "exclamationmark.circle")
-                        Button("Retry account playlists") { Task { await session.loadAccountCollections() } }
+                PublicMusicHomeShelves(session: session, model: musicHome, featuredOnly: true)
+                if session.currentTrack != nil || !session.libraryTracks.isEmpty {
+                    PublicHomeLibraryContent(session: session) {
+                        session.selectedCategory = .history; selection = .library
                     }
                 }
-                PublicMusicHomeShelves(session: session, model: musicHome)
-                sectionHeading("Browse", detail: "")
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
-                    discoveryTile("Live sessions", symbol: "music.mic", query: "live music sessions")
-                    discoveryTile("New music", symbol: "sparkles.tv", query: "new music videos")
-                    discoveryTile("Performances", symbol: "theatermasks", query: "music performances")
-                    discoveryTile("Conversations", symbol: "mic", query: "music interviews")
+                if !session.playlists.isEmpty || session.signedIn { PublicHomePlaylistShelves(session: session) }
+                if musicHome.sections.count > 1 || musicHome.nextPage != nil {
+                    PublicMusicHomeShelves(session: session, model: musicHome, featuredOnly: false)
                 }
                 if !session.apiConfigured {
                     PublicNotice(message: "Online discovery is unavailable. Saved videos and YouTube links still work.", symbol: "wifi.slash")
@@ -285,23 +254,6 @@ struct PublicRootView: View {
         linkFocused = false
         activeTool = nil
         Task { await session.openLink(link) }
-    }
-
-    private func discoveryTile(_ title: String, symbol: String, query term: String) -> some View {
-        Button {
-            query = term
-            selection = .search
-            Task { await session.search(term) }
-        } label: {
-            Label(title, systemImage: symbol)
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .padding(.horizontal, 12)
-                .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 12))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Search YouTube for \(term)")
     }
 
     private var search: some View {
@@ -393,7 +345,11 @@ struct PublicRootView: View {
                 PublicLibraryCategories(session: session)
                 HStack(spacing: 8) {
                     Text(categoryDetail).font(.subheadline).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("library.itemCount")
                     Spacer(minLength: 0)
+                    if [.songs, .videos, .favorites, .history].contains(session.selectedCategory) {
+                        PublicLibraryPresentationControl(presentation: $libraryPresentation)
+                    }
                     libraryClearControl
                 }
                 if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
@@ -484,20 +440,20 @@ struct PublicRootView: View {
             if session.libraryTracks.isEmpty {
                 PublicEmptyState(symbol: "play.rectangle", title: "No playlist videos", detail: "Import a playlist or add a video to a playlist.")
             } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryTracks, category: session.selectedCategory)
+                PublicLibraryHeroShelf(session: session, tracks: session.libraryTracks, category: session.selectedCategory, presentation: $libraryPresentation)
             }
         case .songs:
             let songs = playlistSongs
             if songs.isEmpty {
                 PublicEmptyState(symbol: "music.note", title: "No playlist songs", detail: "Import a playlist or add saved videos to a playlist.")
             } else {
-                PublicLibraryHeroShelf(session: session, tracks: songs, category: .songs)
+                PublicLibraryHeroShelf(session: session, tracks: songs, category: .songs, presentation: $libraryPresentation)
             }
         case .favorites:
             if session.libraryFavorites.isEmpty {
                 PublicEmptyState(symbol: "heart", title: "No favorites yet", detail: "Open a saved video and choose Favorite.")
             } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryFavorites, category: .favorites)
+                PublicLibraryHeroShelf(session: session, tracks: session.libraryFavorites, category: .favorites, presentation: $libraryPresentation)
             }
         case .playlists:
             PublicPlaylistCollection(session: session)
@@ -505,7 +461,7 @@ struct PublicRootView: View {
             if session.libraryHistory.isEmpty {
                 PublicEmptyState(symbol: "clock", title: "No listening history", detail: "Videos appear after the official player confirms playback.")
             } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryHistory, category: .history)
+                PublicLibraryHeroShelf(session: session, tracks: session.libraryHistory, category: .history, presentation: $libraryPresentation)
             }
         case .subscriptions:
             if session.signedIn {
@@ -527,34 +483,6 @@ struct PublicRootView: View {
                 title: "\(session.selectedCategory.rawValue) are not available",
                 detail: "This category needs account data or an official YouTube endpoint that this public version does not support."
             )
-        }
-    }
-
-    private func videoShelf<S: Sequence>(_ tracks: S) -> some View where S.Element == MusesDomain.Track {
-        LazyVStack(spacing: 10) {
-            ForEach(Array(tracks), id: \.id) { track in
-                Button {
-                    session.playTracks(Array(tracks), startingAt: Array(tracks).firstIndex(where: { $0.id == track.id }) ?? 0, context: "home")
-                } label: {
-                    PublicVideoRow(track: track, symbol: track.liked ? "heart.fill" : "play.rectangle")
-                }
-                .buttonStyle(.plain).accessibilityIdentifier("home.play." + track.id.rawValue)
-            }
-        }
-    }
-
-    private func sectionHeading(_ title: String, detail: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(PublicStyle.ink)
-            Spacer()
-            if !detail.isEmpty {
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(PublicStyle.muted)
-                    .multilineTextAlignment(.trailing)
-            }
         }
     }
 

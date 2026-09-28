@@ -40,7 +40,7 @@ import MusesPersistence
                             Spacer()
                             PublicLibraryClearButton(session: session, category: .songs)
                         }
-                        PublicLibraryHeroShelf(session: session, tracks: session.tracks, category: .songs)
+                        PublicLibraryHeroShelf(session: session, tracks: session.tracks, category: .songs, presentation: .constant(.cards))
                         Divider()
                         ForEach(session.playlists) { playlist in PublicPlaylistBlock(session: session, playlist: playlist) }
                         Text("End of collection").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("review.bottom")

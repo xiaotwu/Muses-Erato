@@ -57,33 +57,36 @@ enum PublicCollectionScope {
     }
 }
 
+struct PublicLibraryPresentationControl: View {
+    @Binding var presentation: PublicLibraryPresentation
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(PublicLibraryPresentation.allCases, id: \.self) { mode in
+                Button { presentation = mode } label: {
+                    Label(mode.rawValue, systemImage: mode == .cards ? "rectangle.stack" : "list.bullet")
+                        .labelStyle(.iconOnly).font(.subheadline.weight(.semibold))
+                        .frame(width: 44, height: 44).contentShape(Capsule())
+                        .background(presentation == mode ? Color(uiColor: .tertiarySystemBackground) : .clear, in: Capsule())
+                }.buttonStyle(.plain).accessibilityLabel(mode.rawValue)
+                    .accessibilityAddTraits(presentation == mode ? .isSelected : [])
+                    .accessibilityIdentifier("library.presentation.\(mode.rawValue)")
+            }
+        }.fixedSize().padding(3)
+            .background(Color(uiColor: .secondarySystemBackground), in: Capsule())
+    }
+}
+
 struct PublicLibraryHeroShelf: View {
     let session: PublicYouTubeSession
     let tracks: [MusesDomain.Track]
     var category: LibraryCategory = .videos
     @Environment(\.dynamicTypeSize) private var typeSize
-    @State private var presentation: PublicLibraryPresentation = .cards
+    @Binding var presentation: PublicLibraryPresentation
     private var displayed: [MusesDomain.Track] {
         category == .songs ? PublicCollectionScope.songs(tracks: tracks, playlists: session.playlists) : tracks
     }
-    private var presentationControl: some View {
-        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 2))
-        return layout {
-            ForEach(PublicLibraryPresentation.allCases, id: \.self) { mode in
-                Button { presentation = mode } label: {
-                    Label(mode.rawValue, systemImage: mode == .cards ? "rectangle.stack" : "list.bullet")
-                        .font(.subheadline.weight(.semibold)).padding(.horizontal, 10).frame(minHeight: 44).contentShape(Rectangle())
-                        .background(presentation == mode ? Color(uiColor: .tertiarySystemBackground) : .clear, in: Capsule())
-                }.buttonStyle(.plain)
-                    .accessibilityAddTraits(presentation == mode ? .isSelected : [])
-                    .accessibilityIdentifier("library.presentation.\(mode.rawValue)")
-            }
-        }.fixedSize(horizontal: true, vertical: false)
-            .padding(3).background(Color(uiColor: .secondarySystemBackground), in: Capsule())
-    }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            presentationControl
             if displayed.isEmpty {
                 ContentUnavailableView("No songs in playlists", systemImage: "music.note.list", description: Text("Add videos to a local playlist to see them here."))
             } else if presentation == .cards {

@@ -8,6 +8,17 @@ import UIKit
     func testRickAstleyActuallyStartsAndAdvances() async throws { try await verifyPlayback("dQw4w9WgXcQ") }
     func testAdeleActuallyStartsAndAdvances() async throws { try await verifyPlayback("YQHsXMglC9A") }
     func testWeekndActuallyStartsAndAdvances() async throws { try await verifyPlayback("4NRXx6U8ABQ") }
+    func testPublicMusicHomeLoadsFirstPageAndContinuation() async throws {
+        let service = PublicMusicHomeService()
+        let first = try await service.fetch()
+        XCTAssertFalse(first.sections.isEmpty)
+        XCTAssertFalse(first.authenticated)
+        if let token = first.continuation {
+            let next = try await service.fetch(continuation: token)
+            XCTAssertNotEqual(next.continuation, token, "Pagination must not loop on the same token")
+            print("HOME_LIVE initialShelves=\(first.sections.count) nextShelves=\(next.sections.count)")
+        } else { print("HOME_LIVE initialShelves=\(first.sections.count) continuation=none") }
+    }
     private func verifyPlayback(_ videoID: String) async throws {
         guard ExperimentalNativePlayback.available else { throw XCTSkip("Requires the native experimental build") }
         print("NATIVE_LIVE appState=\(UIApplication.shared.applicationState.rawValue)")

@@ -480,6 +480,14 @@ extension PublicLocalLibraryFlowTests {
 }
 
 extension PublicYouTubeFlowTests {
+    func testMusicHomeContinuationIgnoresCarouselTokensAndFindsPageToken() {
+        let carousel: [String: Any] = ["musicCarouselShelfRenderer": ["continuations": [["nextContinuationData": ["continuation": "carousel-only"]]]]]
+        XCTAssertNil(PublicMusicHomeService.pageContinuation(carousel))
+        let page: [String: Any] = ["contents": ["sectionListRenderer": ["contents": [carousel], "continuations": [["nextContinuationData": ["continuation": "page-two"]]]]]]
+        XCTAssertEqual(PublicMusicHomeService.pageContinuation(page), "page-two")
+        let next: [String: Any] = ["continuationContents": ["sectionListContinuation": ["continuations": [["nextContinuationData": ["continuation": "page-three"]]]]]]
+        XCTAssertEqual(PublicMusicHomeService.pageContinuation(next), "page-three")
+    }
     func testMusicHomeNormalizesRealEndpointsAndRequiresLoginEvidence() {
         let json: [String: Any] = ["contents": [["musicCarouselShelfRenderer": [
             "header": ["musicCarouselShelfBasicHeaderRenderer": ["title": ["runs": [["text": "Personal shelf"]]]]],

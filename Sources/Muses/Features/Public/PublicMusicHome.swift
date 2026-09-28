@@ -19,6 +19,10 @@ struct PublicMusicHomeSection: Identifiable, Sendable {
 struct PublicMusicHomeSnapshot: Sendable {
     let sections: [PublicMusicHomeSection]
     let authenticated: Bool
+    let continuation: String?
+    init(sections: [PublicMusicHomeSection], authenticated: Bool, continuation: String? = nil) {
+        self.sections = sections; self.authenticated = authenticated; self.continuation = continuation
+    }
 }
 
 /// Browse-only adaptation of macOS FEmusic_home. OAuth is sent only to the
@@ -27,6 +31,9 @@ actor PublicMusicHomeService {
     private let session: URLSession
     private var version = "1.20240617.01.00"
     private var bootstrapped = false
+    private var visitorData: String?
+    private var contextGeneration = UUID()
+    func resetVisitorContext() { contextGeneration = UUID(); visitorData = nil }
     init() {
         let config = URLSessionConfiguration.ephemeral
         config.httpShouldSetCookies = false
@@ -34,7 +41,8 @@ actor PublicMusicHomeService {
         config.timeoutIntervalForRequest = 20
         session = URLSession(configuration: config)
     }
-    func fetch(accessToken: String? = nil) async throws -> PublicMusicHomeSnapshot {
+    func fetch(accessToken: String? = nil, continuation: String? = nil) async throws -> PublicMusicHomeSnapshot {
+        let contextTicket = contextGeneration
         if !bootstrapped {
             let (html, response) = try await session.data(from: URL(string: "https://music.youtube.com/")!)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), html.count <= 8_000_000 else { throw URLError(.badServerResponse) }
@@ -50,16 +58,30 @@ actor PublicMusicHomeService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("https://music.youtube.com", forHTTPHeaderField: "Origin")
         request.setValue("https://music.youtube.com/", forHTTPHeaderField: "Referer")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "context": ["client": ["clientName": "WEB_REMIX", "clientVersion": version, "hl": "en", "gl": "US"]],
-            "browseId": "FEmusic_home"
-        ])
+        var client: [String: Any] = ["clientName": "WEB_REMIX", "clientVersion": version, "hl": "en", "gl": "US"]
+        if let visitorData { client["visitorData"] = visitorData }
+        var body: [String: Any] = ["context": ["client": client]]
+        if let continuation { body["continuation"] = continuation } else { body["browseId"] = "FEmusic_home" }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), data.count <= 8_000_000,
               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw URLError(.badServerResponse) }
+        guard contextTicket == contextGeneration else { throw CancellationError() }
+        if let visitor = (json["responseContext"] as? [String: Any])?["visitorData"] as? String { visitorData = visitor }
         let sections = Self.parse(json)
-        guard !sections.isEmpty else { throw URLError(.cannotParseResponse) }
-        return PublicMusicHomeSnapshot(sections: sections, authenticated: accessToken != nil && Self.confirmsSignedIn(json))
+        guard continuation != nil || !sections.isEmpty else { throw URLError(.cannotParseResponse) }
+        return PublicMusicHomeSnapshot(sections: sections, authenticated: accessToken != nil && Self.confirmsSignedIn(json), continuation: Self.pageContinuation(json))
+    }
+    /// Only page-level continuations, never the next page of one horizontal carousel.
+    nonisolated static func pageContinuation(_ json: [String: Any]) -> String? {
+        var token: String?
+        walk(json) { node in
+            guard token == nil, let section = (node["sectionListRenderer"] ?? node["sectionListContinuation"]) as? [String: Any] else { return }
+            walk(section["continuations"] ?? []) { value in
+                if token == nil, let next = value["nextContinuationData"] as? [String: Any] { token = next["continuation"] as? String }
+            }
+        }
+        return token
     }
     nonisolated static func confirmsSignedIn(_ json: [String: Any]) -> Bool {
         var confirmed = false
@@ -135,6 +157,9 @@ actor PublicMusicHomeService {
     private var updatedAt: Date?
     private(set) var personalized = false
     private(set) var accountNotice: String?
+    private(set) var nextPage: String?
+    private(set) var loadingMore = false
+    private(set) var moreError: String?
     private var scope: UInt64?
     private var generation = UUID()
     private let service = PublicMusicHomeService()
@@ -142,9 +167,12 @@ actor PublicMusicHomeService {
     func load(session: PublicYouTubeSession, refresh: Bool = false) async {
         let requestedScope = session.musicHomeScope
         if scope != requestedScope {
-            scope = requestedScope; generation = UUID(); loading = false; sections = []; updatedAt = nil; personalized = false; accountNotice = nil
+            scope = requestedScope; generation = UUID(); loading = false; sections = []; updatedAt = nil; personalized = false; accountNotice = nil; nextPage = nil; loadingMore = false; moreError = nil
+            await service.resetVisitorContext()
         }
+        guard scope == requestedScope, session.musicHomeScope == requestedScope else { return }
         guard !loading, refresh || updatedAt == nil || Date().timeIntervalSince(updatedAt!) > 300 else { return }
+        if refresh { generation = UUID(); loadingMore = false; nextPage = nil; moreError = nil }
         let requestGeneration = generation
         loading = true; error = nil
         defer { if generation == requestGeneration { loading = false } }
@@ -169,63 +197,107 @@ actor PublicMusicHomeService {
                 }
             } else { value = try await service.fetch(); notice = nil }
             try Task.checkCancellation()
-            guard requestedScope == session.musicHomeScope, requestedScope == scope else { return }
+            guard requestGeneration == generation, requestedScope == session.musicHomeScope, requestedScope == scope else { return }
             accountNotice = notice
             personalized = value.authenticated
-            sections = value.sections; updatedAt = Date()
+            sections = value.sections; nextPage = value.continuation; updatedAt = Date(); moreError = nil
             #if DEBUG
             print("[MusicHome] authenticated=\(value.authenticated) shelves=\(value.sections.count)")
             #endif
         } catch is CancellationError { }
         catch { if generation == requestGeneration { self.error = "Could not load YouTube Music." } }
     }
+    func loadMore(session: PublicYouTubeSession) async {
+        guard let token = nextPage, !loading, !loadingMore, scope == session.musicHomeScope else { return }
+        let requestGeneration = generation
+        let requestScope = session.musicHomeScope
+        loadingMore = true; moreError = nil
+        defer { if generation == requestGeneration { loadingMore = false } }
+        do {
+            let value = personalized ? try await session.readMusicHome(using: service, continuation: token) : try await service.fetch(continuation: token)
+            try Task.checkCancellation()
+            guard requestGeneration == generation, scope == requestScope, session.musicHomeScope == requestScope else { return }
+            for section in value.sections {
+                if let index = sections.firstIndex(where: { $0.id == section.id }) {
+                    var seen = Set(sections[index].cards.map(\.id))
+                    sections[index] = PublicMusicHomeSection(id: section.id, title: section.title,
+                        cards: sections[index].cards + section.cards.filter { seen.insert($0.id).inserted })
+                } else { sections.append(section) }
+            }
+            nextPage = value.continuation == token ? nil : value.continuation
+        } catch is CancellationError { }
+        catch { if generation == requestGeneration { moreError = "Could not load more recommendations." } }
+    }
+
 }
 
 struct PublicMusicHomeShelves: View {
     let session: PublicYouTubeSession
     let model: PublicMusicHomeModel
+    var featuredOnly: Bool? = nil
+    private var visibleSections: [PublicMusicHomeSection] {
+        guard model.isCurrent(scope: session.musicHomeScope) else { return [] }
+        if featuredOnly == true { return Array(model.sections.prefix(1)) }
+        if featuredOnly == false { return Array(model.sections.dropFirst()) }
+        return model.sections
+    }
     @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("YouTube Music").font(.title3.weight(.semibold))
-                Spacer()
-                Link(destination: URL(string: "https://music.youtube.com/")!) {
-                    Label("Website", systemImage: "safari").font(.subheadline).frame(minHeight: 44)
-                }
-            }
-            Text(model.isCurrent(scope: session.musicHomeScope) && model.personalized ? "Your recommendations" : "Public recommendations").font(.footnote).foregroundStyle(.secondary)
-            if model.isCurrent(scope: session.musicHomeScope), let notice = model.accountNotice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
-            if !model.isCurrent(scope: session.musicHomeScope) || model.loading && model.sections.isEmpty { ProgressView("Loading YouTube Music") }
-            if model.isCurrent(scope: session.musicHomeScope), let error = model.error {
+            if featuredOnly != false {
                 HStack {
-                    Text(error).font(.footnote).foregroundStyle(.secondary)
-                    Button { Task { await model.load(session: session, refresh: true) } } label: { Label("Retry", systemImage: "arrow.clockwise") }
-                        .frame(minHeight: 44)
+                    Text("YouTube Music").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    Spacer()
+                    Link(destination: URL(string: "https://music.youtube.com/")!) {
+                        Label("Website", systemImage: "safari").labelStyle(.iconOnly).font(.body).frame(width: 44, height: 44)
+                            .accessibilityLabel("Open YouTube Music website")
+                    }
+                }
+                Text(model.isCurrent(scope: session.musicHomeScope) && model.personalized ? "Your recommendations" : "Public recommendations").font(.caption).foregroundStyle(.secondary)
+                if model.isCurrent(scope: session.musicHomeScope), let notice = model.accountNotice { Text(notice).font(.footnote).foregroundStyle(.secondary) }
+                if !model.isCurrent(scope: session.musicHomeScope) || model.loading && model.sections.isEmpty { ProgressView("Loading YouTube Music") }
+                if model.isCurrent(scope: session.musicHomeScope), let error = model.error {
+                    HStack {
+                        Text(error).font(.footnote).foregroundStyle(.secondary)
+                        Button { Task { await model.load(session: session, refresh: true) } } label: { Label("Retry", systemImage: "arrow.clockwise") }
+                            .frame(minHeight: 44)
+                    }
                 }
             }
-            ForEach(model.isCurrent(scope: session.musicHomeScope) ? model.sections : []) { section in
+            ForEach(visibleSections) { section in
+                let featured = section.id == model.sections.first?.id
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(section.title).font(.headline)
+                    PublicHomeHeading(title: section.title)
                     ScrollView(.horizontal) {
                         LazyHStack(alignment: .top, spacing: 12) {
                             ForEach(section.cards) { card in
                                 Button {
-                                    if let id = card.videoID, let video = try? VideoID(id) { session.open(video, title: card.title, metadataFetchedAt: Date()) }
-                                    else { openURL(card.destination) }
+                                    if let id = card.videoID, let video = try? VideoID(id) { session.open(video, title: card.title, metadataFetchedAt: Date(), artist: card.subtitle) }
+                                    else if let playlist = URLComponents(url: card.destination, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "list" })?.value, !playlist.hasPrefix("RD") {
+                                        session.catalogRoute = .playlist(playlist)
+                                    } else { openURL(card.destination) }
                                 } label: {
                                     VStack(alignment: .leading, spacing: 6) {
                                         AsyncImage(url: card.thumbnailURL) { image in image.resizable().scaledToFill() } placeholder: {
                                             Rectangle().fill(.quaternary).overlay { Image(systemName: "music.note").foregroundStyle(.secondary) }
-                                        }.frame(width: 148, height: 148).clipShape(RoundedRectangle(cornerRadius: 12))
-                                        Text(card.title).font(.subheadline.weight(.medium)).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                                        }.frame(width: featured ? 218 : 148, height: featured ? 260 : 148)
+                                            .clipShape(RoundedRectangle(cornerRadius: featured ? 22 : 16))
+                                        Text(card.title).font(.subheadline.weight(.semibold)).lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                                         if let subtitle = card.subtitle { Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(typeSize.isAccessibilitySize ? nil : 2) }
-                                    }.frame(width: 148, alignment: .leading).contentShape(Rectangle())
+                                    }.frame(width: featured ? 218 : 148, alignment: .leading).contentShape(Rectangle())
                                 }.buttonStyle(.plain).accessibilityIdentifier("home.music.\(card.id)")
                             }
                         }
                     }.scrollIndicators(.hidden)
+                }
+            }
+            if featuredOnly != true {
+                if let error = model.moreError { Text(error).font(.footnote).foregroundStyle(.secondary) }
+                if model.loadingMore { ProgressView("Loading recommendations") }
+                if model.nextPage != nil {
+                    Button(model.moreError == nil ? "More recommendations" : "Retry", systemImage: "arrow.down") { Task { await model.loadMore(session: session) } }
+                        .frame(minHeight: 44).accessibilityIdentifier("home.music.more")
                 }
             }
         }.accessibilityIdentifier("home.musicShelves")

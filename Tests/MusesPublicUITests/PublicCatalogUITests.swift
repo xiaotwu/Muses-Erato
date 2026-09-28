@@ -126,7 +126,9 @@ extension PublicCatalogUITests {
         let recommendation = app.buttons["home.music.video:abcdefghijk"]
         XCTAssertTrue(recommendation.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Your recommendations"].exists)
-        XCTAssertTrue(app.staticTexts["Your YouTube playlists"].exists)
+        XCTAssertTrue(app.staticTexts["On YouTube"].exists)
+        let homeImage = XCTAttachment(screenshot: app.screenshot())
+        homeImage.name = largeText ? "Home large text" : "Home featured discovery"; homeImage.lifetime = .keepAlways; add(homeImage)
         app.buttons["Settings"].firstMatch.tap()
         let nickname = app.staticTexts["account.nickname"].firstMatch
         XCTAssertTrue(nickname.waitForExistence(timeout: 5))

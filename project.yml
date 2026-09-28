@@ -76,6 +76,7 @@ targets:
       - path: Sources/Muses/Features/Public/PublicSettingsViews.swift
       - path: Sources/Muses/Features/Public/ExperimentalNativePlayback.swift
       - path: Sources/Muses/Features/Public/PublicNativePlayerView.swift
+      - path: Sources/Muses/Features/Public/PublicHomeContent.swift
       - path: Sources/Muses/Features/Public/PublicMusicHome.swift
       - path: Sources/Muses/Features/Public/PublicNotebookModel.swift
       - path: Sources/Muses/Features/Public/PublicNotebookViews.swift

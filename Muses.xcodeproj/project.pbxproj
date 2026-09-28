@@ -71,6 +71,7 @@
 		B02C42D966F4D17DFC301312 /* Enums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84791D1D1484921BF6526DF3 /* Enums.swift */; };
 		B25FC6680593B0159E7FBAD0 /* NotesModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27064ED6B06E5E99F0815F8 /* NotesModels.swift */; };
 		BDAFE58103567C06652C6E10 /* EQBand.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E97E1E9375F46A52CD77C7 /* EQBand.swift */; };
+		BE89E135496ACF05EBFEBFB0 /* PublicHomeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D159E638A4101B88940E6E78 /* PublicHomeContent.swift */; };
 		BF3F53ECA098B096C3072A35 /* MusesCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = D0A0D1FFD092F222494DCD28 /* MusesCatalog */; };
 		BFCC5DEFF60E9F6E9F791302 /* InboxItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB8BAF1CB7C8CBEBAE510B6 /* InboxItem.swift */; };
 		C06E0F8F90F3620BA87527AC /* PublicUpgradeStartupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10D53A63375B4624892B545 /* PublicUpgradeStartupTests.swift */; };
@@ -179,6 +180,7 @@
 		C4E97E1E9375F46A52CD77C7 /* EQBand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQBand.swift; sourceTree = "<group>"; };
 		C81F467A3435C6012A35B541 /* PublicMigrationArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicMigrationArchiveView.swift; sourceTree = "<group>"; };
 		CF062E2BC7A5EF95B22E93C3 /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
+		D159E638A4101B88940E6E78 /* PublicHomeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicHomeContent.swift; sourceTree = "<group>"; };
 		D561A5DBB2DCCE642BC7C73B /* MusesNativeLiveTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MusesNativeLiveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DB123987A950FCEDAD853C84 /* Muses.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Muses.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF5A2EC815611F2FABC3A082 /* PublicLibraryHeroViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicLibraryHeroViews.swift; sourceTree = "<group>"; };
@@ -264,6 +266,7 @@
 				98A59535F57589CABB371A50 /* ExperimentalNativePlayback.swift */,
 				80BFB724B62A375E00FE82DF /* PublicCatalogViews.swift */,
 				18679B1E3B1EE371E4E2174A /* PublicCollectionDeck.swift */,
+				D159E638A4101B88940E6E78 /* PublicHomeContent.swift */,
 				619032F36D06FB756DFFDACB /* PublicKeyboardDismissal.swift */,
 				DF5A2EC815611F2FABC3A082 /* PublicLibraryHeroViews.swift */,
 				C81F467A3435C6012A35B541 /* PublicMigrationArchiveView.swift */,
@@ -594,6 +597,7 @@
 				54F7E4C136C06E1CC21E8C4E /* PublicCatalogViews.swift in Sources */,
 				1D0CA1D0E368F1B20741F402 /* PublicCollectionDeck.swift in Sources */,
 				F0BF6BEE1C7B1F9FA77BCB28 /* PublicCredentialDeletion.swift in Sources */,
+				BE89E135496ACF05EBFEBFB0 /* PublicHomeContent.swift in Sources */,
 				7273935935728720CB6E452E /* PublicKeyboardDismissal.swift in Sources */,
 				148812AC812C5E6C11391E93 /* PublicLibraryHeroViews.swift in Sources */,
 				31FDA48D3F5C7D034F58AB50 /* PublicMigrationArchiveView.swift in Sources */,

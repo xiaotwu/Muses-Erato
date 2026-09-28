@@ -51,7 +51,8 @@ import XCTest
         addSavedVideosToLocalPlaylist(app, name: "Hero cover acceptance")
         app.tabBars.buttons["Home"].tap()
         let homeRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'home.play.'")).firstMatch
-        XCTAssertTrue(homeRow.waitForExistence(timeout: 5)); homeRow.tap()
+        for _ in 0..<8 where !homeRow.exists || !homeRow.isHittable { app.swipeUp() }
+        XCTAssertTrue(homeRow.exists); homeRow.tap()
         XCTAssertTrue(app.buttons["player.toggle"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.navigationBars["Details"].exists)
         app.buttons["player.queue"].tap()
@@ -62,7 +63,11 @@ import XCTest
         let history = app.buttons["library.category.History"]
         for _ in 0..<10 where !history.isHittable { rail.swipeLeft(velocity: .slow) }
         XCTAssertTrue(history.isHittable); history.tap()
-        app.buttons["library.presentation.List"].tap()
+        let listMode = app.buttons["library.presentation.List"]
+        let count = app.staticTexts["library.itemCount"]
+        XCTAssertEqual(listMode.frame.midY, count.frame.midY, accuracy: 12, "Layout selector belongs on the count/delete toolbar row")
+        XCTAssertFalse(app.staticTexts["Cards"].exists); XCTAssertFalse(app.staticTexts["List"].exists)
+        listMode.tap()
         let historyRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.row.play.'")).firstMatch
         XCTAssertTrue(historyRow.waitForExistence(timeout: 5))
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "History hero covers"; shot.lifetime = .keepAlways; add(shot)

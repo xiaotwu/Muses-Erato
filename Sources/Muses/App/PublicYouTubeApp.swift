@@ -334,7 +334,7 @@ final class PublicYouTubeSession {
         }
     }
     var musicHomeScope: UInt64 { (accountEpoch << 1) | (signedIn ? 1 : 0) }
-    func readMusicHome(using service: PublicMusicHomeService) async throws -> PublicMusicHomeSnapshot {
+    func readMusicHome(using service: PublicMusicHomeService, continuation: String? = nil) async throws -> PublicMusicHomeSnapshot {
         guard signedIn, !deletingLocalData, let oauth else { throw APIError.unauthorized }
         let epoch = accountEpoch
         activeNetworkCalls += 1
@@ -342,7 +342,7 @@ final class PublicYouTubeSession {
         let token = try await oauth.accessToken()
         try Task.checkCancellation()
         guard epoch == accountEpoch, signedIn, !deletingLocalData else { throw CancellationError() }
-        let snapshot = try await service.fetch(accessToken: token)
+        let snapshot = try await service.fetch(accessToken: token, continuation: continuation)
         try Task.checkCancellation()
         guard epoch == accountEpoch, signedIn, !deletingLocalData else { throw CancellationError() }
         return snapshot

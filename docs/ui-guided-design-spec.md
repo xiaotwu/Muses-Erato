@@ -110,3 +110,9 @@ Home, history and list-row taps initiate playback, while details are secondary i
 Functional chrome adopts native Liquid Glass: tab bottom accessory for the mini player on iOS 26.1+, floating glass mini player on other iOS 26 layouts, glass action groups/playback buttons, and a single glass Library selection capsule. Standard settings/navigation/sheets follow the current system appearance. Prior-system and Reduce Transparency fallbacks remain supported. Full-image surfaces remain content rather than glass.
 
 See native-audio-and-confirmation-acceptance.md for startup/transition fixes and evidence. Foreground audio startup tests do not close the pending background/lock-screen acceptance gate.
+
+## Home reference adaptation and Library density
+
+Cards/List uses icons within its existing selected capsule and moves into the count/clear row. One bound presentation state controls all eligible Library collection views. Playlist hero cards and deck gestures remain intact.
+
+Home adapts NomaTune's layered music browsing hierarchy with SwiftUI-native styling: mood search shortcuts, featured cloud artwork, continue listening, deduplicated quick picks, recent tracks and horizontal local/account playlist shelves. Additional first-party recommendation pages preserve visitor context and account-generation guards. See docs/nomatune-home-adaptation.md for source review, exact behavior and acceptance evidence. No Android playback engine or new extractor is introduced in this Home layout round.
