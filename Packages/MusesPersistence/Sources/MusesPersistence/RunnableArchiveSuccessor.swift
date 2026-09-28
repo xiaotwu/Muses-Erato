@@ -41,10 +41,11 @@ public enum LegacyUserFieldContracts {
     /// Called only by explicit public create/rename input handlers. The name and evidence
     /// share one transaction; queue/reorder/import/restore writes must not call this method.
     func saveUserNamedPlaylist(_ playlist: LocalPlaylist) throws {
+        guard !playlist.usesRemoteName else { try savePlaylist(playlist); return }
         try playlist.validated()
         guard Set(playlist.trackIDs).isSubset(of: Set(try list(Track.self, kind: .track).map(\.id))) else { throw LocalLibraryError.missingTrack }
         let encoder = JSONEncoder()
-        let replacements = [(StoreKind.localPlaylist, playlist.id.uuidString, try encoder.encode(playlist)),
+        let replacements = [(StoreKind.localPlaylist, playlist.id.uuidString, try encoder.encode(playlist.localPersistenceSnapshot)),
             (.migration, "user-playlist-name-v1:" + playlist.id.uuidString, try encoder.encode(ArchiveField.hash(Data(playlist.name.utf8))))]
         do {
             for (kind, id, data) in replacements {
@@ -113,7 +114,10 @@ public enum LegacyUserFieldContracts {
         for var playlist in current.playlists {
             let evidenceID = "user-playlist-name-v1:" + playlist.id.uuidString
             let digest = try get(String.self, kind: .migration, id: evidenceID)
-            if digest == ArchiveField.hash(Data(playlist.name.utf8)) {
+            if playlist.usesRemoteName {
+                // Keep refreshable source identity, without retaining or attributing API text.
+                playlist = playlist.localPersistenceSnapshot
+            } else if digest == ArchiveField.hash(Data(playlist.name.utf8)) {
                 try add(digest!, .migration, evidenceID)
             } else {
                 unresolved.append(playlist.id)

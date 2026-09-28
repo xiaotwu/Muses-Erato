@@ -51,6 +51,20 @@ public struct PlaybackQueue: Sendable {
         if let current = snapshot.current { snapshot.history.append(current) }
         snapshot.current = entry; snapshot.sourceContext = context; snapshot.positionMilliseconds = 0; snapshot.intent = .play
     }
+    /// Establish collection navigation while retaining explicitly queued upcoming entries.
+    public mutating func playCollection(_ entries: [QueueEntry], startingAt index: Int, context: String) throws {
+        guard entries.indices.contains(index) else { throw QueueError.entryNotFound }
+        let ids = entries.map(\.id)
+        guard Set(ids).count == ids.count, !ids.contains(where: contains) else { throw QueueError.duplicateEntryID }
+        try advanceGeneration()
+        if let current = snapshot.current { snapshot.history.append(current) }
+        snapshot.history.append(contentsOf: entries.prefix(index))
+        snapshot.current = entries[index]
+        snapshot.upcoming.insert(contentsOf: entries.dropFirst(index + 1), at: 0)
+        snapshot.sourceContext = context
+        snapshot.positionMilliseconds = 0
+        snapshot.intent = .play
+    }
     public mutating func playNext(_ entry: QueueEntry) throws {
         guard !contains(entry.id) else { throw QueueError.duplicateEntryID }
         try advanceGeneration(); snapshot.upcoming.insert(entry, at: 0)

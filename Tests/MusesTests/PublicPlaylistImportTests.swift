@@ -26,6 +26,40 @@ import MusesNetworking
 }
 
 extension PublicPlaylistImportTests {
+    func testPlaylistPlaybackStartsAtOriginalOccurrenceAndPreservesExplicitQueue() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "library.sqlite")
+        let session = PublicYouTubeSession(storeURL: url)
+        var draft = PlaylistImportDraft()
+        try draft.append(.init(items: ["dQw4w9WgXcQ", "M7lc1UVf-VE", "dQw4w9WgXcQ"].enumerated().map { index, id in
+            CatalogItem(kind: .video, id: id, title: id, channelID: nil, thumbnailURL: nil, listEntryID: "entry\(index)")
+        }, nextPageToken: nil))
+        try session.saveImportedPlaylist(name: "Repeated", draft: draft)
+        let playlist = try XCTUnwrap(session.playlists.first)
+        let first = try XCTUnwrap(session.tracks.first)
+        session.enqueueTrack(first)
+        let explicit = try XCTUnwrap(session.queue.snapshot.upcoming.first)
+        XCTAssertTrue(session.editPlaylist(playlist.id) { value in
+            var occurrences = try XCTUnwrap(value.occurrences)
+            occurrences.insert(LocalPlaylistOccurrence(id: UUID(), trackID: nil), at: 1)
+            value = try LocalPlaylist(id: value.id, name: value.name, trackIDs: value.trackIDs, createdAt: value.createdAt, occurrences: occurrences)
+        })
+        XCTAssertFalse(session.playPlaylist(playlist.id, startingAtOccurrenceIndex: 1))
+        XCTAssertTrue(session.playPlaylist(playlist.id, startingAtOccurrenceIndex: 2))
+        XCTAssertEqual(session.queue.snapshot.current?.trackID, playlist.playbackTrackIDs[1])
+        XCTAssertEqual(session.queue.snapshot.history.map(\.trackID), [playlist.playbackTrackIDs[0]])
+        XCTAssertEqual(session.queue.snapshot.upcoming.map(\.trackID), [playlist.playbackTrackIDs[2], first.id])
+        XCTAssertEqual(session.queue.snapshot.upcoming.last?.id, explicit.id)
+        XCTAssertEqual(session.queue.snapshot.sourceContext, "playlist:" + playlist.id.uuidString)
+        XCTAssertEqual(session.queue.snapshot.intent, .pause)
+        XCTAssertTrue(session.showPlayer)
+        let reopened = PublicYouTubeSession(storeURL: url)
+        XCTAssertEqual(reopened.queue.snapshot.current?.id, session.queue.snapshot.current?.id)
+        XCTAssertEqual(reopened.queue.snapshot.upcoming, session.queue.snapshot.upcoming)
+    }
+
     func testOccurrenceEditsSurviveRestartAndQueueKeepsRepeatedOrder() throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

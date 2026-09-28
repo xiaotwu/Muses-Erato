@@ -24,6 +24,9 @@ public extension SwiftDataSnapshotRepository {
                 context.insert(MusesSchemaV1.Record(kind: .track, recordID: track.id.rawValue, payload: try JSONEncoder().encode(track.localPersistenceSnapshot)))
             }
             context.insert(MusesSchemaV1.Record(kind: .localPlaylist, recordID: playlist.id.uuidString, payload: try JSONEncoder().encode(playlist.localPersistenceSnapshot)))
+            if userNamed {
+                context.insert(MusesSchemaV1.Record(kind: .migration, recordID: "user-playlist-name-v1:" + playlist.id.uuidString, payload: try JSONEncoder().encode(ArchiveField.hash(Data(playlist.name.utf8)))))
+            }
             try context.save()
         } catch { context.rollback(); throw error }
         return (playlist, added)

@@ -584,6 +584,30 @@ final class PublicYouTubeSession {
         }
     }
 
+    /// Original occurrence offsets include unavailable slots; duplicate videos remain distinct entries.
+    @discardableResult
+    func playPlaylist(_ id: UUID, startingAtOccurrenceIndex index: Int = 0) -> Bool {
+        guard let playlist = playlists.first(where: { $0.id == id }) else { return false }
+        let slots = playlist.occurrences?.map(\.trackID) ?? playlist.trackIDs.map { Optional($0) }
+        guard slots.indices.contains(index), let selected = slots[index],
+              let selectedTrack = tracks.first(where: { $0.id == selected }),
+              case .youtubeVideo = selectedTrack.source else { return false }
+        let entries = slots.enumerated().compactMap { offset, trackID -> (Int, QueueEntry)? in
+            guard let trackID, let track = tracks.first(where: { $0.id == trackID }),
+                  case .youtubeVideo = track.source else { return nil }
+            return (offset, QueueEntry(trackID: track.id, source: track.source))
+        }
+        guard let selectedIndex = entries.firstIndex(where: { $0.0 == index }) else { return false }
+        guard editQueue({ try $0.playCollection(entries.map { $0.1 }, startingAt: selectedIndex, context: "playlist:" + id.uuidString); $0.setIntent(.pause) }) else { return false }
+        bookmarkSeeking.cancel()
+        bookmarkCueMilliseconds = nil
+        state = PlaybackSnapshot(state: .loading, source: selectedTrack.source,
+            generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
+        showPlayer = true
+        if adapter != nil { loadCurrent() }
+        return true
+    }
+
     func clearUpcoming() {
         guard hasNext else { return }
         editQueue { proposed in
@@ -885,7 +909,8 @@ extension PublicYouTubeSession {
         guard let repository else { failureMessage = "Local library is unavailable."; return }
         do {
             switch category {
-            case .videos, .songs: _ = deleteSavedTracks(Set(tracks.map(\.id))); return
+            case .videos: _ = deleteSavedTracks(Set(tracks.map(\.id))); return
+            case .songs: _ = deleteSavedTracks(Set(playlists.flatMap(\.trackIDs))); return
             case .favorites:
                 _ = try repository.clearLocalFavorites()
                 for index in tracks.indices { tracks[index].liked = false }

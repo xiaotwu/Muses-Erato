@@ -36,6 +36,29 @@ import MusesDomain
         try repo.savePlaylist(playlist)
         XCTAssertEqual(try repo.makeRunnableArchiveSuccessor().unresolvedPlaylistNames, [playlist.id])
     }
+    func testRemoteNamesStayRefreshableAndExplicitImportNamesSurviveSuccessor() throws {
+        let repo = try source()
+        let source = RemotePlaylistSource(playlistID: "PLsource", requiresAuthorization: true)
+        let (remote, _) = try repo.importPlaylist(name: "API original title", videoIDs: [VideoID("abcdefghijk")], remoteSource: source, nameFetchedAt: Date())
+        try repo.saveUserNamedPlaylist(remote)
+        XCTAssertNil(try repo.get(String.self, kind: .migration, id: "user-playlist-name-v1:" + remote.id.uuidString))
+        let (custom, _) = try repo.importPlaylist(name: "My handwritten name", videoIDs: [VideoID("abcdefghijk")], remoteSource: source, userNamed: true)
+        let plan = try repo.makeRunnableArchiveSuccessor()
+        XCTAssertTrue(plan.unresolvedPlaylistNames.isEmpty)
+        let container = try SwiftDataSnapshotRepository.container(inMemory: true)
+        retainedContainers.append(container)
+        let target = SwiftDataSnapshotRepository(context: container.mainContext)
+        try target.installRunnableArchiveSuccessor(plan)
+        let values = try target.list(LocalPlaylist.self, kind: .localPlaylist)
+        var restored = try XCTUnwrap(values.first { $0.id == remote.id })
+        XCTAssertEqual(restored.name, LocalPlaylist.remoteNamePlaceholder)
+        XCTAssertEqual(restored.remoteSource, source)
+        XCTAssertTrue(restored.usesRemoteName)
+        try restored.updateRemoteName("Fresh API title", fetchedAt: Date())
+        XCTAssertEqual(restored.name, "Fresh API title")
+        XCTAssertEqual(values.first { $0.id == custom.id }?.name, "My handwritten name")
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(restored), as: UTF8.self).contains("Fresh API title"))
+    }
     func testInstallSaveFailureRollsBackAndCannotReplayOverUserChanges() throws {
         enum Failure: Error { case disk }
         let repo = try source()
