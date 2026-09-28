@@ -89,7 +89,11 @@ struct PublicLibraryHeroShelf: View {
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(displayed) { track in
-                        PublicCollectionRow(session: session, track: track, category: category)
+                        PublicCollectionRow(session: session, track: track, category: category, onPlay: {
+                            if let index = displayed.firstIndex(where: { $0.id == track.id }) {
+                                session.playTracks(displayed, startingAt: index, context: "collection:" + category.rawValue)
+                            }
+                        })
                         Divider().padding(.leading, 62)
                     }
                 }
@@ -117,7 +121,8 @@ struct PublicCollectionRow: View {
     }
     private var actions: some View {
         HStack(spacing: 0) {
-            Button { if let video = track.publicVideoID { session.open(video, title: track.title) } } label: {
+            Button { if let onPlay { onPlay() }
+                else if let video = track.publicVideoID { session.open(video, title: track.title) } } label: {
                 Label("Play \(track.title)", systemImage: "play.fill").labelStyle(.iconOnly).font(.system(size: 18)).frame(width: 44, height: 44).contentShape(Rectangle())
             }.disabled(track.publicVideoID == nil).accessibilityIdentifier("library.play.\(track.id.rawValue)")
             Button { session.enqueueTrack(track) } label: {
@@ -126,6 +131,7 @@ struct PublicCollectionRow: View {
             PublicTrackActions(session: session, track: track, category: category)
         }.buttonStyle(.plain)
     }
+    var onPlay: (() -> Void)? = nil
     var body: some View {
         Group {
             if typeSize.isAccessibilitySize {

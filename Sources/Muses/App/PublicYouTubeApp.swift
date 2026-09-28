@@ -608,6 +608,23 @@ final class PublicYouTubeSession {
         return true
     }
 
+    @discardableResult
+    func playTracks(_ collection: [MusesDomain.Track], startingAt index: Int, context: String) -> Bool {
+        guard collection.indices.contains(index), case .youtubeVideo = collection[index].source else { return false }
+        let entries = collection.enumerated().compactMap { offset, track -> (Int, QueueEntry)? in
+            guard case .youtubeVideo = track.source else { return nil }
+            return (offset, QueueEntry(trackID: track.id, source: track.source))
+        }
+        guard let selected = entries.firstIndex(where: { $0.0 == index }),
+              editQueue({ try $0.playCollection(entries.map { $0.1 }, startingAt: selected, context: context); $0.setIntent(.pause) }) else { return false }
+        bookmarkSeeking.cancel(); bookmarkCueMilliseconds = nil
+        state = PlaybackSnapshot(state: .loading, source: collection[index].source,
+            generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
+        showPlayer = true
+        if adapter != nil { loadCurrent() }
+        return true
+    }
+
     func clearUpcoming() {
         guard hasNext else { return }
         editQueue { proposed in

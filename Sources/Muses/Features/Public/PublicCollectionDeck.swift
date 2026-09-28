@@ -48,7 +48,7 @@ struct PublicCollectionDeck: View {
         return Button {
             guard Date().timeIntervalSince(lastDragAt) > 0.2 else { return }
             if selected {
-                if let video = track.publicVideoID { session.open(video, title: track.title) }
+                session.playTracks(tracks, startingAt: item, context: "collection:" + category.rawValue)
             } else { move(distance) }
         } label: {
             PublicDeckArtworkCard(track: track, width: width, footer: footer, focused: selected)

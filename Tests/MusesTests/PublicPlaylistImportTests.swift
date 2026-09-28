@@ -26,6 +26,24 @@ import MusesNetworking
 }
 
 extension PublicPlaylistImportTests {
+    func testSongsPlaybackUsesCompleteVisibleCollectionContext() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = PublicYouTubeSession(storeURL: directory.appending(path: "library.sqlite"))
+        for id in ["dQw4w9WgXcQ", "M7lc1UVf-VE"] { _ = session.open(try VideoID(id), title: id) }
+        let collection = session.tracks
+        XCTAssertTrue(session.playTracks(collection, startingAt: 0, context: "collection:Songs"))
+        XCTAssertEqual(session.queue.snapshot.current?.trackID, collection[0].id)
+        XCTAssertEqual(session.queue.snapshot.upcoming.map(\.trackID), [collection[1].id])
+        XCTAssertTrue(session.playTracks(collection, startingAt: 1, context: "collection:Songs"))
+        XCTAssertEqual(session.queue.snapshot.current?.trackID, collection[1].id)
+        XCTAssertTrue(session.queue.snapshot.upcoming.isEmpty)
+        XCTAssertEqual(session.queue.snapshot.history.last?.trackID, collection[0].id)
+        XCTAssertEqual(session.queue.snapshot.intent, .pause)
+        XCTAssertEqual(session.queue.snapshot.sourceContext, "collection:Songs")
+    }
+
     func testSongsClearRemovesOnlyPlaylistUnionAndRetainsUnlistedSavedVideo() throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
