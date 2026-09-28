@@ -13,11 +13,11 @@ Google handles authentication in the system browser. Muses does not ask for or s
 
 Local information
 
-Saved video identifiers, favorites, local playlists, queue order, viewing history, notes and time bookmarks are stored on your device. Local favorites and playlists do not change your YouTube account. Muses caches API metadata to reduce repeated requests and refreshes or removes expired API-derived metadata separately from your own notes and saved identifiers. Authorized catalog caches are cleared on sign-out. Muses has no developer-operated account backend, analytics SDK or advertising SDK; Google still receives information through its services and embedded advertisements.
+Saved video selections, favorites, local playlists, queue order, viewing history, notes and time bookmarks are stored on your device. Local favorites and playlists do not change your YouTube account. New catalog responses and API-provided titles are used during the current app session; the library keeps your selections and your own edits. Authorized catalog caches are cleared on sign-out. Muses has no developer-operated account backend, analytics SDK or advertising SDK; Google still receives information through its services and embedded advertisements.
 
 Upgrades and retention
 
-An upgrade can preserve the earlier local database and recovery copies during migration. These may contain history, playlists, notes, bookmarks, queue entries and settings. They stay on your device. Local information is retained until you remove it. API-derived metadata is subject to Google's retention rules and is refreshed or removed within 30 days. Device backups and optional system diagnostics depend on your Apple settings.
+An upgrade can preserve the earlier local database and recovery copies during migration. These may contain history, playlists, notes, bookmarks, queue entries, settings and earlier metadata. They stay on your device and are separate from newly fetched catalog responses. Local information is retained until you remove it; deleting an editable item does not automatically remove an immutable recovery copy. The full local-data deletion action includes those copies. Device backups and optional system diagnostics depend on your Apple settings.
 
 Your controls
 

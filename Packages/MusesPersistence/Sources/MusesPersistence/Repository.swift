@@ -54,7 +54,12 @@ public enum MusesMigrationPlan: SchemaMigrationPlan {
         return try context.fetch(FetchDescriptor<MusesSchemaV1.Record>(predicate: #Predicate { $0.key == key })).first
     }
     public func put<Value: Encodable>(_ value: Value, kind: StoreKind, id: String) throws {
-        let data = try JSONEncoder().encode(value)
+        let data: Data
+        if kind == .track, let track = value as? Track {
+            data = try JSONEncoder().encode(track.localPersistenceSnapshot)
+        } else {
+            data = try JSONEncoder().encode(value)
+        }
         do {
             if let row = try record(kind: kind, id: id) {
                 guard row.payloadVersion == 1 else { throw PersistenceError.corruptRecord(row.key) }

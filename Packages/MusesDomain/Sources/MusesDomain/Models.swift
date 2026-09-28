@@ -69,6 +69,13 @@ public protocol MusicCatalog: Sendable {
 extension Track {
     /// Delete API-derived fields before the 30-calendar-day storage ceiling.
     /// IDs and user-authored collection relationships are never removed here.
+    /// Keep API display data in memory without depending on background cache expiry.
+    public var localPersistenceSnapshot: Track {
+        var saved = self
+        if metadataOrigin == .youtubeDataAPI { saved.expireYouTubeMetadata(force: true) }
+        return saved
+    }
+
     public mutating func expireYouTubeMetadata(at now: Date = Date(), force: Bool = false) {
         guard case .youtubeVideo(let video) = source, metadataOrigin != .user, metadataOrigin != .placeholder else { return }
         guard force || metadataFetchedAt == nil || now.timeIntervalSince(metadataFetchedAt!) >= 29 * 86400 || metadataFetchedAt! > now else { return }

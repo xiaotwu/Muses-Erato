@@ -27,6 +27,9 @@ private struct PublicConsentedAppView: View {
 @main
 struct PublicAppLauncher {
     static func main() {
+        // AsyncImage uses the shared Foundation cache; do not retain Google artwork on disk.
+        URLCache.shared.removeAllCachedResponses()
+        URLCache.shared = URLCache(memoryCapacity: 16 * 1024 * 1024, diskCapacity: 0, diskPath: nil)
         #if DEBUG
         // Hosted XCTest needs a minimal SwiftUI scene while its bundle starts.
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
