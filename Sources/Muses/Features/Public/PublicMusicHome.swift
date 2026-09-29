@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import SwiftUI
 import MusesDomain
@@ -303,3 +304,5 @@ struct PublicMusicHomeShelves: View {
         }.accessibilityIdentifier("home.musicShelves")
     }
 }
+
+#endif

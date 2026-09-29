@@ -1,0 +1,36 @@
+# App Store / TestFlight composition. Generate into .artifacts/public-project.
+include:
+  - project.yml
+name: MusesPublic
+packages:REPLACE:
+  MusesDomain:
+    path: Packages/MusesDomain
+  MusesQueue:
+    path: Packages/MusesQueue
+  MusesPersistence:
+    path: Packages/MusesPersistence
+  MusesNetworking:
+    path: Packages/MusesNetworking
+  MusesCatalog:
+    path: Packages/MusesCatalog
+  MusesIOSOAuth:
+    path: Platform/iOS/OAuth
+targets:
+  Muses:
+    dependencies:REPLACE:
+      - package: MusesDomain
+      - package: MusesQueue
+      - package: MusesPersistence
+      - package: MusesNetworking
+      - package: MusesCatalog
+      - package: MusesIOSOAuth
+    settings:
+      base:
+        INFOPLIST_FILE: "$(PROJECT_DIR)/../../Sources/Muses/Resources/Info.plist"
+      configs:REPLACE:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG"
+        Release:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
+        Native:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"

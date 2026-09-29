@@ -84,7 +84,7 @@ final class PublicYouTubeSession {
     var showPlayer = false
     var nativePlaybackEnabled = false
     @ObservationIgnored lazy var nativePlayback: ExperimentalNativePlayback = {
-        #if DEBUG
+        #if DEBUG && MUSES_NATIVE_PLAYBACK
         let fixture = ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] != nil && ProcessInfo.processInfo.environment["MUSES_UI_TEST_CATALOG"] == "fixtures"
         let engine = ExperimentalNativePlayback { videoID in
             if fixture { return try PublicFixtureAudio.makeURL() }
@@ -137,7 +137,12 @@ final class PublicYouTubeSession {
         legacyURL = storeURL?.deletingLastPathComponent().appending(path: "muses-youtube-native.sqlite") ?? musesDefaultStoreURL()
         destinationURL = storeURL ?? legacyURL.deletingLastPathComponent().appending(path: "muses-public-v1.sqlite")
         self.defaults = defaults
-        nativePlaybackEnabled = ExperimentalNativePlayback.available && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil && ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] == nil && storeURL == nil && defaults.bool(forKey: "experimentalNativePlayback")
+        nativePlaybackEnabled = ExperimentalNativePlayback.available && storeURL == nil && defaults.bool(forKey: "experimentalNativePlayback")
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] != nil {
+            nativePlaybackEnabled = false
+        }
+        #endif
         defaultsDomain = domainName
         self.deleteCredentials = deleteCredentials
         self.deleteWebsiteData = deleteWebsiteData
@@ -334,6 +339,7 @@ final class PublicYouTubeSession {
         }
     }
     var musicHomeScope: UInt64 { (accountEpoch << 1) | (signedIn ? 1 : 0) }
+    #if DEBUG
     func readMusicHome(using service: PublicMusicHomeService, continuation: String? = nil) async throws -> PublicMusicHomeSnapshot {
         guard signedIn, !deletingLocalData, let oauth else { throw APIError.unauthorized }
         let epoch = accountEpoch
@@ -347,6 +353,7 @@ final class PublicYouTubeSession {
         guard epoch == accountEpoch, signedIn, !deletingLocalData else { throw CancellationError() }
         return snapshot
     }
+    #endif
     func loadAccountCollections() async {
         guard signedIn, !accountPlaylistPages.loading else { return }
         if !accountPlaylistPages.loaded || accountPlaylistPages.nextPageToken != nil {

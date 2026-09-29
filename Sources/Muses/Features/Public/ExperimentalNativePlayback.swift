@@ -1,10 +1,9 @@
 import Foundation
+#if MUSES_NATIVE_PLAYBACK
 import AVFoundation
 import MediaPlayer
 import UIKit
-#if MUSES_NATIVE_PLAYBACK
 @preconcurrency import YouTubeKit
-#endif
 
 /// IPA/Debug composition only. No OAuth credentials, remote extractor, or media downloads.
 @MainActor @Observable
@@ -351,3 +350,25 @@ final class ExperimentalNativePlayback {
         }
     }
 }
+
+#else
+/// Public composition has no native media engine or lock-screen commands.
+@MainActor @Observable final class ExperimentalNativePlayback {
+    enum Event { case playing, paused, buffering, time(Double, Double), ended, failed(String) }
+    static let available = false
+    let loaded = false
+    let wantsPlayback = false
+    let loadingMessage: String? = nil
+    var onEvent: ((Event) -> Void)?
+    var onNext: (() -> Void)?
+    var onPrevious: (() -> Void)?
+    func load(videoID: String, title: String, artist: String, start: Double = 0, autoplay: Bool = true) {}
+    func updateDisplayInfo(title: String, artist: String) {}
+    func updateQueueAvailability(hasNext: Bool) {}
+    func play() {}
+    func pause() {}
+    func retry() {}
+    func seek(_ seconds: Double) {}
+    func stop(deactivateSession: Bool = true) {}
+}
+#endif
