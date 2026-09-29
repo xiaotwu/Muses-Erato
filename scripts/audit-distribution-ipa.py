@@ -53,6 +53,12 @@ with tempfile.TemporaryDirectory(prefix='erato-distribution-audit-') as temporar
         raise SystemExit('FAIL: native download requires registered-device Ad Hoc signing')
     if args.team not in profile.get('TeamIdentifier', []) or profile['Entitlements'].get('application-identifier') != identifier:
         raise SystemExit('FAIL: provisioning identity mismatch')
+    asset_info = json.loads(run(['xcrun', 'assetutil', '--info', str(app / 'Assets.car')]).stdout)
+    icons = [asset for asset in asset_info if asset.get('AssetType') == 'Icon Image'
+             and asset.get('PixelWidth') == 1024 and asset.get('PixelHeight') == 1024]
+    if not icons or any(asset.get('Opaque') is not True for asset in icons):
+        raise SystemExit('FAIL: large app icon is missing or contains transparency')
+    print('Large app icon is opaque in the compiled asset catalog.')
     binary_text = run(['strings', '-a', str(app / info['CFBundleExecutable'])]).stdout.decode(errors='replace')
     for marker in ('MUSES_UI_TEST_LIBRARY', 'MUSES_UI_TEST_CATALOG', 'Fixture first video', 'MusesUITests/'):
         if marker in binary_text:
