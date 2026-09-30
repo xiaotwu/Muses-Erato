@@ -57,9 +57,13 @@ import XCTest
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         openVideo("dQw4w9WgXcQ", app: app)
+        app.buttons["player.queue"].tap()
+        XCTAssertTrue(app.navigationBars["Queue"].waitForExistence(timeout: 5))
         let clear = app.buttons["public.clearUpNext"]
         reveal(clear, in: app)
         XCTAssertFalse(clear.isEnabled)
+        app.buttons["player.queue.close"].tap()
+        XCTAssertTrue(app.navigationBars["Queue"].waitForNonExistence(timeout: 5))
         app.buttons["Close player"].tap()
         addSavedVideosToLocalPlaylist(app, name: "Queue collection")
         app.buttons["library.presentation.List"].tap()
