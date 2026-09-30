@@ -6,7 +6,7 @@
 
 ## 生产源码冻结点
 
-本线生产源码在 2026-09-30 07:09 UTC 冻结（最终使用 `.combine` 保留标准 Button semantics；`.ignore` 试验未保留）；后续仅验证与测试文档收尾。准确 SHA256：`.artifacts/ipad-quality/production-source-sha256.txt`。主协调可立即 commit / 重跑 signed archive，不需等待本线测试结束；全项目冻结仍由其他线程修正决定。
+本线生产源码在 2026-09-30 07:10 UTC 冻结（最终使用 `.combine` 保留标准 Button semantics；`.ignore` 试验未保留）；后续仅验证与测试文档收尾。准确 SHA256：`.artifacts/ipad-quality/production-source-sha256.txt`。主协调可立即 commit / 重跑 signed archive，不需等待本线测试结束；全项目冻结仍由其他线程修正决定。
 
 - `PublicRootView.swift`：侧栏独立 identifier 与单一 accessibility label；Library 计数、`PublicEmptyState` 说明改用 label 色；三个 discovery 按钮将 44 点最小高度放进 label，确保实际控件命中区域足够大。
 - `PublicHomeContent.swift`：YouTube Music link 黑色文字、金色箭头、单一 accessibility label。
@@ -21,6 +21,14 @@
 | portrait/landscape Home/Library/Search/Settings 入口 | 首轮通过，`initial-ui.xcresult` |
 | 最大辅助字号横屏分类、搜索 source/type menu、Settings | 首轮通过，`initial-ui.xcresult` |
 | 系统真实窄窗口 | 通过，`window-resize-ui.xcresult`；拖动 iPadOS resize handle，window 从 `(0,0,1032,1376)` 变为 `(329,219,375,823)`；Library 与 Search 聚焦成功 |
+
+最终冻结生产源码复验：`final-functional-ui.xcresult` 中 regular 提交身份重建、portrait/landscape 入口、最大辅助字号 3 项通过。窄窗口扩大到 Home/Settings 后首次失败是 test adapter 在键盘覆盖底部 tab 时未收起键盘就点击 Home；明确点击 Search 空态收起键盘、断言键盘消失后再切 Home，`final-window-ui.xcresult` 独立 1/1 通过（0 skipped），窄窗口 Home/Library/Search/Settings 全部可操作并恢复系统窗口。没有通过 skip 回避失败；没有为此修改生产源码。
+
+拆类后的共享辅助逻辑已实际重新编译并执行窄窗口测试，0 新 warnings/errors。最终 4 个功能用例的通过证据来自上述两次 run，不把曾失败的整个 result bundle 声称为绿色。所有最终生产源 SHA256 校验通过。追加最大字号 screenshot 时发现 SwiftUI category crossfade 尚未结束，capture 增加 0.4 秒稳定等待后另行复验；不以过渡帧当裁切缺陷。
+
+最新真实窄窗口截图位于 `.artifacts/ipad-quality/final-window-attachments/`，含 Library/Search/Settings、系统缩放前后、bounds 文本。Settings `CDBB2C60-0C32-422D-94C6-995796A6483A.png` 已目视确认内容完整。完整 regular 与最大字号截图在 `final-functional-attachments/`。
+
+稳定截图复验 `settled-large-ui.xcresult` 1/1 通过、0 skipped、0 warnings/errors，截图在 `settled-large-attachments/`。测试和文档现已收尾；生产代码从 07:10 UTC 后没有本线进一步修改，主协调可提交最新 test adapter（keyboard dismissal + capture 短等待）与文档。专属 simulator 已释放，可供主协调后续复核。
 
 窄窗口是 iPadOS 26 windowed multitasking 实测，没有第二个并排 app，因此不宣称传统双 app Split View。窗口尺寸持久化，测试通过系统 Window Controls → Zoom 恢复，避免后续 regular 测试误用窄窗口。截图现用 `XCUIScreen.main.screenshot()`：`app.screenshot()` 在旋转/非零窗口 origin 时裁切错误，早期图片不能作为完整视觉验收。
 

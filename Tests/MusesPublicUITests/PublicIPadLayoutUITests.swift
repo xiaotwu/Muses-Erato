@@ -50,6 +50,8 @@ import XCTest
     }
 
     func capture(_ name: String, app: XCUIApplication) {
+        // XCTest idleness does not include SwiftUI's short category crossfade.
+        Thread.sleep(forTimeInterval: 0.4)
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         shot.name = name; shot.lifetime = .keepAlways; add(shot)
     }

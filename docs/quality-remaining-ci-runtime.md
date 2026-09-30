@@ -68,4 +68,18 @@ Completed vendor file `/Users/xiaotwu/Downloads/iOS_18.2_Simulator_Runtime.dmg`.
 
 A temporary ignored runtime18 scheme selects four checks: existing first-consent persistence, existing initial navigation/visible iframe route, existing Made-for-Kids recovery/retry/external-action availability, and a local harness testing saved-video local search plus Library persistence. No tracked UI test or app code changed for this harness. Generation's first relative include was invalid; fixed to the absolute Public spec before building. Actual invocation/evidence uses `runtime18-targeted-v2.log` and `runtime18-targeted-v2.xcresult`; results pending. Fingerprint includes app, resources, UI, packages and Platform (`runtime18-source-start.json`).
 
-Per coordinator instruction, strict raw iPad accessibility audit is separated into optional `MusesPublicIPadAudit`, selecting `PublicIPadAccessibilityAuditUITests`. Functional CI keeps MusesPublicIPad / PublicIPadLayoutUITests. Both iPad classes are excluded from phone schemes, including generic Native Muses. Owner was explicitly asked to move the audit method into that class while retaining the strict unfiltered assertion and original failed result. Class move/last generation verification pending; this is not an audit pass. Privacy Settings strict contrast test stays in normal CI pending its own real verification.
+Per coordinator instruction, strict raw iPad accessibility audit is separated into optional `MusesPublicAccessibilityAudit`, selecting `PublicIPadAccessibilityAuditUITests`. Functional CI keeps MusesPublicIPad / PublicIPadLayoutUITests. Both iPad classes are excluded from phone schemes, including generic Native Muses. Owner was explicitly asked to move the audit method into that class while retaining the strict unfiltered assertion and original failed result. Class move/last generation verification pending; this is not an audit pass. Privacy Settings strict contrast test stays in normal CI pending its own real verification.
+
+Final composition verified after owner split: class exists; generated phone MusesPublic/Muses skip both iPad classes; MusesPublicIPad selects only functional layout class; requested MusesPublicAccessibilityAudit selects only strict audit class. actionlint and diff whitespace checks pass. CI/spec files are ready for coordinator commit. Settings contrast test remains default after owner reports its real pass.
+
+## iOS18.2 targeted regression: **4 passed, 0 failed, 0 skipped**
+
+Actual `xcodebuild test` completed exit0 with Xcode27 on imported iOS18.2/22C150, dedicated iPhone16Pro. Result `/tmp/muses-quality-remaining-20260929/runtime18-targeted-v2.xcresult`, machine-readable summary `runtime18-targeted-summary.json`, available/boot/download-byte proof `runtime18-available-boot-proof.json`.
+
+- First required policy agreement gates entry, refusal remains reachable, consent survives relaunch.
+- New-install navigation opens visible iframe, exposes state, closes player and enters Library.
+- Fixture Made-for-Kids failure exposes restriction, disabled Play, enabled external YouTube and retry controls, and recoverable close route. This checks the fallback surface, not external app execution or live playback.
+- Saved video local search finds its actual local row under On this device without pagination; Library still contains it after relaunch (temporary ignored harness).
+
+All four used actual runtime18 UI automation. Production/Packages/Platform hashes at runtime18 start/end remain identical; test-owner audit class split changed only the UI source listed below, after compilation. This does not invalidate the four selected unchanged methods; it does not cover new audit composition.
+- `Tests/MusesPublicUITests/PublicIPadLayoutUITests.swift`
