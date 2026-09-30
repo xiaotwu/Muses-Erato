@@ -95,3 +95,19 @@ The main chat owns discussion and integration. Six user-requested local chats co
 - Reconnected-device XCTest attempts with the standard and debugger-disabled launchers still exited during bootstrap (code 74), with no test assertions executed. USB pairing/tunnel, Developer Mode, compatible DDI and unlocked state were verified; generated test configuration points to the correct MusesQA app. An actual Developer settings UI Automation switch check is pending with the user. Evidence: `/tmp/muses-device-resumed-search.xcresult`, `/tmp/muses-device-resumed-no-debugger.xcresult`, ignored device logs and `.artifacts/remaining-quality/device-resumed-home.png`.
 
 Physical-device method, per-check status and automation evidence: `quality-device-verification.md`.
+
+## Hosted follow-up — head 7b405b9
+
+Run 36767943895 on Xcode 26.6 completed with a Public UI failure. Packages: 120 passed. Native: distribution build passed, 58 units passed and 2 UI tests passed, zero failures/skips. Public: distribution build, capability audit and 56 units passed; phone UI regression failed in `PublicLocalLibraryUITests.testLocalPlaylistFavoriteQueueEditingAndRelaunch` at the Queue editing Done action (line 178). Its failure evidence is being inspected before repair. The subsequent iPad test steps did not execute; no hosted iPad pass is claimed for this run.
+
+On the reconnected iPhone, both selected app-hosted Public playback capability tests passed (2 passed, zero failures/skips), separately from the unsuccessful UI-driver bootstrap attempts. Actual final Search, playback and Queue interactions remain pending.
+
+The user subsequently confirmed Enable UI Automation is on. Physical UI retry still refused the driver connection before assertions (`/tmp/muses-device-ui-enabled-search.xcresult`, exit 74); user-operated Search/playback checks are now pending. The hosted Queue failure was reproduced locally: reordering dismisses the entire sheet, so a production presentation-lifetime repair is being validated without removing business assertions.
+
+## Queue presentation repair
+
+The hosted reordering failure reproduced on a local iPhone 17 Pro / iOS 26.5 before modification. Queue presentation for mini-player controls now belongs to the stable root view, while full-player controls keep their local sheet. The shared sheet retains Close and dismiss-before-open-player behavior. The original failing test additionally asserts that the Queue navigation remains present after reordering; all reorder, relaunch persistence and deletion checks remain.
+
+Targeted post-repair UI verification: **4 passed, 0 failures/skips** (`/tmp/muses-hosted-36767943895/queue-fixed.xcresult`): original library/favorite/queue editing and relaunch, largest-text placement, queued-only opening and full/mini placement. Native distribution compilation and 58 units also passed after the repair. Public units subsequently passed **56/56**; the next hosted run will be recorded separately. Current QA device build succeeded, but it has not yet replaced the installation while the user's Search/playback checks are pending.
+
+The repaired-source Public signed archive, local App Store export and distribution IPA audit passed without source changes. Archive: `/tmp/muses-remaining-signed/MusesPublic-queue-fixed.xcarchive`; IPA: `/tmp/muses-remaining-signed/public-queue-fixed-export/Muses.ipa`; SHA-256 `62a16734b18be0fd342e5324c2233afb0dfa1dc84d1902f0fea0ad621187dc8c`. No upload occurred. This supersedes the pre-repair IPA for the Queue change.

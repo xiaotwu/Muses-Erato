@@ -5,6 +5,7 @@ import AVKit
 struct PublicMiniPlayer: View {
     let session: PublicYouTubeSession
     var systemAccessory = false
+    var onOpenQueue: (() -> Void)? = nil
     var body: some View {
         HStack(spacing: 12) {
             Button { session.showPlayer = true } label: {
@@ -25,7 +26,7 @@ struct PublicMiniPlayer: View {
                     Image(systemName: session.state.state == .playing ? "pause.fill" : "play.fill").font(.title3).frame(width: 44, height: 44)
                 }.disabled(session.currentTrack == nil).accessibilityLabel(session.state.state == .playing ? "Pause" : "Play")
             }
-            PublicQueueControl(session: session)
+            PublicQueueControl(session: session, onOpenQueue: onOpenQueue)
             Button {
                 let openingFirst = session.currentTrack == nil
                 session.next()

@@ -50,6 +50,8 @@ struct PublicRootView: View {
     @State private var creatingPlaylist = false
     @State private var playlistName = ""
     @State private var showSettings = false
+    @State private var showingQueue = false
+    @State private var openPlayerAfterQueueDismissal = false
     @State private var link = ""
     @FocusState private var linkFocused: Bool
     @State private var confirmingSync = false
@@ -95,7 +97,7 @@ struct PublicRootView: View {
                 if #available(iOS 26.1, *) {
                     compactTabs(systemAccessory: true)
                         .tabViewBottomAccessory(isEnabled: (session.currentTrack != nil || session.hasNext) && !session.showPlayer) {
-                            PublicMiniPlayer(session: session, systemAccessory: true)
+                            PublicMiniPlayer(session: session, systemAccessory: true, onOpenQueue: { showingQueue = true })
                         }
                 } else {
                     compactTabs(systemAccessory: false)
@@ -129,6 +131,19 @@ struct PublicRootView: View {
             case .importPlaylist: PublicPlaylistImportView(session: session)
             }
         }
+        // The system tab accessory can rebuild when queue data changes. Keep the
+        // queue presentation on the root so editing or clearing cannot dismiss it.
+        .sheet(isPresented: $showingQueue, onDismiss: {
+            if openPlayerAfterQueueDismissal {
+                openPlayerAfterQueueDismissal = false
+                session.showPlayer = true
+            }
+        }) {
+            PublicQueueSheet(session: session, onClose: { showingQueue = false }, onOpenPlayer: {
+                openPlayerAfterQueueDismissal = !session.showPlayer
+                showingQueue = false
+            })
+        }
         .alert("Create local playlist", isPresented: $creatingPlaylist) {
             TextField("Playlist name", text: $playlistName)
             Button("Create") { session.createPlaylist(playlistName, nameIsExplicitUserInput: true) }
@@ -155,7 +170,9 @@ struct PublicRootView: View {
     }
 
     @ViewBuilder private var miniPlayer: some View {
-        if (session.currentTrack != nil || session.hasNext) && !session.showPlayer { PublicMiniPlayer(session: session) }
+        if (session.currentTrack != nil || session.hasNext) && !session.showPlayer {
+            PublicMiniPlayer(session: session, onOpenQueue: { showingQueue = true })
+        }
     }
 
     @ViewBuilder
@@ -1068,11 +1085,15 @@ struct PublicVideoDetail: View {
 struct PublicQueueControl: View {
     let session: PublicYouTubeSession
     var identifier = "public.queue"
+    var onOpenQueue: (() -> Void)? = nil
     @State private var showingQueue = false
     @State private var openPlayerAfterDismissal = false
 
     var body: some View {
-        Button { showingQueue = true } label: {
+        Button {
+            if let onOpenQueue { onOpenQueue() }
+            else { showingQueue = true }
+        } label: {
             PublicIconActionLabel(title: "Queue", symbol: "list.bullet")
         }
         .buttonStyle(.plain)
@@ -1084,18 +1105,28 @@ struct PublicQueueControl: View {
                 session.showPlayer = true
             }
         }) {
-            NavigationStack {
-                PublicQueueView(session: session, onOpenPlayer: {
-                    openPlayerAfterDismissal = !session.showPlayer
-                    showingQueue = false
-                })
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button("Close") { showingQueue = false }
-                                .accessibilityLabel("Close Queue").accessibilityIdentifier("player.queue.close")
-                        }
+            PublicQueueSheet(session: session, onClose: { showingQueue = false }, onOpenPlayer: {
+                openPlayerAfterDismissal = !session.showPlayer
+                showingQueue = false
+            })
+        }
+    }
+}
+
+private struct PublicQueueSheet: View {
+    let session: PublicYouTubeSession
+    let onClose: () -> Void
+    let onOpenPlayer: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            PublicQueueView(session: session, onOpenPlayer: onOpenPlayer)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Close", action: onClose)
+                            .accessibilityLabel("Close Queue").accessibilityIdentifier("player.queue.close")
                     }
-            }
+                }
         }
     }
 }

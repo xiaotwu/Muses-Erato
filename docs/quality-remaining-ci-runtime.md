@@ -171,3 +171,19 @@ Current source snapshot verification, using Xcode 27.0 (27A266a), iOS 26.5 (23F7
 Evidence: `/tmp/muses-quality-resumed-20260930`, including both `.xcresult` bundles, summary JSON, distribution logs, artifact audit log and source fingerprints. Generated projects are ignored under `.artifacts/quality-resume-public` and `.artifacts/quality-resume-native`; derived data is independent. The dedicated simulator was shut down after verification; other owners' simulators and the physical device were untouched.
 
 Read-only hosted baseline `36682903307`, head `d25825c4c32b6e3961154c05d94d34b4142f1355`, remains completed with failure. The existing iPad `GITHUB_ENV` writer/consumer split and Native button readiness fix are retained. These local results do not establish SDK 26.6 compilation or a repaired hosted run; the coordinator's final integrated commit/push must trigger that confirmation. No commit, push, dispatch or repeated Home/Search/iOS 18 UI run was performed by this workstream.
+
+
+## Hosted final head and Queue reorder repair — 2026-09-30
+
+Run `36767943895` strictly matches integrated head `7b405b9b769c8f862f567ea5d4e7056a46d133d5` (not the earlier `d25825c` baseline). It completed with failure:
+
+- Packages: seven package suites, **120 tests passed** under Xcode 26.6.0 (17F113).
+- Native: distribution compilation, **58 units** (54 common + 4 engine) and **2 Native UI tests** passed. The repaired button frame readiness check succeeded on the hosted iOS 26.5 / 23F77 runtime.
+- Public: distribution compilation and static artifact audit passed. `Public.xcresult` reports **93 passed, 1 failed, 3 explicitly skipped live tests**, total 97 (56 units; 37 UI passes; one UI failure).
+- The only failure was `PublicLocalLibraryUITests.testLocalPlaylistFavoriteQueueEditingAndRelaunch`, `PublicSmokeTests.swift:178`: after dragging the queue reorder handles, tapping the Edit mode's **Done** button found no matches. The failure AX attachment shows the Library and mini player; the entire Queue sheet had disappeared. The iPad creation/regression steps were consequently skipped before execution; this run does **not** verify the iPad environment-variable fix.
+
+The coordinator authorized a minimal fix and targeted validation. The original failure reproduced locally on a dedicated iPhone 17 Pro / iOS 26.5 simulator, with the same missing Queue sheet and Done assertion. Mini player Queue presentation state now lives in `PublicRootView`, rather than the system tab accessory, so queue updates do not replace the presentation owner. The player-local queue presentation and dismiss-before-opening-player behavior remain; both use the same Queue sheet toolbar. The existing regression only adds an assertion that Queue stays open after reordering; all reorder, persistence, removal and relaunch assertions remain intact.
+
+Local Xcode 27 validation of the repair: **4 UI tests passed, 0 failed, 0 skipped** (the original failing local-library flow and all three QueuePlacement tests); **Public 56 units** and **Native 58 units** passed with no failures or skips; Public Release and Native distribution compilation both passed; the unsigned Public artifact static audit passed (signed entitlements are not established by this local build). No source/test/manifest changes occurred during verification. A repaired hosted SDK 26.6 run remains required after the coordinator's next commit/push.
+
+Evidence is read-only under `/tmp/muses-hosted-36767943895`: final run/head status, complete sanitized job logs, packages/Native counts, downloaded artifact `11123567647` (`quality-Public`), hosted `.xcresult`, failure AX and activity attachments, original local reproduction, repaired UI/unit bundles and source fingerprints. No commit or push was performed by this workstream.

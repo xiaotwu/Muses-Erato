@@ -175,6 +175,7 @@ import XCTest
         let queueHandles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Reorder'"))
         XCTAssertEqual(queueHandles.count, 2)
         if queueHandles.count == 2 { queueHandles.element(boundBy: 1).press(forDuration: 0.5, thenDragTo: queueHandles.element(boundBy: 0)) }
+        XCTAssertTrue(app.navigationBars["Queue"].exists, "Reordering keeps Queue open in edit mode")
         app.buttons["Done"].tap()
         let queuedRows = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'queue.entry.'"))
         XCTAssertEqual(queuedRows.element(boundBy: 0).label, "YouTube video dQw4w9WgXcQ")
