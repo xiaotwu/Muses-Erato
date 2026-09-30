@@ -178,11 +178,30 @@ import XCTest
         app.buttons["Edit"].tap()
         let queueHandles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Reorder'"))
         XCTAssertEqual(queueHandles.count, 2)
-        if queueHandles.count == 2 { queueHandles.element(boundBy: 1).press(forDuration: 0.5, thenDragTo: queueHandles.element(boundBy: 0)) }
-        XCTAssertTrue(app.navigationBars["Queue"].exists, "Reordering keeps Queue open in edit mode")
-        app.buttons["Done"].tap()
         let queuedRows = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'queue.entry.'"))
+        if queueHandles.count == 2 {
+            let first = queueHandles.element(boundBy: 0), second = queueHandles.element(boundBy: 1)
+            XCTAssertTrue(first.isHittable && second.isHittable)
+            // Cross the first row's midpoint rather than dropping exactly on the
+            // swap threshold, where UIKit can return the lifted row to its origin.
+            let crossing = min(24, (second.frame.midY - first.frame.midY) / 3)
+            XCTAssertGreaterThan(crossing, 0)
+            let destination = first.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .withOffset(CGVector(dx: 0, dy: -crossing))
+            second.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 0.5, thenDragTo: destination)
+        }
+        XCTAssertTrue(app.navigationBars["Queue"].exists, "Reordering keeps Queue open in edit mode")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            queuedRows.count == 2 && queuedRows.element(boundBy: 0).label == "YouTube video dQw4w9WgXcQ"
+        }, object: nil)], timeout: 5), .completed, "The dragged occurrence must actually become first before finishing editing")
+        app.buttons["Done"].tap()
         XCTAssertEqual(queuedRows.element(boundBy: 0).label, "YouTube video dQw4w9WgXcQ")
+        app.terminate(); app.launch()
+        app.buttons["public.queue"].tap()
+        XCTAssertTrue(app.navigationBars["Queue"].waitForExistence(timeout: 5))
+        XCTAssertEqual(queuedRows.count, 2)
+        XCTAssertEqual(queuedRows.element(boundBy: 0).label, "YouTube video dQw4w9WgXcQ", "Queue order survives relaunch")
         queuedRows.element(boundBy: 0).swipeLeft()
         app.buttons["Delete"].tap()
         app.buttons["Cancel"].tap()

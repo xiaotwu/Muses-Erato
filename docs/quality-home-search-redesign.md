@@ -124,3 +124,11 @@ Persistent-menu最终 targeted UI 3/3passed、0failed/0skipped，85.1s，bundle 
 针对旧9e CI唯一KeyboardDismissalTests失败，在当前完整工作区源（新Search persistent多选+其它owner当前改动）单独运行KeyboardDismissalTests.testOutsideTapDismissesHomeAndSearchKeyboard：1/1passed、0failed/0skipped，37.7s，bundle multi-search-keyboard-ui.xcresult。Home Open link sheet中实际点击public.linkHelp关闭键盘、Search实际点击public.searchIdle关闭键盘，两段原3秒断言均通过。没有放宽timeout、skip、sleep，没有改生产或测试；Search生产冻结持续。旧CI失败根因仍由CI证据分析，不把本机最新通过当旧source根因证明。
 
 CIowner补充只读取证：旧run36773574420/head9e64b0e失败发生在第一次expectNoKeyboard（Home链接sheet），Search段通过；录屏74s键盘可见、76s/80s已视觉关闭并sheet回medium，但XCUI exists等待超时。这证实视觉关闭与AX存在报告不一致，未证明具体AX缓存原因，不据旧失败扩大生产修改。证据在 `/tmp/muses-hosted-36773574420/keyboard-after-help-76s.png`、`keyboard-timeout-80s.png` 与 `keyboard-activities.json`；本线没有重复fetch，保留当前新版实际1/1通过结论。
+
+## b5157480 hosted keyboard间歇失败取证与拟修复
+
+run36787236113失败仍在Home Open link首次expectNoKeyboard，Search段通过。public.log test t34.23点击public.linkHelp，事件plist实际点(151.333,259)对应说明文字；录屏31s键盘可见，36s及38s已消失并sheet回medium。证据文件/tmp/muses-hosted-36787236113/keyboard-{31,34,36,38}s.png与keyboard-activities.json。与9e旧失败相同视觉/AX不一致，add8及本机最新曾通过，不证明生产未dismiss。
+
+t36.10通用predicate开始查询Keyboard.exists，t38.32内部retry1/retry2，t38.62外层3秒wait超时；嵌套隐式重试占据deadline，缺少及时无重试fresh absence评估。最小测试同步修复：改XCTest原生waitForNonExistence(timeout:3)，保持同一Keyboard查询、严格元素不存在、同3秒上限、原outside tap/keyboard出现/内容hittable断言，不改exists为hittable、删断言或加sleep，不改生产/布局/多选。此为可验证同步假设，尚待本机针对性复验及新hosted验证。
+
+原生absence等待修复已完成，仅KeyboardDismissalTests.swift改3行。`keyboard-native-absence-wait.xcresult` SUCCEEDED；Xcode log明确Iteration1/3、2/3、3/3均passed（21.950s/21.626s/21.568s），每次实际Home帮助文字outside tap及Search idle outside tap两段、Keyboard先出现后严格nonexistence都通过。工具summary合并相同test identifier显示1passed，不把该summary误报成只执行一次。没有生产改动、timeout变更、skip、sleep、hittable替代不存在或布局修改。当前test source冻结、可集成；下一hosted需验证间歇同步失败是否消失，本机三次通过不等于已证实远程根因。未commit/push。

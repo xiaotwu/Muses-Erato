@@ -32,8 +32,8 @@ import XCTest
     }
 
     private func expectNoKeyboard(_ app: XCUIApplication) {
-        let gone = NSPredicate(format: "exists == false")
-        let dismissed = XCTNSPredicateExpectation(predicate: gone, object: app.keyboards.firstMatch)
-        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 3), .completed)
+        // Use XCTest's absence wait, rather than nesting an exists query's
+        // internal retries inside a predicate wait with the same deadline.
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), "The keyboard must disappear after tapping non-input content")
     }
 }
