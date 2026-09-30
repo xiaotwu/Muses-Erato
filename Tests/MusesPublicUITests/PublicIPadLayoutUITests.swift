@@ -193,6 +193,8 @@ import XCTest
         app.buttons["public.start.search"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         capture("iPad narrow window Search", app: app)
+        app.staticTexts["Find a video or playlist"].tap()
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "Dismiss keyboard before using the bottom tab bar")
         select("Home", in: app, regular: false)
         XCTAssertTrue(app.buttons["public.openLinkEntry"].isHittable)
         app.buttons["Settings"].firstMatch.tap()

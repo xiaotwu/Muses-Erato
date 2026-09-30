@@ -96,7 +96,7 @@ schemes:REPLACE:
     archive:
       config: Release
   # Strict raw system audit is an explicit diagnostic lane; retain all findings.
-  MusesPublicIPadAudit:
+  MusesPublicAccessibilityAudit:
     build:
       targets:
         Muses: all
