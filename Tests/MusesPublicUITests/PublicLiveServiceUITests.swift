@@ -24,7 +24,7 @@ import XCTest
         app.buttons["public.submitSearch"].tap()
         let result = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'catalog.actions.'")).firstMatch
         XCTAssertTrue(result.waitForExistence(timeout: 45), "Real video results must appear; a fixture or error page does not satisfy this check.")
-        XCTAssertFalse(app.descendants(matching: .any)["public.searchError"].exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'public.searchError.'")).firstMatch.exists)
     }
 
     func testRealVisibleYouTubePlayerReportsPlaying() throws {

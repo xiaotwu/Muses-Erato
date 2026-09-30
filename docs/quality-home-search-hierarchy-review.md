@@ -6,6 +6,8 @@
 
 最新用户实测偏好覆盖上一轮建议：Home 顶栏仅 **+**，Search 来源/类型合并至对应位置的 **Filters** 菜单，Queue 从所有全局顶栏移至 player/mini controls。以下布局已按此收敛；不再要求 Add 可见文字或正文两枚筛选菜单。
 
+再次更新：用户真机反馈要求 **Search 提交图标化；右上 Filters 在前、Settings 最后；Source/Type 都为真正多选**。下文末尾“多选搜索与固定播放器控件”覆盖早期单选字段和文字 Search 按钮建议。UI owner负责搜索端到端，Session owner负责播放器；本检查不改变代码所有权。
+
 ## 推荐最终布局
 
 | 页面 | 主入口 | 次要入口 | 内容 |
@@ -70,3 +72,34 @@
 4. **+ 与 Filters 可见位置一致，辅助名称不同。** 不用两个同名More；Home为Add to library，Search为Search filters。图标尺寸稳定，不为最大文字放大到挤压标题；Settings保持独立。空态不再告诉用户找Add文字。
 
 以上是最新偏好下的设计要求；未执行新截图/模拟器，也未编辑生产代码。Queue原有Native `player.queue`可复用，Public/mini入口需要同义辅助标签和跨present/dismiss流程验收。
+
+## 多选搜索与固定播放器控件（最新用户反馈）
+
+### 搜索：真正多选与结果层级
+
+1. **提交改单个 magnifyingglass 图标**，固定约18–20pt、44pt触控区、accessibilityLabel Search；移除输入左侧重复装饰放大镜，为query留空间。最大字号图标不随文字无限放大；清除是另一个44pt xmark，不能替代提交。键盘Search保留。右上顺序从左到右 **Filters → Settings**，合并在同一处声明 toolbar顺序，避免跨父/子视图追加后排序不确定。
+2. **Source与Type用集合选择。** 每个菜单项 toggle自己的 membership，不像当前scope/searchKind覆盖前项；选中checkmark + selected trait + 可读“Selected/Not selected”。Section Source = YouTube / Saved；Type = Videos / Playlists / Channels。同一轴为OR，来源与类型之间为有效组合交集：选Saved+YouTube和Videos+Playlists，返回这四类支持组合的并集。Saved没有Channels，不能虚构空本地channel组；YouTube未选时Channels不可选并解释仅在线可用。
+3. **每轴至少一项。** 推荐不允许取消最后一项，菜单中该选项禁用但明确“至少选择一个来源/类型”；不要暗中把空选择当All。若移除YouTube使仅Channels失效，归一化为Videos并立即更新菜单值/轻量摘要，不更改已提交结果。线上不可用时禁用YouTube且保留Saved；取消/重开Filters不自动发送请求。默认保持YouTube+Videos，不默认勾全而扩大预算。
+4. **编辑选择与提交快照独立。** 实际请求捕获query + sources集合 + kinds集合 + generation；result heading基于提交快照，切筛选时已有结果不重标。Filters accessibilityValue可读为“YouTube and Saved; Videos and Playlists”；摘要只显示一次，选多项可用“YouTube + Saved · 2 types”，不堆三个长说明。
+5. **结果按Source一级、Type二级固定顺序分组。** Saved先、YouTube后；每组Videos→Playlists→Channels。单type可省二级标题但行仍有类型/来源。跨来源重复的相同(kind,id)保留Saved为主，附Available on YouTube或简单来源信息；不能按裸id把video/channel误去重。总数为去重后可见项，各分组计数与所见一致。多type不得合并成一个无法区分视频播放与列表/频道导航的大列表。
+6. **每个在线type有独立分页/失败状态。** 本地结果立即显示；一个在线type失败不清另一个type成功结果，错误和Retry置于该组末尾，Retry只重试失败type/page。Load more属于其group，不以一个token分页所有type。在线多type需要多请求，session须纳入现有budget；禁止筛选每次勾选即发请求，禁止无条件预取全部页。统一空态仅全部所选有效group成功且都无结果；partial失败不能写No results。
+
+最小接口交付必须包含submitted sources/kinds和每group pager，不能只把UI改成多个勾号后继续调用旧single searchKind。UI owner负责协调所需session契约；本设计文档不要求其他线程直接修改其文件。
+
+### 播放器：固定主控，状态在其后
+
+当前Public `playerDetails` 在slider/Play之前依次插入queue failure、playback error、checkpoint failure、pending与command failure，状态增加/消失会改变控件y位置。这与真机反馈相符，优先修结构，不只设动画为nil。
+
+推荐compact顺序：**可见video surface → 稳定标题/收藏行 → 时间进度 → 固定主控行（Play/Pause、Next、Queue）→ 可滚动辅助区**。标题普通字号最多两行，完整标题可在details读取；大字允许自然换行，其高度只随内容/字号变化，不能随播放状态变化。
+
+- 主控区域在viewport中独立于错误/解释VStack，不能被动态消息顶动；Public主控保持64×64、其他≥44pt。pending仅在同一按钮frame内显示spinner或overlay，保留button identity与VoiceOver焦点；按session确认语义显示Play/Pause，禁用重复命令。不要在主控前插入“Pausing…”独立行。
+- 状态常态不需要“Playing/Paused”与按钮再重复描述。用按钮accessibilityValue表达状态；必要的短状态放主控后固定单行status slot，其高度不因loading/paused/playing改变，空态不让后续控件跳动。错误长文在下方辅助区换行，不塞进固定slot。
+- 辅助区按具体操作显示最多一个最相关错误，附必要Retry/Open YouTube；不同来源的保存失败/队列失败仍保留作用域，不能用删除文案方式藏掉真实失败。长产品前台说明进入已有Playback/详情；不在每次播放常驻大段政策/能力说明。
+- Notes/bookmarks以一个明确入口或折叠区；Queue集中按钮/页，compact不要再铺完整queue+notebook全文令主播放器像多个页面拼在一起。iPad现有右侧queue可保留，主控左列固定；大字/小屏必要时video与控件使用有边界滚动布局，仍保证状态切换不改控件位置，不以固定总高度截断文字。
+- Native当前主控前没有相同多message插入，但加载spinner替换Play仍应保持同frame/identifier；Native与Public辅助区遵循同层级，保留各自准确播放能力。mini player同样标题/Play/Queue稳定，错误不插在其控制之前。
+
+### owner产物复核要点
+
+搜索owner输出后核对：多选不是single互斥、源/type分节与checks、Filters先Settings最后、图标Search辅助名、submitted集合、去重计数、独立group分页与partial恢复、最大字号可操作。
+
+播放器owner输出后核对：loading→playing→pausePending→paused→failed切换中主Play按钮位置/identity不变；错误/Retry可达且位于主控之后；Queue/notes发现性；Public visible player要求与Native差异未因精简被误改。证据应来自新owner源码和截图/回归，不将head9e64b0e或旧CI通过当作此次改动验收。待owner产物到达再只读复核，不启动真机测试或改共享代码。

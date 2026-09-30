@@ -2,6 +2,20 @@ import SwiftUI
 import MediaPlayer
 import AVKit
 
+enum PublicPlayerPresentation: String, CaseIterable, Identifiable {
+    case music = "Music", video = "Video"
+    var id: Self { self }
+}
+
+struct PublicPlayerModePicker: View {
+    @Binding var selection: PublicPlayerPresentation
+    var body: some View {
+        Picker("Player layout", selection: $selection) {
+            ForEach(PublicPlayerPresentation.allCases) { mode in Text(mode.rawValue).tag(mode) }
+        }.pickerStyle(.segmented).accessibilityIdentifier("player.presentation")
+    }
+}
+
 struct PublicMiniPlayer: View {
     let session: PublicYouTubeSession
     var systemAccessory = false
@@ -42,11 +56,13 @@ struct PublicNativePlayerView: View {
     let session: PublicYouTubeSession
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var showingQueue = false
     @State private var showingNotebook = false
     @State private var scrubbing = false
     @State private var scrubPosition = 0.0
     @State private var confirmingFavoriteRemoval = false
+    @State private var showingPlaybackInfo = false
     private var duration: Double { Double(session.state.durationMilliseconds ?? 0) / 1000 }
     private var position: Double { Double(session.state.positionMilliseconds) / 1000 }
     private var playing: Bool { session.state.state == .playing }
@@ -56,15 +72,20 @@ struct PublicNativePlayerView: View {
             GeometryReader { geometry in
                 ScrollView {
                     VStack(spacing: 18) {
+                        Picker("Player layout", selection: .constant(PublicPlayerPresentation.music)) {
+                            Text("Music").tag(PublicPlayerPresentation.music)
+                            Text("Video").tag(PublicPlayerPresentation.video).disabled(true)
+                        }.pickerStyle(.segmented).disabled(true).accessibilityIdentifier("player.presentation")
+                            .accessibilityHint("This experimental player supports audio. Use YouTube video player in Playback actions to watch.")
                         PublicPlayerArtwork(videoID: session.currentTrack?.publicVideoID?.rawValue)
-                            .frame(width: max(0, min(geometry.size.width - 48, geometry.size.height * 0.39, 360)), height: max(0, min(geometry.size.width - 48, geometry.size.height * 0.39, 360)))
+                            .frame(width: max(0, min(geometry.size.width - 48, geometry.size.height * 0.39, typeSize.isAccessibilitySize ? 140 : 360)), height: max(0, min(geometry.size.width - 48, geometry.size.height * 0.39, typeSize.isAccessibilitySize ? 140 : 360)))
                             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                             .shadow(color: .black.opacity(0.18), radius: 18, y: 10)
                             .padding(.top, 16)
                             .accessibilityHidden(true)
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(session.currentTrack?.displayTitle ?? "Now Playing").font(.title2.weight(.bold)).fixedSize(horizontal: false, vertical: true)
+                                Text(session.currentTrack?.displayTitle ?? "Now Playing").font(.title2.weight(.bold)).lineLimit(typeSize.isAccessibilitySize ? nil : 2).fixedSize(horizontal: false, vertical: true)
                                 Text(session.currentTrack?.displayArtist ?? "YouTube").font(.title3).foregroundStyle(.secondary)
                             }.frame(maxWidth: .infinity, alignment: .leading)
                             Button {
@@ -77,18 +98,26 @@ struct PublicNativePlayerView: View {
                                 if editing { scrubPosition = position; scrubbing = true }
                                 else { scrubbing = false; session.seekPlayback(seconds: scrubPosition) }
                             }).disabled(!session.nativePlayback.loaded || duration <= 0).accessibilityLabel("Playback position")
-                            HStack {
-                                Text(time(scrubbing ? scrubPosition : position)); Spacer(); Text("−" + time(max(0, duration - (scrubbing ? scrubPosition : position))))
-                            }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            PublicPlaybackTimes(position: scrubbing ? scrubPosition : position, duration: duration)
                         }
-                        HStack(spacing: 44) {
-                            Button { session.previous() } label: { Image(systemName: "backward.end.fill").font(.system(size: 28)).frame(width: 52, height: 52) }.accessibilityLabel("Previous")
+                        ZStack {
+                            HStack {
+                                Button { session.previous() } label: { Image(systemName: "backward.end.fill").font(.system(size: 22)).frame(width: 44, height: 44) }.accessibilityLabel("Previous")
+                                Spacer(minLength: 0)
+                                HStack(spacing: 12) {
+                                    Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.system(size: 22)).frame(width: 44, height: 44) }.disabled(!session.hasNext).accessibilityLabel("Next")
+                                    Button { showingQueue = true } label: { Image(systemName: "list.bullet").font(.system(size: 22)).frame(width: 44, height: 44) }.accessibilityLabel("Queue").accessibilityIdentifier("player.queue")
+                                }
+                            }
                             Button { session.nativePlayback.wantsPlayback ? session.pause() : session.play() } label: {
-                                if session.state.state == .loading || session.state.state == .buffering { ProgressView().frame(width: 64, height: 64) }
-                                else { Image(systemName: playing ? "pause.fill" : "play.fill").font(.system(size: 44)).frame(width: 64, height: 64) }
+                                ZStack {
+                                    Image(systemName: playing ? "pause.fill" : "play.fill").font(.system(size: 32, weight: .semibold))
+                                        .opacity(session.state.state == .loading || session.state.state == .buffering ? 0.15 : 1)
+                                    if session.state.state == .loading || session.state.state == .buffering { ProgressView().accessibilityHidden(true) }
+                                }.frame(width: 64, height: 64).background(PublicStyle.gold.opacity(0.12), in: Circle())
                             }.accessibilityLabel(playing ? "Pause" : "Play").accessibilityIdentifier("player.toggle")
-                            Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.system(size: 28)).frame(width: 52, height: 52) }.disabled(!session.hasNext).accessibilityLabel("Next")
-                        }.modifier(PublicGlassActions())
+                        }.frame(height: 72).buttonStyle(.plain)
+                        PublicPlaybackStatus(state: session.state.state.rawValue.capitalized)
                         if let message = session.nativePlayback.loadingMessage {
                             HStack {
                                 Text(message).font(.subheadline).foregroundStyle(.secondary)
@@ -101,8 +130,6 @@ struct PublicNativePlayerView: View {
                             Button { showingNotebook = true } label: { Image(systemName: "text.bubble").font(.title2).frame(width: 52, height: 52) }.accessibilityLabel("Notes and bookmarks")
                             Spacer()
                             PublicAudioRoutePicker().frame(width: 52, height: 52).accessibilityLabel("Audio output")
-                            Spacer()
-                            Button { showingQueue = true } label: { Image(systemName: "list.bullet").font(.title2).frame(width: 52, height: 52) }.accessibilityLabel("Queue").accessibilityIdentifier("player.queue")
                         }.buttonStyle(.plain)
                         if let error = session.failureMessage {
                             VStack(alignment: .leading, spacing: 10) {
@@ -110,16 +137,16 @@ struct PublicNativePlayerView: View {
                                 Button("Website playback", systemImage: "safari") { openWebsite() }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        Text(session.state.state.rawValue.capitalized).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("public.playbackState")
                     }.padding(.horizontal, 24).padding(.bottom, 24).frame(maxWidth: 460)
                         .frame(maxWidth: .infinity)
-                }.background(Color(uiColor: .secondarySystemBackground))
+                }.accessibilityIdentifier("player.details").background(Color(uiColor: .secondarySystemBackground))
             }
             .navigationTitle("Now Playing").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { Button { dismiss() } label: { Image(systemName: "chevron.down").frame(width: 44, height: 44) }.accessibilityLabel("Close player") }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button("Playback info", systemImage: "info.circle") { showingPlaybackInfo = true }
                         if let track = session.currentTrack { PublicAddToPlaylistMenu(session: session, track: track) }
                         Button("Website playback", systemImage: "safari") { openWebsite() }
                         Button("YouTube video player", systemImage: "play.rectangle") { session.setNativePlayback(false) }
@@ -133,6 +160,7 @@ struct PublicNativePlayerView: View {
                         .navigationTitle("Notes & bookmarks").toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showingNotebook = false } } }
                 }
             }
+            .sheet(isPresented: $showingPlaybackInfo) { PublicPlaybackInfoView(native: true) }
             .alert("Remove this favorite?", isPresented: $confirmingFavoriteRemoval) {
             Button("Cancel", role: .cancel) {}
                 Button("Remove favorite", role: .destructive) { if session.currentTrack?.liked == true { session.toggleFavorite() } }
@@ -143,7 +171,59 @@ struct PublicNativePlayerView: View {
         guard let id = session.currentTrack?.publicVideoID?.rawValue, let url = URL(string: "https://www.youtube.com/watch?v=\(id)") else { return }
         session.pause(); openURL(url)
     }
-    private func time(_ value: Double) -> String { let seconds = Int(max(0, value)); return "\(seconds / 60):\(String(format: "%02d", seconds % 60))" }
+}
+
+/// Feedback occupies the same line in every state; confirmed state remains available to VoiceOver.
+struct PublicPlaybackStatus: View {
+    let state: String
+    var pending: String? = nil
+    @ScaledMetric(relativeTo: .caption) private var lineHeight = 24.0
+    var body: some View {
+        HStack {
+            Text(state)
+                .accessibilityIdentifier("public.playbackState")
+            Spacer(minLength: 12)
+            if let pending {
+                Text(pending).accessibilityIdentifier("public.playbackCommandPending")
+            }
+        }.font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            .frame(maxWidth: .infinity).frame(height: lineHeight)
+    }
+}
+
+struct PublicPlaybackTimes: View {
+    let position: Double
+    let duration: Double
+    var body: some View {
+        HStack {
+            Text(time(position)).accessibilityIdentifier("player.elapsed")
+            Spacer()
+            Text(duration > 0 ? "−" + time(max(0, duration - position)) : "—:—")
+        }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            .accessibilityElement(children: .contain)
+    }
+    private func time(_ value: Double) -> String {
+        let seconds = Int(max(0, value))
+        return "\(seconds / 60):\(String(format: "%02d", seconds % 60))"
+    }
+}
+
+struct PublicPlaybackInfoView: View {
+    let native: Bool
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text(native ? "Experimental audio playback is enabled. You can switch to the YouTube video player from Playback actions."
+                         : "YouTube plays while this player is visible and Muses is in the foreground. Leaving the player or app pauses playback.")
+                    Text(native ? "If audio playback fails, retry or open the video in YouTube."
+                         : "Play and pause status updates when YouTube confirms the change. If YouTube blocks a control action, use the visible video's controls or open YouTube.")
+                }
+            }.navigationTitle("Playback info").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+        }
+    }
 }
 
 struct PublicPlayerArtwork: View {

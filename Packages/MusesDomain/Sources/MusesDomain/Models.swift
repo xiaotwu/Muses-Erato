@@ -7,6 +7,7 @@ public enum PlaybackSource: Hashable, Codable, Sendable {
 }
 
 public struct Track: Hashable, Codable, Sendable, Identifiable {
+    public enum ContentKind: String, Codable, Sendable { case music, video }
     public let id: TrackID
     public var title: String
     public var artist: String
@@ -17,11 +18,14 @@ public struct Track: Hashable, Codable, Sendable, Identifiable {
     public enum MetadataOrigin: String, Codable, Sendable { case user, youtubeDataAPI, placeholder }
     public var metadataOrigin: MetadataOrigin?
     public var metadataFetchedAt: Date?
+    /// API-derived classification, separate from a user's presentation preference.
+    public var contentKind: ContentKind?
     public var liked: Bool
-    public init(id: TrackID, title: String, artist: String, source: PlaybackSource, provenance: Provenance, durationMilliseconds: Int? = nil, liked: Bool = false, metadataOrigin: MetadataOrigin? = nil, metadataFetchedAt: Date? = nil) {
+    public init(id: TrackID, title: String, artist: String, source: PlaybackSource, provenance: Provenance, durationMilliseconds: Int? = nil, liked: Bool = false, metadataOrigin: MetadataOrigin? = nil, metadataFetchedAt: Date? = nil, contentKind: ContentKind? = nil) {
         self.id = id; self.title = title; self.artist = artist; self.source = source; self.provenance = provenance
         self.durationMilliseconds = durationMilliseconds; self.liked = liked
         self.metadataOrigin = metadataOrigin; self.metadataFetchedAt = metadataFetchedAt
+        self.contentKind = contentKind
     }
 }
 
@@ -72,13 +76,16 @@ extension Track {
     /// Keep API display data in memory without depending on background cache expiry.
     public var localPersistenceSnapshot: Track {
         var saved = self
+        if case .youtubeVideo = source { saved.contentKind = nil }
         if metadataOrigin == .youtubeDataAPI { saved.expireYouTubeMetadata(force: true) }
         return saved
     }
 
     public mutating func expireYouTubeMetadata(at now: Date = Date(), force: Bool = false) {
-        guard case .youtubeVideo(let video) = source, metadataOrigin != .user, metadataOrigin != .placeholder else { return }
+        guard case .youtubeVideo(let video) = source else { return }
         guard force || metadataFetchedAt == nil || now.timeIntervalSince(metadataFetchedAt!) >= 29 * 86400 || metadataFetchedAt! > now else { return }
+        contentKind = nil
+        guard metadataOrigin != .user, metadataOrigin != .placeholder else { return }
         title = "YouTube video \(video.rawValue)"; artist = "YouTube"
         durationMilliseconds = nil; metadataFetchedAt = nil; metadataOrigin = .placeholder
     }

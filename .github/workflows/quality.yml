@@ -65,10 +65,12 @@ jobs:
           assert tuple(map(int, sdk.split('.'))) >= (26, 1), f'iOS 26.1+ SDK required; selected {sdk}'
           PY
       - name: Generate channel project
+        id: generate_project
         run: |
           mkdir -p '${{ matrix.directory }}'
           xcodegen generate --spec '${{ matrix.spec }}' --project '${{ matrix.directory }}' --project-root .
       - name: Create isolated test simulator
+        id: create_simulator
         shell: bash
         run: |
           set -euo pipefail
@@ -92,6 +94,7 @@ jobs:
           subprocess.run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], check=True)
           PY
       - name: Build distribution configuration
+        id: distribution_build
         shell: bash
         run: |
           set -euo pipefail
@@ -100,9 +103,11 @@ jobs:
             -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/distribution" \
             CODE_SIGNING_ALLOWED=NO build
       - name: Audit Public distribution capabilities
+        id: public_audit
         if: matrix.channel == 'Public'
         run: python3 scripts/audit-public-artifact.py "$RUNNER_TEMP/distribution/Build/Products/Release-iphonesimulator/Muses.app"
       - name: Run deterministic application regression
+        id: app_regression
         shell: bash
         run: |
           set -euo pipefail
@@ -112,7 +117,13 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/regression" -resultBundlePath "$RUNNER_TEMP/${{ matrix.channel }}.xcresult" \
             -parallel-testing-enabled NO -collect-test-diagnostics never CODE_SIGNING_ALLOWED=NO test
       - name: Create isolated iPad test simulator
-        if: matrix.channel == 'Public'
+        id: create_ipad
+        if: >-
+          ${{ always() && !cancelled() && matrix.channel == 'Public'
+              && steps.generate_project.outcome == 'success'
+              && steps.create_simulator.outcome == 'success'
+              && steps.distribution_build.outcome == 'success'
+              && steps.public_audit.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -132,7 +143,10 @@ jobs:
           subprocess.run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], check=True)
           PY
       - name: Run Public iPad regression
-        if: matrix.channel == 'Public'
+        id: public_ipad
+        if: >-
+          ${{ always() && !cancelled() && matrix.channel == 'Public'
+              && steps.create_ipad.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail

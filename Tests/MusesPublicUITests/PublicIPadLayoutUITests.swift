@@ -78,7 +78,7 @@ import XCTest
         app.buttons["public.submitSearch"].tap()
     }
     func choose(_ choice: String, picker: String, app: XCUIApplication, largeText: Bool = false) {
-        app.buttons["public.searchFilters"].tap(); app.buttons[choice].tap()
+        selectSearchFilter(choice, group: picker == "public.searchSource" ? "Source" : "Type", in: app)
     }
 
 }

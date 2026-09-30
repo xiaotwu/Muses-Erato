@@ -8,6 +8,10 @@ import MusesCatalog
 import MusesNetworking
 import MusesIOSOAuth
 
+enum PublicSearchSource: String, CaseIterable, Hashable {
+    case youtube = "YouTube", saved = "On this device"
+}
+
 /// Shared composition root: Release uses the visible player; Debug/Native can opt into native audio.
 /// The inherited macOS services are not constructed here.
 @MainActor
@@ -117,19 +121,66 @@ final class PublicYouTubeSession {
     let subscriptionPages = CatalogPager()
     let accountPlaylistPages = CatalogPager()
     let accountChannelPages = CatalogPager()
-    var searchKind: MusesCatalog.CatalogItem.Kind = .video
+    var searchSources: Set<PublicSearchSource> = [.youtube]
+    var searchKinds: Set<MusesCatalog.CatalogItem.Kind> = [.video]
+    // Single-kind callers, including the Search videos shortcut, replace the draft selection.
+    var searchKind: MusesCatalog.CatalogItem.Kind {
+        get { Self.searchKindOrder.first { searchKinds.contains($0) } ?? .video }
+        set { searchKinds = [newValue] }
+    }
+    static let searchKindOrder: [MusesCatalog.CatalogItem.Kind] = [.video, .playlist, .channel]
+    private let playlistSearchPages = CatalogPager()
+    private let channelSearchPages = CatalogPager()
+    private var searchGeneration = UUID()
+    private var initialSearchGeneration: UUID?
     private var submittedSearch = ""
+    private(set) var submittedSearchSources: Set<PublicSearchSource> = []
+    private(set) var submittedSearchKinds: Set<MusesCatalog.CatalogItem.Kind> = [.video]
     var submittedSearchQuery: String { submittedSearch }
-    var submittedSearchKind: MusesCatalog.CatalogItem.Kind { submittedKind }
+    var submittedSearchKind: MusesCatalog.CatalogItem.Kind { Self.searchKindOrder.first { submittedSearchKinds.contains($0) } ?? .video }
     var hasSubmittedSearch: Bool { !submittedSearch.isEmpty }
-    var isSubmittedSearchLocal: Bool { submittedSearchIsLocal }
-    private var submittedSearchIsLocal = false
-    private var submittedKind: MusesCatalog.CatalogItem.Kind = .video
+    var isSubmittedSearchLocal: Bool { submittedSearchSources == [.saved] }
+    var remoteSearchKinds: [MusesCatalog.CatalogItem.Kind] {
+        submittedSearchSources.contains(.youtube) ? Self.searchKindOrder.filter { submittedSearchKinds.contains($0) } : []
+    }
+    var savedSearchVideos: [MusesDomain.Track] {
+        guard hasSubmittedSearch, submittedSearchSources.contains(.saved), submittedSearchKinds.contains(.video) else { return [] }
+        return libraryTracks.filter { $0.displayTitle.localizedCaseInsensitiveContains(submittedSearch) || $0.displayArtist.localizedCaseInsensitiveContains(submittedSearch) }
+    }
+    var savedSearchPlaylists: [LocalPlaylist] {
+        guard hasSubmittedSearch, submittedSearchSources.contains(.saved), submittedSearchKinds.contains(.playlist) else { return [] }
+        return playlists.filter { $0.name.localizedCaseInsensitiveContains(submittedSearch) }
+    }
+    var searchResultCount: Int { savedSearchVideos.count + savedSearchPlaylists.count + remoteSearchKinds.reduce(0) { $0 + searchPager(for: $1).items.count } }
+    func searchPager(for kind: MusesCatalog.CatalogItem.Kind) -> CatalogPager {
+        switch kind { case .video: searchPages; case .playlist: playlistSearchPages; case .channel: channelSearchPages }
+    }
+    func normalizeSearchSelection() {
+        if !apiConfigured { searchSources = [.saved] }
+        if searchSources.isEmpty { searchSources = apiConfigured ? [.youtube] : [.saved] }
+        if !searchSources.contains(.youtube) { searchKinds.remove(.channel) }
+        if searchKinds.isEmpty { searchKinds = [.video] }
+    }
+    func toggleSearchSource(_ source: PublicSearchSource) {
+        if source == .youtube && !apiConfigured { return }
+        if searchSources.contains(source) { if searchSources.count > 1 { searchSources.remove(source) } }
+        else { searchSources.insert(source) }
+        normalizeSearchSelection()
+    }
+    func toggleSearchKind(_ kind: MusesCatalog.CatalogItem.Kind) {
+        if kind == .channel && (!searchSources.contains(.youtube) || !apiConfigured) { return }
+        if searchKinds.contains(kind) { if searchKinds.count > 1 { searchKinds.remove(kind) } }
+        else { searchKinds.insert(kind) }
+        normalizeSearchSelection()
+    }
+    private func resetSearchPages() {
+        searchGeneration = UUID()
+        for kind in Self.searchKindOrder { searchPager(for: kind).reset() }
+    }
     private var linkGeneration = UUID()
     var catalogRoute: YouTubeCatalogLink?
     var searchItems: [MusesCatalog.CatalogItem] {
-        let localIDs = Set(localSearchItems.map(\.rowID))
-        return localSearchItems + searchPages.items.filter { !localIDs.contains($0.rowID) }
+        localSearchItems + remoteSearchKinds.flatMap { searchPager(for: $0).items }
     }
     private var localSearchItems: [MusesCatalog.CatalogItem] = []
     private(set) var playedIDs: [TrackID] = []
@@ -137,8 +188,8 @@ final class PublicYouTubeSession {
     private var refreshingPlaylistNames = false
     private var lastPlaylistNameAttempt: Date?
     private(set) var playlistNameRefreshMessage: String?
-    var searchError: String? { searchPages.error }
-    var searching: Bool { searchPages.loading }
+    var searchError: String? { remoteSearchKinds.compactMap { searchPager(for: $0).error }.first }
+    var searching: Bool { initialSearchGeneration == searchGeneration || remoteSearchKinds.contains { searchPager(for: $0).loading } }
     private(set) var signedIn = false
     private(set) var accountCleanupPending = false
     var subscriptions: [MusesCatalog.CatalogItem] { subscriptionPages.items }
@@ -176,6 +227,8 @@ final class PublicYouTubeSession {
     private var cleanupInFlight = false
     private var accountEpoch: UInt64 = 0
     private var recordedEntryID: UUID?
+    private var selectedQueuePlayEntryID: UUID?
+    private var selectedQueuePlayerVisible = false
     @ObservationIgnored lazy var notebook = PublicNotebookModel(repository: { [weak self] in self?.repository })
     @ObservationIgnored let bookmarkSeeking = PublicBookmarkSeekController()
     private(set) var hasCurrentPlaybackTime = false
@@ -365,54 +418,63 @@ final class PublicYouTubeSession {
 
     func search(_ input: String) async {
         guard !deletingLocalData else { return }
-        activeNetworkCalls += 1
-        defer { activeNetworkCalls -= 1 }
+        normalizeSearchSelection()
         let query = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        if query == submittedSearch, submittedKind == searchKind, searchPages.loading { return }
-        submittedSearchIsLocal = false
-        submittedSearch = query; submittedKind = searchKind
-        searchPages.reset()
-        localSearchItems = searchKind == .video ? tracks.filter { $0.title.localizedCaseInsensitiveContains(query) || $0.artist.localizedCaseInsensitiveContains(query) }
-            .compactMap { track in
-                guard case .youtubeVideo(let id) = track.source else { return nil }
-                return MusesCatalog.CatalogItem(kind: .video, id: id.rawValue, title: track.title,
-                    channelID: nil, thumbnailURL: nil, source: "local")
-            } : []
-        guard !query.isEmpty else { localSearchItems = []; return }
+        if query == submittedSearch, submittedSearchKinds == searchKinds, submittedSearchSources == searchSources, searching { return }
+        beginSearch(query, sources: searchSources, kinds: searchKinds)
+        let generation = searchGeneration
+        initialSearchGeneration = generation
+        defer { if initialSearchGeneration == generation { initialSearchGeneration = nil } }
         await nextSearchPage()
     }
 
-    /// Searches saved references only; no catalog or account request is made.
-    func searchSaved(_ input: String) {
-        submittedSearch = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        submittedKind = searchKind
-        submittedSearchIsLocal = true
-        searchPages.reset()
-        localSearchItems = submittedSearch.isEmpty || submittedKind != .video ? [] : libraryTracks.filter {
-            $0.displayTitle.localizedCaseInsensitiveContains(submittedSearch) || $0.displayArtist.localizedCaseInsensitiveContains(submittedSearch)
-        }.compactMap { track in
+    private func beginSearch(_ query: String, sources: Set<PublicSearchSource>, kinds: Set<MusesCatalog.CatalogItem.Kind>) {
+        resetSearchPages()
+        submittedSearch = query
+        submittedSearchSources = sources
+        submittedSearchKinds = kinds
+        localSearchItems = savedSearchVideos.compactMap { track in
             guard let video = track.publicVideoID else { return nil }
             return MusesCatalog.CatalogItem(kind: .video, id: video.rawValue, title: track.displayTitle, channelID: nil, thumbnailURL: nil, source: "local")
         }
     }
 
-    func retrySearch() async {
-        guard hasSubmittedSearch else { return }
-        if submittedSearchIsLocal {
-            let editingKind = searchKind
-            searchKind = submittedKind
-            searchSaved(submittedSearch)
-            searchKind = editingKind
-            return
-        }
-        searchPages.reset()
-        await nextSearchPage()
+    /// Searches only saved references; no catalog or account request is made.
+    func searchSaved(_ input: String) {
+        var kinds = searchKinds
+        kinds.remove(.channel)
+        if kinds.isEmpty { kinds = [.video] }
+        beginSearch(input.trimmingCharacters(in: .whitespacesAndNewlines), sources: [.saved], kinds: kinds)
     }
 
-    func nextSearchPage() async {
-        let query = submittedSearch, kind = submittedKind
-        guard !query.isEmpty, !submittedSearchIsLocal else { return }
-        await searchPages.load { token in
+    func retrySearch(kind: MusesCatalog.CatalogItem.Kind? = nil) async {
+        guard hasSubmittedSearch else { return }
+        if let kind { await nextSearchPage(kind: kind) }
+        else {
+            let failed = remoteSearchKinds.filter { searchPager(for: $0).error != nil }
+            for kind in failed { await nextSearchPage(kind: kind) }
+        }
+    }
+
+    func nextSearchPage(kind: MusesCatalog.CatalogItem.Kind? = nil) async {
+        let query = submittedSearch, generation = searchGeneration
+        guard !query.isEmpty, !deletingLocalData else { return }
+        let kinds = kind.map { remoteSearchKinds.contains($0) ? [$0] : [] } ?? remoteSearchKinds
+        activeNetworkCalls += 1
+        defer { activeNetworkCalls -= 1 }
+        let tasks = kinds.map { kind in
+            Task { await self.loadSearchPage(query: query, kind: kind, generation: generation) }
+        }
+        await withTaskCancellationHandler {
+            for task in tasks { await task.value }
+        } onCancel: {
+            for task in tasks { task.cancel() }
+        }
+    }
+
+    private func loadSearchPage(query: String, kind: MusesCatalog.CatalogItem.Kind, generation: UUID) async {
+        guard generation == searchGeneration else { return }
+        await searchPager(for: kind).load { token in
             guard let catalog = self.catalog, self.apiConfigured else { throw APIError.unauthorized }
             return try await catalog.search(query, pageToken: token, kind: kind)
         }
@@ -488,12 +550,12 @@ final class PublicYouTubeSession {
     }
     private func resetAccountCatalog() {
         subscriptionPages.reset(); accountPlaylistPages.reset(); accountChannelPages.reset()
-        searchPages.reset(); localSearchItems = []; catalogRoute = nil
+        resetSearchPages(); localSearchItems = []; catalogRoute = nil
     }
 
     func maintainCatalogData() async {
         do { try expireCatalogMetadata() } catch { failureMessage = "Could not expire YouTube metadata: \(error.localizedDescription)" }
-        searchPages.expire(); subscriptionPages.expire(); accountPlaylistPages.expire(); accountChannelPages.expire()
+        for kind in Self.searchKindOrder { searchPager(for: kind).expire() }; subscriptionPages.expire(); accountPlaylistPages.expire(); accountChannelPages.expire()
         await catalog?.purgeExpiredCache()
         await refreshPlaylistNames()
     }
@@ -526,6 +588,7 @@ final class PublicYouTubeSession {
                     guard let video = tracks[index].publicVideoID, let item = page.items.first(where: { $0.id == video.rawValue }) else { continue }
                     if tracks[index].metadataOrigin != .user {
                         tracks[index].title = item.title; tracks[index].metadataOrigin = .youtubeDataAPI; tracks[index].metadataFetchedAt = page.fetchedAt
+                        tracks[index].contentKind = item.contentKind.flatMap { MusesDomain.Track.ContentKind(rawValue: $0.rawValue) }
                     }
                     tracks[index].artist = item.displayCreator
                 }
@@ -559,6 +622,7 @@ final class PublicYouTubeSession {
                     if let item = page.items.first(where: { $0.id == id.rawValue }) {
                         track.title = item.title; track.artist = item.displayCreator
                         track.metadataOrigin = .youtubeDataAPI; track.metadataFetchedAt = page.fetchedAt
+                        track.contentKind = item.contentKind.flatMap { MusesDomain.Track.ContentKind(rawValue: $0.rawValue) }
                     } else { track.expireYouTubeMetadata(force: true) }
                     try repository?.saveTrack(track); tracks[index] = track
                 }
@@ -896,6 +960,52 @@ final class PublicYouTubeSession {
         return true
     }
 
+    /// Select an existing occurrence without reordering the remaining Up Next entries.
+    /// Commit first so a failed save never interrupts the current player.
+    @discardableResult
+    func selectQueueEntry(_ id: UUID) -> Bool {
+        guard let entry = queue.snapshot.upcoming.first(where: { $0.id == id }),
+              tracks.contains(where: { $0.id == entry.trackID }),
+              case .youtubeVideo = entry.source else { return false }
+        guard editQueue({ proposed in
+            var snapshot = proposed.snapshot
+            guard snapshot.generation < UInt64.max else { throw QueueError.generationExhausted }
+            guard let index = snapshot.upcoming.firstIndex(where: { $0.id == id }) else { throw QueueError.entryNotFound }
+            if let current = snapshot.current { snapshot.history.append(current) }
+            snapshot.current = snapshot.upcoming.remove(at: index)
+            snapshot.generation += 1
+            snapshot.positionMilliseconds = 0
+            snapshot.intent = .pause
+            proposed = try PlaybackQueue(snapshot: snapshot)
+        }) else { return false }
+        recordedEntryID = nil
+        bookmarkSeeking.cancel(); bookmarkCueMilliseconds = nil
+        playbackCommands.reset()
+        state = PlaybackSnapshot(state: .loading, source: entry.source,
+            generation: queue.snapshot.generation, intent: .pause, capabilities: youtubeCapabilities)
+        selectedQueuePlayEntryID = nativePlaybackEnabled ? nil : entry.id
+        selectedQueuePlayerVisible = false
+        if nativePlaybackEnabled || adapter != nil { loadCurrent(nativeAutoplay: nativePlaybackEnabled) }
+        return true
+    }
+
+    /// Called only after Queue dismisses or the selected player appears. This is a
+    /// one-shot request from the row tap; browser policy and real events decide its result.
+    func continueSelectedQueuePlaybackWhenVisible() {
+        guard showPlayer else { return }
+        selectedQueuePlayerVisible = true
+        dispatchSelectedQueuePlaybackIfReady()
+    }
+
+    private func dispatchSelectedQueuePlaybackIfReady() {
+        guard selectedQueuePlayerVisible, let id = selectedQueuePlayEntryID else { return }
+        guard queue.snapshot.current?.id == id else { selectedQueuePlayEntryID = nil; return }
+        guard adapter != nil, adapterGeneration != 0, state.state == .ready || state.state == .paused,
+              !state.capabilities.isEmpty else { return }
+        selectedQueuePlayEntryID = nil
+        togglePlayback()
+    }
+
     func clearUpcoming() {
         guard hasNext else { return }
         editQueue { proposed in
@@ -916,6 +1026,7 @@ final class PublicYouTubeSession {
     }
 
     func detach() {
+        selectedQueuePlayEntryID = nil; selectedQueuePlayerVisible = false
         playbackCommands.reset()
         contentCheck?.cancel()
         contentCheckID = UUID()
@@ -963,15 +1074,22 @@ final class PublicYouTubeSession {
         contentCheck = Task { @MainActor [weak self, weak adapter] in
             guard let self, let adapter else { return }
             let status: VideoEmbeddingStatus
+            var checkedKind: MusesDomain.Track.ContentKind?
             var checkFailure: String?
             do {
                 guard let catalog = self.catalog else { throw APIError.unauthorized }
-                status = try await catalog.videoEmbeddingStatus(id.rawValue)
+                let metadata = try await catalog.videoPlaybackMetadata(id.rawValue)
+                status = metadata.embeddingStatus
+                checkedKind = metadata.contentKind.flatMap { MusesDomain.Track.ContentKind(rawValue: $0.rawValue) }
             } catch { status = .unknown; checkFailure = error.localizedDescription }
             guard !Task.isCancelled, self.contentCheckID == checkID,
                   self.adapter === adapter, !self.deletingLocalData, self.accountEpoch == checkAccountEpoch,
                   self.queue.snapshot.current?.id == entryID else { return }
+            if let index = self.tracks.firstIndex(where: { $0.id == self.queue.snapshot.current?.trackID }) {
+                self.tracks[index].contentKind = checkedKind
+            }
             guard status == .permitted else {
+                self.selectedQueuePlayEntryID = nil
                 self.bookmarkSeeking.cancel()
                 self.state.state = .failed
                 self.state.failure = status == .notEmbeddable ? .notEmbeddable : .permissionDenied
@@ -1064,12 +1182,17 @@ final class PublicYouTubeSession {
             queue.checkpoint(positionMilliseconds: state.positionMilliseconds)
             checkpointPlayback(force: false)
         case .failed(let reason):
+            selectedQueuePlayEntryID = nil
             playbackCommands.reset()
             bookmarkSeeking.cancel()
             hasCurrentPlaybackTime = false
             state.state = .failed
             state.failure = reason == .embeddingDisabled ? .notEmbeddable : .unavailable
             report(reason == .embeddingDisabled ? "This video does not allow embedding. Open it in YouTube." : "YouTube playback failed: \(reason)", for: .playback)
+        }
+        switch event.kind {
+        case .ready, .cued: dispatchSelectedQueuePlaybackIfReady()
+        default: break
         }
     }
 
@@ -1110,6 +1233,7 @@ final class PublicYouTubeSession {
         requestPlaybackCommand(.play)
     }
     func pause() {
+        selectedQueuePlayEntryID = nil
         if nativePlaybackEnabled { nativePlayback.pause() }
         else {
             // Explicit lifecycle/host pause may supersede a pending Play; UI toggle itself
@@ -1123,6 +1247,7 @@ final class PublicYouTubeSession {
     }
 
     func suspendVisiblePlayback() {
+        selectedQueuePlayEntryID = nil; selectedQueuePlayerVisible = false
         playbackCommands.reset()
         if !nativePlaybackEnabled {
             adapter?.pause()
@@ -1253,7 +1378,7 @@ final class PublicYouTubeSession {
         queue = try! PlaybackQueue()
         state = PlaybackSnapshot()
         localSearchItems = []
-        searchPages.reset()
+        resetSearchPages()
         playedIDs = []
         subscriptionPages.reset()
         signedIn = false
@@ -1412,7 +1537,7 @@ extension PublicYouTubeSession {
         } catch { report("Could not clear local items: \(error.localizedDescription)", for: .library)}
     }
     func clearSearchResults() {
-        searchPages.reset(); localSearchItems = []; submittedSearch = ""; submittedSearchIsLocal = false
+        resetSearchPages(); localSearchItems = []; submittedSearch = ""; submittedSearchSources = []
     }
     func clearCatalogDisplay() async {
         resetAccountCatalog()
@@ -1435,6 +1560,7 @@ extension PublicYouTubeSession {
             tracks[index].artist = item.displayCreator
             tracks[index].metadataOrigin = .youtubeDataAPI
             tracks[index].metadataFetchedAt = item.fetchedAt ?? Date()
+            tracks[index].contentKind = item.contentKind.flatMap { MusesDomain.Track.ContentKind(rawValue: $0.rawValue) }
         }
         playlists.append(playlist)
     }

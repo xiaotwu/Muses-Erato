@@ -62,9 +62,9 @@ import XCTest
         let field = app.textFields["public.search"]
         field.tap(); field.typeText("fixture\n")
         XCTAssertTrue(app.staticTexts["Fixture first video"].waitForExistence(timeout: 5))
-        app.buttons["public.searchFilters"].tap(); app.buttons["Playlists"].tap()
+        selectSearchFilter("Playlists", group: "Type", in: app)
         XCTAssertTrue(app.staticTexts["Fixture first video"].exists, "Type selection does not replace results or make a request")
-        XCTAssertTrue(app.staticTexts["Search in Playlist when you submit."].exists)
+        XCTAssertTrue(app.staticTexts["Search filters changed. Submit to update results."].exists)
         app.buttons["public.clearSearch"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["public.searchIdle"].exists)
         XCTAssertFalse(app.staticTexts["Fixture first video"].exists)
@@ -73,7 +73,7 @@ import XCTest
 
     func testSearchVideosEntrySelectsVideoAndFocusesWithoutSubmitting() {
         let app = launch(); app.tabBars.buttons["Search"].tap()
-        app.buttons["public.searchFilters"].tap(); app.buttons["Channels"].tap()
+        selectSearchFilter("Channels", group: "Type", in: app)
         app.tabBars.buttons["Library"].tap()
         let entry = app.buttons["public.start.search"]
         reveal(entry, in: app); entry.tap()
@@ -213,10 +213,11 @@ extension PublicCatalogUITests {
         XCTAssertEqual(app.buttons["public.submitSearch"].label, "Search")
         if largeText { XCTAssertGreaterThan(app.textFields["public.search"].frame.width, app.frame.width * 0.6) }
         capture("Search idle")
-        app.buttons["public.searchFilters"].tap(); app.buttons["On this device"].tap()
+        selectSearchFilter("On this device", group: "Source", in: app)
         app.buttons["public.searchFilters"].tap()
         XCTAssertFalse(app.buttons["Channels"].exists)
         app.buttons["Playlists"].tap()
+        closeSearchFilters(in: app)
         let field = app.textFields["public.search"]
         field.tap(); field.typeText("no-saved-playlist\n")
         XCTAssertTrue(app.descendants(matching: .any)["public.searchEmpty"].waitForExistence(timeout: 5))
@@ -258,5 +259,78 @@ extension PublicCatalogUITests {
         XCTAssertTrue(app.staticTexts["Fixture playlist 2"].exists, "All account playlists load automatically")
         let accountImage = XCTAttachment(screenshot: app.screenshot())
         accountImage.name = "Account nickname with inline playlists"; accountImage.lifetime = .keepAlways; add(accountImage)
+    }
+}
+
+extension XCTestCase {
+    @MainActor func closeSearchFilters(in app: XCUIApplication) {
+        // Tap the blank content inset, outside the anchored system menu.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["public.searchSource.saved"].waitForNonExistence(timeout: 3))
+    }
+    @MainActor func selectSearchFilter(_ choice: String, group: String, in app: XCUIApplication) {
+        let current = app.buttons["public.searchFilters"].value as? String ?? ""
+        let options = group == "Source" ? ["YouTube", "On this device"] : ["Videos", "Playlists", "Channels"]
+        app.buttons["public.searchFilters"].tap()
+        if !current.contains(choice) { app.buttons[choice].tap() }
+        for other in options where other != choice && current.contains(other) { app.buttons[other].tap() }
+        closeSearchFilters(in: app)
+    }
+}
+
+extension PublicCatalogUITests {
+    func testMultiselectSearchQueriesSourcesAndKinds() { checkMultiselectSearch(largeText: false) }
+    func testMultiselectSearchQueriesSourcesAndKindsAtMaximumText() { checkMultiselectSearch(largeText: true) }
+
+    private func checkMultiselectSearch(largeText: Bool) {
+        let app = XCUIApplication()
+        app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        app.launch()
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
+        app.buttons["public.add"].tap(); app.buttons["public.add.create"].tap()
+        app.alerts.textFields.firstMatch.typeText("Fixture local playlist")
+        app.alerts.buttons["Create"].tap()
+        app.tabBars.buttons["Search"].tap()
+        let filters = app.buttons["public.searchFilters"]
+        let settings = app.buttons["Settings"].firstMatch
+        XCTAssertLessThan(filters.frame.midX, settings.frame.midX, "Filters precede Settings in the trailing toolbar")
+        filters.tap()
+        XCTAssertFalse(app.buttons["YouTube"].isEnabled, "The last selected source cannot be cleared")
+        XCTAssertFalse(app.buttons["Videos"].isEnabled, "The last selected type cannot be cleared")
+        for choice in ["On this device", "Playlists", "Channels"] {
+            app.buttons[choice].tap()
+            XCTAssertTrue(app.buttons["public.searchSource.saved"].exists, "Keep menu open for consecutive selections")
+        }
+        closeSearchFilters(in: app)
+        let selected = filters.value as? String ?? ""
+        for choice in ["YouTube", "On this device", "Videos", "Playlists", "Channels"] { XCTAssertTrue(selected.contains(choice)) }
+        let field = app.textFields["public.search"]
+        field.tap(); field.typeText("fixture")
+        let submit = app.buttons["public.submitSearch"]
+        XCTAssertEqual(submit.label, "Search")
+        XCTAssertGreaterThanOrEqual(submit.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(submit.frame.width, 44)
+        submit.tap()
+        let heading = app.staticTexts["public.searchResultsHeading"]
+        let count = NSPredicate(format: "label CONTAINS '4 results'")
+        expectation(for: count, evaluatedWith: heading); waitForExpectations(timeout: 10)
+        let originalHeading = heading.label
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = largeText ? "Multiselect maximum text Search results" : "Multiselect ordinary Search results"
+        screenshot.lifetime = .keepAlways; add(screenshot)
+        for title in ["Fixture local playlist", "Fixture first video", "Fixture public playlist", "Fixture channel"] {
+            reveal(app.staticTexts[title].firstMatch, in: app)
+            XCTAssertTrue(app.staticTexts[title].firstMatch.exists)
+        }
+        filters.tap(); app.buttons["YouTube"].tap()
+        XCTAssertFalse((filters.value as? String ?? "").contains("Channels"))
+        XCTAssertFalse(app.buttons["Channels"].exists)
+        XCTAssertFalse(app.buttons["On this device"].isEnabled)
+        app.buttons["Videos"].tap()
+        XCTAssertFalse(app.buttons["Playlists"].isEnabled)
+        closeSearchFilters(in: app)
+        XCTAssertEqual(heading.label, originalHeading, "Draft changes retain every submitted source and kind")
     }
 }

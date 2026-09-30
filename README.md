@@ -4,14 +4,14 @@ Muses-Erato is the iOS 18+ port of [Muses for macOS](https://github.com/xiaotwu/
 
 ## Current public implementation
 
-- Visible official YouTube IFrame playback, including video links, pause and queue Next.
+- Visible official YouTube IFrame playback with Music/Video layouts, a persistent player surface and fixed playback controls. Music shows cover artwork alongside the visible video; switching layouts preserves playback.
 - Official YouTube Data API search and Google sign-in with OAuth/PKCE.
 - Local saved videos, favorites, listening history and editable playlists.
 - Account-owned playlist and YouTube Music share-link import, with ordered repeated entries and atomic local save.
 - Four Library categories: all saved videos, local playlists, independent favorites and confirmed playback history, with adaptive cards/lists and scoped deletion.
 - Notes and time bookmarks, with paused positioning in the visible player.
-- Queue reordering/removal and a queue-sheet **Clear Up Next** action that preserves the current video.
-- Content-first Home with a + menu, navigation-bar Search filters, Queue in player controls, and adaptive iPhone/iPad navigation.
+- Compact Queue rows support selecting an existing entry for playback, reordering/removal and **Clear Up Next**, with save-failure feedback.
+- Content-first Home with a + menu, icon search submission, multi-select Source/Type filters before Settings, Queue in player controls, and adaptive iPhone/iPad navigation.
 - A concise first-launch consent sheet and a complete, sectioned policy in Settings > Privacy.
 
 Google sign-in, search, visible playback, queue controls and account playlist import/counts/playback have been exercised on a physical iPhone. Automatic loading and original-name refinements are being completed. Notes/bookmarks, migration activation and recovery have simulator/package evidence; live bookmark positioning and final migration/retention acceptance remain open. See [implementation status](docs/implementation-status.md) for exact evidence and remaining gates.

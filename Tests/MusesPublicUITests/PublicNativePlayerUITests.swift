@@ -2,9 +2,16 @@ import XCTest
 
 @MainActor final class PublicNativePlayerUITests: XCTestCase {
     func testNativeControlsMinimizeAndCloudSyncConfirmation() {
+        checkNativeControls(largeText: false)
+    }
+    func testNativeControlsAtMaximumText() {
+        checkNativeControls(largeText: true)
+    }
+    private func checkNativeControls(largeText: Bool) {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
         app.launch()
         app.buttons["public.add"].tap()
         app.buttons["public.add.openLink"].tap()
@@ -43,13 +50,39 @@ import XCTest
         app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: openFrame.midX, dy: openFrame.midY)).tap()
         XCTAssertTrue(app.buttons["player.toggle"].waitForExistence(timeout: 5))
+        let toggle = app.buttons["player.toggle"]
+        for _ in 0..<8 {
+            if toggle.isHittable, toggle.frame.minY.isFinite, app.frame.contains(toggle.frame) { break }
+            app.scrollViews["player.details"].swipeUp()
+        }
+        XCTAssertTrue(toggle.isHittable)
+        XCTAssertFalse(app.segmentedControls["player.presentation"].buttons["Video"].isEnabled, "An audio-only player must not claim video capability")
+        let controlFrame = toggle.frame
+        let queueFrame = app.buttons["player.queue"].frame
+        XCTAssertEqual(controlFrame.midY, queueFrame.midY, accuracy: 1)
+        XCTAssertLessThan(controlFrame.maxX, app.buttons["Next"].frame.minX)
+        let playbackState = app.staticTexts["public.playbackState"]
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Playing'"), object: playbackState)], timeout: 8), .completed)
+        for _ in 0..<3 {
+            toggle.tap()
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Paused'"), object: playbackState)], timeout: 5), .completed)
+            XCTAssertEqual(toggle.frame.minY, controlFrame.minY, accuracy: 1)
+            XCTAssertEqual(app.buttons["player.queue"].frame, queueFrame)
+            toggle.tap()
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Playing'"), object: playbackState)], timeout: 5), .completed)
+            XCTAssertEqual(toggle.frame.minY, controlFrame.minY, accuracy: 1)
+        }
         XCTAssertTrue(app.sliders["Playback position"].exists)
         XCTAssertTrue(app.buttons["player.queue"].isHittable)
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.name = "Native Now Playing (generated silent audio)"; screenshot.lifetime = .keepAlways; add(screenshot)
         app.buttons["Playback actions"].tap()
         XCTAssertTrue(app.buttons["Website playback"].exists)
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.45)).tap()
-        app.buttons["Close player"].tap()
+        app.buttons["Playback info"].tap()
+        XCTAssertTrue(app.navigationBars["Playback info"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.navigationBars["Playback info"].waitForNonExistence(timeout: 5))
+        app.buttons["Close player"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["Close player"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.buttons["player.mini.open"].waitForExistence(timeout: 3))
         let mini = app.buttons["player.mini.open"]
         let tabs = app.tabBars.firstMatch

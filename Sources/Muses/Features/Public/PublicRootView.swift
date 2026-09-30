@@ -138,6 +138,7 @@ struct PublicRootView: View {
                 openPlayerAfterQueueDismissal = false
                 session.showPlayer = true
             }
+            session.continueSelectedQueuePlaybackWhenVisible()
         }) {
             PublicQueueSheet(session: session, onClose: { showingQueue = false }, onOpenPlayer: {
                 openPlayerAfterQueueDismissal = !session.showPlayer
@@ -278,10 +279,7 @@ struct PublicRootView: View {
     }
 
     private var search: some View {
-        PublicSearchScreen(session: session, focusRequested: $searchFocusRequested)
-            .toolbar {
-                settingsToolbar
-            }
+        PublicSearchScreen(session: session, focusRequested: $searchFocusRequested, openSettings: { showSettings = true })
     }
 
     private var homeStartActions: some View {
@@ -596,12 +594,17 @@ private struct PublicWebPlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var scrubPosition = 0.0
     @State private var scrubbing = false
     @State private var adapter: YouTubeIFrameAdapter?
     @State private var confirmingFavoriteRemoval = false
     @State private var removedEntries: [UUID] = []
     @State private var confirmingRemoval = false
+    @State private var showingPlaybackInfo = false
+    @State private var showingNotebook = false
+    @State private var presentation: PublicPlayerPresentation = .video
+    @State private var chosePresentation = false
 
     var body: some View {
         NavigationStack {
@@ -619,20 +622,22 @@ private struct PublicWebPlayerView: View {
                                 .frame(width: min(360, geometry.size.width * 0.35))
                         }
                     } else {
-                        VStack(spacing: 0) {
-                            videoSurface
-                                .padding(.horizontal, 16)
-                                .padding(.top, 12)
+                        let landscape = geometry.size.width > geometry.size.height
+                        let mediaWidth = landscape ? max(272, geometry.size.width * 0.46 - 32) : geometry.size.width - 32
+                        let layout = landscape ? AnyLayout(HStackLayout(alignment: .top, spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
+                        layout {
+                            VStack(spacing: 12) {
+                                PublicPlayerModePicker(selection: Binding(get: { presentation }, set: { presentation = $0; chosePresentation = true }))
+                                    .padding(.horizontal, 4)
+                                mediaSurface(width: mediaWidth, maximumHeight: landscape ? 200 : nil)
+                            }.padding(.horizontal, 16).padding(.top, 12)
+                                .frame(width: landscape ? mediaWidth + 32 : nil)
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 22) {
                                     playerDetails
-                                    queueSection
-                                    if let track = session.currentTrack {
-                                        PublicNotebookContent(session: session, trackID: track.id)
-                                    }
                                 }
                                 .padding(20)
-                            }
+                            }.accessibilityIdentifier("player.details")
                         }
                     }
                 }
@@ -642,10 +647,11 @@ private struct PublicWebPlayerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: { PublicIconActionLabel(title: "Close player", symbol: "chevron.down") }
+                    Button { dismiss() } label: { PublicIconActionLabel(title: "Close player", symbol: "chevron.down").font(.system(size: 22)) }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button("Playback info", systemImage: "info.circle") { showingPlaybackInfo = true }
                         if let track = session.currentTrack {
                             PublicAddToPlaylistMenu(session: session, track: track)
                             if case .youtubeVideo(let id) = track.source,
@@ -653,7 +659,7 @@ private struct PublicWebPlayerView: View {
                                 Button("Website playback", systemImage: "safari") { openURL(url) }
                             }
                         }
-                    } label: { PublicIconActionLabel(title: "Playback actions", symbol: "ellipsis") }
+                    } label: { PublicIconActionLabel(title: "Playback actions", symbol: "ellipsis").font(.system(size: 22)) }
                 }
             }
             .alert("Remove this favorite?", isPresented: $confirmingFavoriteRemoval) {
@@ -667,10 +673,38 @@ private struct PublicWebPlayerView: View {
                     session.editQueue { queue in for id in removedEntries where existing.contains(id) { try queue.remove(id: id) } }
                 }
             }
+            .sheet(isPresented: $showingPlaybackInfo) { PublicPlaybackInfoView(native: false) }
+            .onChange(of: session.queue.snapshot.current?.id, initial: true) { _, _ in
+                chosePresentation = false
+                presentation = session.currentTrack?.contentKind == .music ? .music : .video
+            }
+            .onChange(of: session.currentTrack?.contentKind) { _, kind in
+                if !chosePresentation, !session.isPlaybackCommandPending,
+                   session.state.state != .playing, session.state.state != .buffering {
+                    presentation = kind == .music ? .music : .video
+                }
+            }
+            .onChange(of: session.state.state) { _, state in
+                if state == .playing { chosePresentation = true }
+            }
+            .sheet(isPresented: $showingNotebook) {
+                NavigationStack {
+                    ScrollView {
+                        if let track = session.currentTrack {
+                            VStack(alignment: .leading, spacing: 20) {
+                                PublicCurrentBookmarkButton(session: session, trackID: track.id)
+                                PublicNotebookContent(session: session, trackID: track.id)
+                            }.padding(20)
+                        }
+                    }.navigationTitle("Notes & bookmarks").navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showingNotebook = false } } }
+                }
+            }
             .onAppear {
                 let created = YouTubeIFrameFactory.make()
                 adapter = created
                 session.attach(created)
+                session.continueSelectedQueuePlaybackWhenVisible()
             }
             .onDisappear {
                 session.detach()
@@ -681,31 +715,47 @@ private struct PublicWebPlayerView: View {
 
     private var playerColumn: some View {
         VStack(spacing: 0) {
-            videoSurface
-                .frame(maxWidth: 800)
-                .padding(24)
+            PublicPlayerModePicker(selection: Binding(get: { presentation }, set: { presentation = $0; chosePresentation = true }))
+                .frame(maxWidth: 340).padding(.top, 16)
+            GeometryReader { geometry in mediaSurface(width: min(500, geometry.size.width - 48)).frame(maxWidth: .infinity) }
+                .frame(height: 300).padding(.vertical, 16)
             ScrollView {
                 playerDetails
                     .frame(maxWidth: 750, alignment: .leading)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
-            }
+            }.accessibilityIdentifier("player.details")
         }
+    }
+
+    private func mediaSurface(width: CGFloat, maximumHeight: CGFloat? = nil) -> some View {
+        let availableWidth = max(272, width)
+        let artworkWidth = max(60, min(160, availableWidth - 212))
+        let videoWidth = presentation == .music ? max(200, availableWidth - artworkWidth - 12) : availableWidth
+        return HStack(spacing: presentation == .music ? 12 : 0) {
+            // Keep both child slots alive; only their frames change between layouts.
+            PublicPlayerArtwork(videoID: session.currentTrack?.publicVideoID?.rawValue)
+                .frame(width: presentation == .music ? artworkWidth : 0, height: 200)
+                .clipShape(RoundedRectangle(cornerRadius: 12)).opacity(presentation == .music ? 1 : 0)
+                .accessibilityHidden(true).allowsHitTesting(false)
+            videoSurface
+                .frame(width: videoWidth, height: presentation == .music ? 200 : min(maximumHeight ?? .infinity, max(200, videoWidth * 9 / 16)))
+        }.frame(maxWidth: .infinity)
     }
 
     private var videoSurface: some View {
         Group {
             if let adapter {
                 PublicIFrameSurface(adapter: adapter)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                    .frame(minHeight: 200)
+                    .frame(minWidth: 200, minHeight: 200)
                     .background(.black)
                     .accessibilityLabel("Visible YouTube player")
                     .accessibilityIdentifier("public.iframe")
+                    .accessibilityValue(playerDiagnosticValue(adapter))
             } else {
                 ProgressView("Preparing YouTube player")
                     .frame(maxWidth: .infinity)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                    .frame(minWidth: 200, minHeight: 200)
             }
         }
     }
@@ -716,12 +766,11 @@ private struct PublicWebPlayerView: View {
                 VStack(alignment: .leading, spacing: 4) {
                 Text(session.currentTrack?.displayTitle ?? "Now Playing")
                     .font(.title2.weight(.semibold))
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                     .foregroundStyle(PublicStyle.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(session.state.state.rawValue.capitalized)
-                    .font(.subheadline)
-                    .foregroundStyle(PublicStyle.muted)
-                    .accessibilityIdentifier("public.playbackState")
+                Text(session.currentTrack?.displayArtist ?? "YouTube")
+                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Button {
@@ -729,7 +778,16 @@ private struct PublicWebPlayerView: View {
                 } label: {
                     PublicIconActionLabel(title: session.currentTrack?.liked == true ? "Remove favorite" : "Favorite",
                         symbol: session.currentTrack?.liked == true ? "heart.fill" : "heart")
+                        .font(.system(size: 22))
                 }
+            }
+            playbackControls
+            PublicPlaybackStatus(state: session.state.state.rawValue.capitalized,
+                                 pending: session.isPlaybackCommandPending ? session.playbackToggleLabel : nil)
+            if let milliseconds = session.bookmarkCueMilliseconds {
+                let seconds = Int(milliseconds / 1000)
+                Text("Bookmark at \(seconds / 60):\(String(format: "%02d", seconds % 60)). Press Play to watch.")
+                    .font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("notebook.bookmarkTarget")
             }
             if let message = session.queueFailureMessage {
                 PublicNotice(message: message, symbol: "exclamationmark.circle")
@@ -746,44 +804,65 @@ private struct PublicWebPlayerView: View {
                 Button("Retry saving position", systemImage: "arrow.clockwise") { session.retryPlaybackCheckpoint() }
                     .frame(minHeight: 44).accessibilityIdentifier("public.retryCheckpoint")
             }
-            if session.isPlaybackCommandPending {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text(session.playbackToggleLabel).font(.subheadline)
-                }.accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("public.playbackCommandPending")
-            }
             if let message = session.playbackCommands.failure {
                 PublicNotice(message: message, symbol: "exclamationmark.circle")
                 if session.canRetryPlaybackCommand {
                     Button("Retry control action", systemImage: "arrow.clockwise") { session.retryPlaybackCommand() }
                         .frame(minHeight: 44).accessibilityIdentifier("public.retryPlaybackCommand")
                 }
+                if session.playbackError == nil,
+                   let video = session.currentTrack?.publicVideoID,
+                   let url = URL(string: "https://www.youtube.com/watch?v=\(video.rawValue)") {
+                    Button("Open YouTube", systemImage: "arrow.up.right") { openURL(url) }
+                        .frame(minHeight: 44).accessibilityIdentifier("public.openYouTube")
+                }
             }
-            VStack(spacing: 8) {
+        }.accessibilityElement(children: .contain)
+    }
+
+    private func playerDiagnosticValue(_ adapter: YouTubeIFrameAdapter) -> String {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] != nil {
+            return "\(ObjectIdentifier(adapter)) / webView \(ObjectIdentifier(adapter.view)) / generation \(adapter.currentGeneration) / \(session.currentTrack?.publicVideoID?.rawValue ?? "")"
+        }
+        #endif
+        return ""
+    }
+
+    private var playbackControls: some View {
+            VStack(spacing: 12) {
                 let duration = Double(session.state.durationMilliseconds ?? 0) / 1000
                 let position = Double(session.state.positionMilliseconds) / 1000
                 Slider(value: Binding(get: { scrubbing ? scrubPosition : min(position, max(1, duration)) }, set: { scrubPosition = $0 }), in: 0...max(1, duration), onEditingChanged: { editing in
                     if editing { scrubPosition = position; scrubbing = true }
                     else { scrubbing = false; session.seekPlayback(seconds: scrubPosition) }
                 }).disabled(!session.hasCurrentPlaybackTime || duration <= 0).accessibilityLabel("Playback position")
-                HStack(spacing: 16) {
-                    if let track = session.currentTrack { PublicCurrentBookmarkButton(session: session, trackID: track.id) }
-                    Spacer(minLength: 0)
+                PublicPlaybackTimes(position: scrubbing ? scrubPosition : position, duration: duration)
+                ZStack {
+                    HStack {
+                        Button { showingNotebook = true } label: {
+                            Image(systemName: "text.bubble").font(.system(size: 22)).frame(width: 44, height: 44)
+                        }.accessibilityLabel("Notes & bookmarks").accessibilityIdentifier("player.notebook")
+                        Spacer(minLength: 0)
+                        HStack(spacing: 12) {
+                            Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.system(size: 22)).frame(width: 44, height: 44) }
+                                .disabled(!session.hasNext).accessibilityLabel("Next")
+                            PublicQueueControl(session: session, identifier: "player.queue")
+                                .font(.system(size: 22))
+                        }
+                    }
                     Button { session.togglePlayback() } label: {
-                        Image(systemName: session.state.state == .playing || session.state.state == .buffering ? "pause.fill" : "play.fill").font(.system(size: 36)).frame(width: 64, height: 64)
+                        ZStack {
+                            Image(systemName: session.state.state == .playing || session.state.state == .buffering ? "pause.fill" : "play.fill")
+                                .font(.system(size: 32, weight: .semibold)).opacity(session.isPlaybackCommandPending ? 0.15 : 1)
+                            if session.isPlaybackCommandPending { ProgressView().accessibilityHidden(true) }
+                        }.frame(width: 64, height: 64)
+                            .background(PublicStyle.gold.opacity(0.12), in: Circle())
                     }.disabled(session.state.capabilities.isEmpty || session.isPlaybackCommandPending)
                         .accessibilityLabel(session.playbackToggleLabel)
                         .accessibilityIdentifier("public.playbackToggle")
-                    Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.title2).frame(width: 44, height: 44) }
-                        .disabled(!session.hasNext).accessibilityLabel("Next")
-                    PublicQueueControl(session: session, identifier: "player.queue")
-                    Spacer(minLength: 0)
-                }.buttonStyle(.plain)
+                }.frame(height: 72).buttonStyle(.plain)
             }
-
-            .accessibilityElement(children: .contain)
-        }
     }
 
     @ViewBuilder private var playbackRecoveryActions: some View {
@@ -825,13 +904,17 @@ private struct PublicWebPlayerView: View {
             } else {
                 ForEach(session.queue.snapshot.upcoming) { entry in
                     HStack {
-                        PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID })
+                        Button {
+                            if session.selectQueueEntry(entry.id) { session.continueSelectedQueuePlaybackWhenVisible() }
+                        } label: {
+                            PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID }).frame(minHeight: 44)
+                        }.buttonStyle(.plain)
                         Menu("Queue actions", systemImage: "ellipsis.circle") {
                             Button("Move to next") { session.editQueue { try $0.reorder(id: entry.id, to: 0) } }
                             Button("Remove from queue", role: .destructive) { removedEntries = [entry.id]; confirmingRemoval = true }
                         }
                     }
-                    .padding(12)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(PublicStyle.background, in: RoundedRectangle(cornerRadius: 12))
                 }
             }
@@ -1104,6 +1187,7 @@ struct PublicQueueControl: View {
                 openPlayerAfterDismissal = false
                 session.showPlayer = true
             }
+            session.continueSelectedQueuePlaybackWhenVisible()
         }) {
             PublicQueueSheet(session: session, onClose: { showingQueue = false }, onOpenPlayer: {
                 openPlayerAfterDismissal = !session.showPlayer
@@ -1154,8 +1238,14 @@ struct PublicQueueView: View {
                     Text("The queue is empty. Add videos from video details or a local playlist.").foregroundStyle(.secondary)
                 }
                 ForEach(session.queue.snapshot.upcoming) { entry in
-                    HStack {
-                        PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID }, identifier: "queue.entry.\(entry.id)")
+                    HStack(spacing: 8) {
+                        Button {
+                            guard session.selectQueueEntry(entry.id) else { return }
+                            if let onOpenPlayer { onOpenPlayer() } else { session.showPlayer = true }
+                        } label: {
+                            PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID }, identifier: "queue.entry.\(entry.id)")
+                                .frame(minHeight: 44).contentShape(Rectangle())
+                        }.buttonStyle(.plain).accessibilityIdentifier("queue.select.\(entry.id)")
                         Menu {
                             Button("Move to next", systemImage: "text.line.first.and.arrowtriangle.forward") {
                                 session.editQueue { try $0.reorder(id: entry.id, to: 0) }
@@ -1164,7 +1254,7 @@ struct PublicQueueView: View {
                                 removedEntries = [entry.id]; confirmingRemoval = true
                             }
                         } label: { PublicIconActionLabel(title: "Queue actions", symbol: "ellipsis") }
-                    }
+                    }.listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 12))
                 }
                 .onDelete { indices in
                     removedEntries = indices.map { session.queue.snapshot.upcoming[$0].id }; confirmingRemoval = true
@@ -1221,10 +1311,12 @@ private struct PublicQueueTrackLabel: View {
     let track: MusesDomain.Track?
     var identifier = ""
     var body: some View {
-        HStack(spacing: 12) {
-            PublicCompactHeroCover(videoID: track?.publicVideoID?.rawValue)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(track?.displayTitle ?? "Unavailable song").font(.subheadline.weight(.medium)).lineLimit(2).accessibilityIdentifier(identifier)
+        HStack(spacing: 10) {
+            PublicPlayerArtwork(videoID: track?.publicVideoID?.rawValue)
+                .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 7))
+                .accessibilityHidden(true).allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(track?.displayTitle ?? "Unavailable song").font(.subheadline.weight(.medium)).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier)
                 Text(track?.displayArtist ?? "Unknown artist").font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }.frame(maxWidth: .infinity, alignment: .leading)
         }.frame(maxWidth: .infinity, alignment: .leading)

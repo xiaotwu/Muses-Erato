@@ -195,7 +195,7 @@ private actor MetadataBatchHTTP: HTTPTransport {
         let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
         let ids = query.first { $0.name == "id" }!.value!.split(separator: ",").map(String.init)
         batchSizes.append(ids.count)
-        let items: [[String: Any]] = ids.map { ["id": $0, "snippet": ["title": "Updated \($0)"]] }
+        let items: [[String: Any]] = ids.map { ["id": $0, "snippet": ["title": "Updated \($0)", "categoryId": "10"]] }
         return HTTPResponse(status: 200, body: try JSONSerialization.data(withJSONObject: ["items": items]))
     }
 }
@@ -232,6 +232,8 @@ extension PublicLocalLibraryFlowTests {
         XCTAssertEqual(session.tracks.last?.title, "My custom title")
         XCTAssertEqual(session.queue.snapshot.upcoming.count, 52)
         XCTAssertTrue(session.tracks.dropLast().allSatisfy { $0.metadataFetchedAt != nil })
+        XCTAssertTrue(session.tracks.dropLast().allSatisfy { $0.contentKind == .music })
+        XCTAssertNil(session.tracks.last?.contentKind, "User-authored titles do not imply an API classification")
     }
 }
 
@@ -503,7 +505,7 @@ extension PublicYouTubeFlowTests {
 
 private struct SongMetadataTransport: HTTPTransport {
     func send(_ request: URLRequest) async throws -> HTTPResponse {
-        HTTPResponse(status: 200, body: Data(#"{"items":[{"id":"dQw4w9WgXcQ","snippet":{"title":"Never Gonna Give You Up","channelTitle":"Rick Astley - Topic"}}]}"#.utf8))
+        HTTPResponse(status: 200, body: Data(#"{"items":[{"id":"dQw4w9WgXcQ","snippet":{"title":"Never Gonna Give You Up","channelTitle":"Rick Astley - Topic","categoryId":"10"}}]}"#.utf8))
     }
 }
 @MainActor final class PublicSongMetadataTests: XCTestCase {
@@ -522,6 +524,7 @@ private struct SongMetadataTransport: HTTPTransport {
         await restored.hydrateDisplayMetadata()
         XCTAssertEqual(restored.currentTrack?.displayTitle, "Never Gonna Give You Up")
         XCTAssertEqual(restored.currentTrack?.displayArtist, "Rick Astley")
+        XCTAssertEqual(restored.currentTrack?.contentKind, .music)
         XCTAssertEqual(restored.playlists.first?.trackIDs, [track.id])
         XCTAssertEqual(restored.queue.snapshot.current?.trackID, track.id)
     }
@@ -677,6 +680,77 @@ extension PublicLocalLibraryFlowTests {
 }
 
 extension PublicLocalLibraryFlowTests {
+    func testQueueSelectionCancelledByInactivityDoesNotAutoplayOnLateReadyOrForeground() async throws {
+        let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: allowedCatalog())
+        session.open(try VideoID("abcdefghijk"), title: "Saved")
+        session.enqueueTrack(try XCTUnwrap(session.currentTrack))
+        let adapter = YouTubeIFrameAdapter()
+        session.attach(adapter)
+        await waitForCheck(adapter: adapter, session: session)
+        defer { session.detach() }
+        XCTAssertTrue(session.selectQueueEntry(try XCTUnwrap(session.queue.snapshot.upcoming.first).id))
+        session.showPlayer = true
+        session.continueSelectedQueuePlaybackWhenVisible()
+        session.suspendVisiblePlayback()
+        await waitForCheck(adapter: adapter, session: session)
+        let video = try XCTUnwrap(IFrameVideoID("abcdefghijk"))
+        adapter.onEvent?(.init(videoID: video, generation: adapter.currentGeneration, kind: .ready))
+        XCTAssertNil(session.playbackCommands.pending)
+        XCTAssertNil(session.playbackCommands.failedRequest, "Late Ready after inactivity must not dispatch Play")
+        session.continueSelectedQueuePlaybackWhenVisible()
+        XCTAssertNil(session.playbackCommands.pending)
+        XCTAssertNil(session.playbackCommands.failedRequest, "Foreground return cannot revive the consumed gesture")
+        XCTAssertEqual(session.state.state, .ready)
+    }
+
+    func testQueueSelectionIsAtomicPreservesOccurrencesAndRequestsPlayOnlyWhenVisible() async throws {
+        var failWrites = false
+        let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: allowedCatalog(), beforeQueueSave: {
+            if failWrites { throw CocoaError(.fileWriteNoPermission) }
+        })
+        session.open(try VideoID("abcdefghijk"), title: "First")
+        let first = try XCTUnwrap(session.currentTrack)
+        session.open(try VideoID("lmnopqrstuv"), title: "Second")
+        let second = try XCTUnwrap(session.currentTrack)
+        session.enqueueTrack(first); session.enqueueTrack(second); session.enqueueTrack(first)
+        let adapter = YouTubeIFrameAdapter()
+        session.attach(adapter)
+        await waitForCheck(adapter: adapter, session: session)
+        defer { failWrites = false; session.detach() }
+        session.showPlayer = false
+        let original = session.queue.snapshot
+        let selected = original.upcoming[1]
+        let oldState = session.state
+        failWrites = true
+        XCTAssertFalse(session.selectQueueEntry(selected.id))
+        XCTAssertEqual(session.queue.snapshot, original)
+        XCTAssertEqual(try session.repository?.queue(), original)
+        XCTAssertEqual(session.state.state, oldState.state)
+        XCTAssertNotNil(session.queueFailureMessage)
+        failWrites = false
+        XCTAssertTrue(session.selectQueueEntry(selected.id))
+        XCTAssertEqual(session.queue.snapshot.current, selected)
+        XCTAssertEqual(session.queue.snapshot.upcoming, [original.upcoming[0], original.upcoming[2]])
+        XCTAssertEqual(session.queue.snapshot.history, original.history + [try XCTUnwrap(original.current)])
+        XCTAssertEqual(session.queue.snapshot.generation, original.generation + 1)
+        XCTAssertEqual(session.queue.snapshot.positionMilliseconds, 0)
+        XCTAssertEqual(try session.repository?.queue(), session.queue.snapshot)
+        await waitForCheck(adapter: adapter, session: session)
+        let video = try XCTUnwrap(IFrameVideoID("lmnopqrstuv"))
+        adapter.onEvent?(.init(videoID: video, generation: adapter.currentGeneration, kind: .ready))
+        XCTAssertNil(session.playbackCommands.pending)
+        XCTAssertNil(session.playbackCommands.failedRequest, "Queue is still covering the player")
+        session.showPlayer = true
+        session.continueSelectedQueuePlaybackWhenVisible()
+        // The real bridge is not loaded in this unit test, so dispatch fails honestly.
+        XCTAssertEqual(session.playbackCommands.failedRequest?.action, .play)
+        XCTAssertEqual(session.state.state, .ready, "A row tap cannot fabricate Playing")
+        adapter.onEvent?(.init(videoID: video, generation: adapter.currentGeneration, kind: .playing))
+        XCTAssertEqual(session.state.state, .playing)
+        XCTAssertFalse(session.selectQueueEntry(UUID()))
+        XCTAssertEqual(session.queue.snapshot.current, selected)
+    }
+
     func testFailedQueueSaveKeepsCommittedStateAndScopedErrorsUntilSuccessfulEdit() async throws {
         var failWrites = false
         let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: YouTubeDataCatalog(apiKey: "fake", transport: EmbeddingStatusTransport(status: #"{"madeForKids":false,"embeddable":false}"#)), beforeQueueSave: {
@@ -819,5 +893,95 @@ extension PublicLocalLibraryFlowTests {
         XCTAssertEqual(session.state.state, .paused)
         session.detach()
         XCTAssertNil(session.playbackCommands.pending)
+    }
+}
+
+private actor MultiSearchHTTP: HTTPTransport {
+    private var requests: [(String, String, String?)] = []
+    private var failPlaylistPage = true
+    private var oldRequest: CheckedContinuation<Void, Never>?
+    func waitForOldRequest() async { while oldRequest == nil { await Task.yield() } }
+    func releaseOldRequest() { oldRequest?.resume(); oldRequest = nil }
+    func recorded() -> [(String, String, String?)] { requests }
+    func send(_ request: URLRequest) async throws -> HTTPResponse {
+        let parameters = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems ?? []
+        func value(_ name: String) -> String? { parameters.first { $0.name == name }?.value }
+        let query = value("q") ?? "", kind = value("type") ?? "video", token = value("pageToken")
+        requests.append((query, kind, token))
+        if query == "old" && kind == "video" { await withCheckedContinuation { oldRequest = $0 } }
+        if kind == "playlist", token != nil, failPlaylistPage {
+            failPlaylistPage = false
+            return HTTPResponse(status: 503, body: Data())
+        }
+        let idKey = kind == "video" ? "videoId" : kind == "playlist" ? "playlistId" : "channelId"
+        let id = kind == "video" ? (token == nil ? "abcdefghijk" : "lmnopqrstuv") : kind + (token == nil ? "First" : "Second")
+        var body: [String: Any] = ["items": [["id": [idKey: id], "snippet": ["title": query + " " + kind]]]]
+        if token == nil { body["nextPageToken"] = kind + "-next" }
+        return HTTPResponse(status: 200, body: try JSONSerialization.data(withJSONObject: body))
+    }
+}
+
+extension PublicLocalLibraryFlowTests {
+    func testMultipleSourcesAndKindsQueryIndependentlyAndRetrySubmittedIdentity() async throws {
+        let transport = MultiSearchHTTP()
+        let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: YouTubeDataCatalog(apiKey: "fake", transport: transport))
+        session.open(try VideoID("abcdefghijk"), title: "needle saved")
+        XCTAssertTrue(session.createPlaylist("needle local"))
+        session.searchSources = [.youtube, .saved]
+        session.searchKinds = [.video, .playlist, .channel]
+        await session.search("needle")
+        let first = await transport.recorded()
+        XCTAssertEqual(Set(first.map { $0.1 }), ["video", "playlist", "channel"])
+        XCTAssertEqual(session.savedSearchVideos.count, 1)
+        XCTAssertEqual(session.savedSearchPlaylists.count, 1)
+        XCTAssertEqual(session.searchResultCount, 5)
+        session.searchSources = [.saved]; session.searchKinds = [.video]
+        await session.nextSearchPage(kind: .playlist)
+        XCTAssertNotNil(session.searchPager(for: .playlist).error)
+        XCTAssertEqual(session.searchPager(for: .playlist).items.count, 1)
+        XCTAssertEqual(session.searchPager(for: .video).items.count, 1)
+        XCTAssertEqual(session.savedSearchPlaylists.count, 1)
+        await session.retrySearch(kind: .playlist)
+        XCTAssertNil(session.searchPager(for: .playlist).error)
+        XCTAssertEqual(session.searchPager(for: .playlist).items.count, 2)
+        XCTAssertEqual(session.submittedSearchSources, [.youtube, .saved])
+        XCTAssertEqual(session.submittedSearchKinds, [.video, .playlist, .channel])
+        let calls = await transport.recorded()
+        XCTAssertEqual(calls.suffix(2).map { $0.0 }, ["needle", "needle"])
+        XCTAssertEqual(calls.suffix(2).compactMap { $0.2 }, ["playlist-next", "playlist-next"])
+        XCTAssertEqual(session.searchPager(for: .video).nextPageToken, "video-next")
+    }
+
+    func testMultiselectKeepsValidSelectionsAndOfflineSearchStaysLocal() async throws {
+        let session = PublicYouTubeSession(storeURL: try store())
+        session.searchSources = [.saved]; session.searchKinds = [.channel]
+        session.normalizeSearchSelection()
+        XCTAssertEqual(session.searchKinds, [.video])
+        session.toggleSearchSource(.saved); session.toggleSearchKind(.video)
+        XCTAssertEqual(session.searchSources, [.saved]); XCTAssertEqual(session.searchKinds, [.video])
+        session.toggleSearchKind(.playlist)
+        XCTAssertEqual(session.searchKinds, [.video, .playlist])
+        session.toggleSearchKind(.channel)
+        XCTAssertFalse(session.searchKinds.contains(.channel))
+        await session.search("needle")
+        XCTAssertEqual(session.submittedSearchSources, [.saved])
+        XCTAssertTrue(session.remoteSearchKinds.isEmpty)
+    }
+
+    func testOldSearchResponseCannotPolluteNewSubmissionOrClear() async throws {
+        let transport = MultiSearchHTTP()
+        let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: YouTubeDataCatalog(apiKey: "fake", transport: transport))
+        session.searchKinds = [.video, .playlist]
+        let old = Task { await session.search("old") }
+        await transport.waitForOldRequest()
+        session.searchKinds = [.channel]
+        await session.search("new")
+        await transport.releaseOldRequest(); await old.value
+        XCTAssertEqual(session.submittedSearchQuery, "new")
+        XCTAssertEqual(session.searchItems.map(\.title), ["new channel"])
+        XCTAssertTrue(session.searchPager(for: .video).items.isEmpty)
+        session.clearSearchResults()
+        XCTAssertTrue(session.searchItems.isEmpty)
+        XCTAssertTrue(session.searchPager(for: .channel).items.isEmpty)
     }
 }

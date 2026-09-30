@@ -94,3 +94,33 @@ iPad四项命令在暂停消息到达前已经启动（toolbar-final-ipad-ui.xcr
 `ipad-narrow-corrected-ui.xcresult`：仅重跑失败项 testIPadWindowResizeEntrypoints，1passed/0failed/0skipped，50.0s。最新几何附件明确：Application=(0,0,375,823)，window=(329,219,375,823)，Add=(574.5,233,58,36)。证实旧app.frame不含button是坐标原点差异；屏幕坐标window完全包含Add，真实菜单三项/链接Done及Settings路径全部通过。附件目录 `.artifacts/home-search-redesign/ipad-narrow-corrected-attachments/`，包含bounds与窄窗口截图。此前最新iPad另外3项passed保留，不把此次1项说成重跑完整suite。
 
 仅修改PublicIPadLayoutUITests的边界断言及证据附件；生产代码未改。当前本线source/test均冻结，可以集成提交；不commit/push、不重复Home/Search phone或全iPad suite、不覆盖Session/Player。暂停状态由用户恢复指令解除，失败窄窗口现已解决。
+
+## 实机反馈后的多选搜索方案
+
+用户授权Search图标提交、顶栏Filters在Settings前、多Source/Type实际多选。实现将draft Sources/Kinds保存为集合，submit复制为固定集合；本地video/playlist与YouTube所选kind分组展示，各YouTube kind独立CatalogPager/cursor/error/retry。至少保留一个source/type；无API强制本地并去除Channels，混合源Channels只访问YouTube。本轮只改Search session/界面与Root Search toolbar入口，不触碰playerowner区域；单测覆盖实际请求kind、独立分页失败保留、submitted身份与重试、清除失效、无API/选择规范化。
+
+多选首轮 unit4/4通过，UI普通/最大字号mixed source/type及draft清除3/3通过。UI截图保存multi-search-screenshots/{ordinary,maximum}-search-results.png，toolbar filter→settings实际frame顺序通过，submit icon AXSearch和44×44通过；提交both sources + video/playlist/channel，4项实际结果含local playlist、YouTube video/playlist/channel，切draft保留submitted heading。首屏各类型进一步改并行请求以避免慢组阻塞；Swift taskGroup触发本机编译器region isolation bug，改显式Task集合及取消传递后编译通过，最终unit4+UI3（含分页失败保留、Search videos shortcut）正在复验。没有修改Catalog解析/model owner区域。
+
+集成编译反馈中的region-based isolation error已修：Search并行加载使用显式Task集合+cancel handler，编译成功（player owner可据当前源重新compile，不需要等待测试）。最终回归发现延迟响应test transport对两个old-kind均挂起、只有一continuation造成测试等待；修正为只挂起old video，旧playlist可独立完成，本线暂停自己对应xcresult的测试进程后重跑，不触碰他线sim/runner。
+
+本轮Search生产与test源码已写完并冻结，主线可以build/QA；并行加载编译器问题已解决。当前只是最终4unit+4UI验证/截图，无计划中生产修改；如验证揭示具体问题再明确记录。Source/Type单选兼容测试通过selectSearchFilter helper先选目标再取消其它；实际多选UI测试直接toggle验证真实组合，不降级为单选实现。旧API `searchKind` 仅供Search videos快捷入口替换draft类型，不控制多选提交；session.searchSources/searchKinds是真实集合，submitted各集合独立复制。
+
+## 多选Search完成与最终冻结
+
+最终并行实现 `multi-search-final-verified.xcresult` 8/8passed、0failed/0skipped（103.4s）：4unit（实际多source/kind请求+独立分页失败保留+固定条件retry、至少一项/saved-only Channels规范化、迟返回隔离、原saved-only零网络retry）与4UI（ordinary/max实际mixed sources+3 kinds、分页失败保留与retry、Search videos快捷入口focus/no-submit）。没有重复整个无关suite。最终普通/最大字号图覆盖 `.artifacts/home-search-redesign/multi-search-screenshots/ordinary-search-results.png` 与 `maximum-search-results.png`，来自此最终并行版本；typed结果local/YouTube保留各来源身份并按各行count，不额外跨源去重。
+
+最终源/test都冻结：Search session字段/方法、PublicSearchScreen全部、Root仅Search toolbar；PublicCatalogUITests新增多选普通/max并加入兼容单选场景helper，Import/iPad adapter用helper保持原单选意图，live Search error检查改per-kind id prefix。没有修改Catalog parser、category metadata或Player owner区域，没有commit/push。主线可基于当前工作区做最终集成/真机QA/CI。
+
+## 多选菜单最后的交互完善
+
+按主协调反馈，仅Search menu叶按钮加menuActionDismissBehavior(.disabled)，允许一次展开连续勾选；最后一个已选Source/Type呈disabled并提供至少一项AX hint，session仍保留集合非空校验。相关UIhelper改在同次展开内选择/取消，点击Search导航标题明确关闭菜单。普通/最大字号多选用例新增每次选择后menu仍在与最后选项disabled断言，测试源码已写完，3项针对性复验运行中。网络/session/parsing/Root未改；此前8项网络/布局验证仍记录为此前版本，不冒称新menu已通过。
+
+Persistent菜单首轮已验证连续选择与last选项disabled，但导航标题tap不会关闭系统popover，后续输入被遮挡造成3项adapter失败。仅测试close helper改tap x=2%内容空白inset（位于菜单外且不触发row），并waitForNonExistence确认Source菜单项已移除；生产persistent/disabled保持不变。普通/最大字号+draft/clear针对性复验继续中。
+
+Persistent-menu最终 targeted UI 3/3passed、0failed/0skipped，85.1s，bundle multi-search-persistent-menu-corrected.xcresult。普通/最大字号实际连续多选menu仍保持、最后Source/Typedisabled、混合结果4项、draft固定heading/clear通过。此前并行network/相关快捷入口与分页8/8保留，此次未改session/network。最新ordinary/max图片已从此bundle覆盖multi-search-screenshots目录，输入框fixture在最大字号仍正常显示，clear与44pt提交图标独立可操作。生产/test最终冻结，主线可集成；没有commit/push或编辑其它owner区域。
+
+## 最新整合源 KeyboardDismissal 回归
+
+针对旧9e CI唯一KeyboardDismissalTests失败，在当前完整工作区源（新Search persistent多选+其它owner当前改动）单独运行KeyboardDismissalTests.testOutsideTapDismissesHomeAndSearchKeyboard：1/1passed、0failed/0skipped，37.7s，bundle multi-search-keyboard-ui.xcresult。Home Open link sheet中实际点击public.linkHelp关闭键盘、Search实际点击public.searchIdle关闭键盘，两段原3秒断言均通过。没有放宽timeout、skip、sleep，没有改生产或测试；Search生产冻结持续。旧CI失败根因仍由CI证据分析，不把本机最新通过当旧source根因证明。
+
+CIowner补充只读取证：旧run36773574420/head9e64b0e失败发生在第一次expectNoKeyboard（Home链接sheet），Search段通过；录屏74s键盘可见、76s/80s已视觉关闭并sheet回medium，但XCUI exists等待超时。这证实视觉关闭与AX存在报告不一致，未证明具体AX缓存原因，不据旧失败扩大生产修改。证据在 `/tmp/muses-hosted-36773574420/keyboard-after-help-76s.png`、`keyboard-timeout-80s.png` 与 `keyboard-activities.json`；本线没有重复fetch，保留当前新版实际1/1通过结论。

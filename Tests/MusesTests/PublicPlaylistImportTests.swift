@@ -13,14 +13,16 @@ import MusesNetworking
         defer { try? FileManager.default.removeItem(at: directory) }
         let session = PublicYouTubeSession(storeURL: directory.appending(path: "library.sqlite"))
         var draft = PlaylistImportDraft()
-        let item = CatalogItem(kind: .video, id: "dQw4w9WgXcQ", title: "API secret display title", channelID: nil, thumbnailURL: nil, fetchedAt: Date(), listEntryID: "one")
+        let item = CatalogItem(kind: .video, id: "dQw4w9WgXcQ", title: "API secret display title", channelID: nil, thumbnailURL: nil, fetchedAt: Date(), listEntryID: "one", contentKind: .music)
         try draft.append(.init(items: [item], nextPageToken: nil))
         try session.saveImportedPlaylist(name: "User collection", draft: draft)
         XCTAssertEqual(session.tracks.first?.title, item.title)
+        XCTAssertEqual(session.tracks.first?.contentKind, .music)
         session.toggleFavorite(session.tracks.first!.id)
         let rows = try session.repository!.context.fetch(FetchDescriptor<MusesSchemaV1.Record>())
         XCTAssertFalse(rows.contains { String(data: $0.payload, encoding: .utf8)?.contains(item.title) == true })
         XCTAssertEqual(try session.repository!.list(Track.self, kind: .track).first?.title, "YouTube video dQw4w9WgXcQ")
+        XCTAssertNil(try session.repository!.list(Track.self, kind: .track).first?.contentKind)
         XCTAssertEqual(session.tracks.first?.title, item.title)
     }
 }

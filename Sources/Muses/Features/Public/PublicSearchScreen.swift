@@ -2,37 +2,24 @@ import SwiftUI
 import MusesDomain
 import MusesCatalog
 
-/// Search input is editable independently of the query that produced the visible rows.
+/// Draft filters stay separate from the query and filters that produced visible results.
 struct PublicSearchScreen: View {
     @Bindable var session: PublicYouTubeSession
     @Binding var focusRequested: Bool
+    let openSettings: () -> Void
     @State private var query = ""
-    private var submittedQuery: String { session.submittedSearchQuery }
-    private var submittedKind: MusesCatalog.CatalogItem.Kind { session.submittedSearchKind }
-    @State private var scope: Scope = .youtube
     @FocusState private var focused: Bool
-    @Environment(\.dynamicTypeSize) private var typeSize
-    private enum Scope: String, CaseIterable { case youtube = "YouTube", saved = "On this device" }
-    private var usesLocalResults: Bool { session.isSubmittedSearchLocal }
-    private var localVideos: [MusesDomain.Track] {
-        guard !submittedQuery.isEmpty, submittedKind == .video else { return [] }
-        return session.libraryTracks.filter {
-            $0.displayTitle.localizedCaseInsensitiveContains(submittedQuery) || $0.displayArtist.localizedCaseInsensitiveContains(submittedQuery)
-        }
-    }
-    private var localPlaylists: [LocalPlaylist] {
-        guard !submittedQuery.isEmpty, submittedKind == .playlist else { return [] }
-        return session.playlists.filter { $0.name.localizedCaseInsensitiveContains(submittedQuery) }
-    }
-    private var resultCount: Int { usesLocalResults ? localVideos.count + localPlaylists.count : session.searchItems.count }
-    private var loading: Bool { !usesLocalResults && session.searching }
+    private var submittedQuery: String { session.submittedSearchQuery }
+    private var sourceSummary: String { PublicSearchSource.allCases.filter { session.searchSources.contains($0) }.map(\.rawValue).joined(separator: ", ") }
+    private var kindSummary: String { PublicYouTubeSession.searchKindOrder.filter { session.searchKinds.contains($0) }.map(kindTitle).joined(separator: ", ") }
+    private var filtersChanged: Bool { session.searchSources != session.submittedSearchSources || session.searchKinds != session.submittedSearchKinds }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 searchInput
-                if !submittedQuery.isEmpty && session.searchKind != submittedKind {
-                    Text("Search in \(session.searchKind.rawValue.capitalized) when you submit.").font(.footnote).foregroundStyle(.secondary)
+                if !submittedQuery.isEmpty && filtersChanged {
+                    Text("Search filters changed. Submit to update results.").font(.footnote).foregroundStyle(.secondary)
                 }
                 if !session.apiConfigured {
                     PublicNotice(message: "YouTube search is unavailable in this configuration. Search saved items on this device.", symbol: "wifi.slash")
@@ -48,92 +35,78 @@ struct PublicSearchScreen: View {
         .background(PublicKeyboardDismissal { focused = false })
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Search").navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { filterMenu } }
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                filterMenu
+                Button(action: openSettings) { PublicIconActionLabel(title: "Settings", symbol: "gearshape") }
+            }
+        }
         .onAppear {
-            if !submittedQuery.isEmpty && query.isEmpty { query = submittedQuery; scope = session.isSubmittedSearchLocal ? .saved : .youtube }
-            else if !session.apiConfigured { scope = .saved }
-            normalizeDraftKind()
+            if query.isEmpty { query = submittedQuery }
+            session.normalizeSearchSelection()
             consumeFocusRequest()
         }
         .onChange(of: focusRequested) { _, _ in consumeFocusRequest() }
-        .onChange(of: scope) { _, _ in normalizeDraftKind() }
-        .onChange(of: session.apiConfigured) { _, configured in
-            if !configured { scope = .saved; normalizeDraftKind() }
-        }
+        .onChange(of: session.apiConfigured) { _, _ in session.normalizeSearchSelection() }
     }
 
     private var filterMenu: some View {
         Menu {
             Section("Source") {
-                ForEach(Scope.allCases, id: \.self) { value in
-                    Button { scope = value } label: {
-                        HStack {
-                            Text(value.rawValue)
-                            if scope == value { Image(systemName: "checkmark").accessibilityHidden(true) }
-                        }
+                ForEach(PublicSearchSource.allCases, id: \.self) { source in
+                    Button { session.toggleSearchSource(source) } label: {
+                        Label(source.rawValue, systemImage: session.searchSources.contains(source) ? "checkmark" : "circle")
                     }
-                    .accessibilityAddTraits(scope == value ? .isSelected : [])
-                    .accessibilityIdentifier("public.searchSource." + (value == .youtube ? "youtube" : "saved"))
-                    .disabled(value == .youtube && !session.apiConfigured)
+                    .accessibilityAddTraits(session.searchSources.contains(source) ? .isSelected : [])
+                    .accessibilityIdentifier("public.searchSource." + (source == .youtube ? "youtube" : "saved"))
+                    .disabled((source == .youtube && !session.apiConfigured) || (session.searchSources.contains(source) && session.searchSources.count == 1))
+                    .accessibilityHint("Keep at least one source selected.")
+                    .menuActionDismissBehavior(.disabled)
                 }
             }
             Section("Type") {
-                kindOption("Videos", kind: .video)
-                kindOption("Playlists", kind: .playlist)
-                if scope == .youtube && session.apiConfigured { kindOption("Channels", kind: .channel) }
+                ForEach(PublicYouTubeSession.searchKindOrder, id: \.self) { kind in
+                    if kind != .channel || (session.searchSources.contains(.youtube) && session.apiConfigured) {
+                        Button { session.toggleSearchKind(kind) } label: {
+                            Label(kindTitle(kind), systemImage: session.searchKinds.contains(kind) ? "checkmark" : "circle")
+                        }
+                        .accessibilityAddTraits(session.searchKinds.contains(kind) ? .isSelected : [])
+                        .accessibilityIdentifier("public.searchKind." + kind.rawValue)
+                        .disabled(session.searchKinds.contains(kind) && session.searchKinds.count == 1)
+                        .accessibilityHint("Keep at least one type selected.")
+                        .menuActionDismissBehavior(.disabled)
+                    }
+                }
             }
-        } label: {
-            Image(systemName: "slider.horizontal.3").frame(minWidth: 44, minHeight: 44)
-        }
+        } label: { Image(systemName: "slider.horizontal.3").frame(minWidth: 44, minHeight: 44) }
         .accessibilityLabel("Search filters")
-        .accessibilityValue("\(scope.rawValue), \(kindTitle)")
+        .accessibilityValue(sourceSummary + "; " + kindSummary)
         .accessibilityIdentifier("public.searchFilters")
     }
 
-    private var kindTitle: String {
-        session.searchKind == .video ? "Videos" : session.searchKind == .playlist ? "Playlists" : "Channels"
-    }
-
-    private func kindOption(_ title: String, kind: MusesCatalog.CatalogItem.Kind) -> some View {
-        Button { session.searchKind = kind } label: {
-            HStack {
-                Text(title)
-                if session.searchKind == kind { Image(systemName: "checkmark").accessibilityHidden(true) }
-            }
-        }.accessibilityAddTraits(session.searchKind == kind ? .isSelected : [])
-            .accessibilityIdentifier("public.searchKind." + kind.rawValue)
+    private func kindTitle(_ kind: MusesCatalog.CatalogItem.Kind) -> String {
+        switch kind { case .video: "Videos"; case .playlist: "Playlists"; case .channel: "Channels" }
     }
 
     private var searchInput: some View {
-        Group {
-            if typeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 8) { queryInput; submitButton }
-            } else {
-                HStack(spacing: 8) { queryInput; submitButton }
+        HStack(spacing: 8) {
+            HStack(spacing: 12) {
+                TextField(session.searchSources == [.saved] ? "Search saved items" : "Search titles or creators", text: $query)
+                    .submitLabel(.search).autocorrectionDisabled().focused($focused)
+                    .onSubmit(submit).frame(minHeight: 44).accessibilityIdentifier("public.search")
+                if !query.isEmpty || !submittedQuery.isEmpty {
+                    Button { query = ""; session.clearSearchResults() } label: { PublicIconActionLabel(title: "Clear search", symbol: "xmark.circle") }
+                        .buttonStyle(.plain).accessibilityIdentifier("public.clearSearch")
+                }
+            }.padding(12).background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
+            Button(action: submit) {
+                Image(systemName: "magnifyingglass").font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(PublicStyle.background).frame(minWidth: 44, minHeight: 44)
             }
-        }
-    }
-
-    private var queryInput: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass").font(.system(size: 18)).foregroundStyle(PublicStyle.gold).accessibilityHidden(true)
-            TextField(scope == .saved ? "Search saved items" : "Search YouTube", text: $query)
-                .submitLabel(.search).autocorrectionDisabled().focused($focused)
-                .onSubmit(submit).frame(minHeight: 44).accessibilityIdentifier("public.search")
-            if !query.isEmpty || !submittedQuery.isEmpty {
-                Button { query = ""; session.clearSearchResults() } label: { PublicIconActionLabel(title: "Clear search", symbol: "xmark.circle") }
-                    .buttonStyle(.plain).accessibilityIdentifier("public.clearSearch")
-            }
-        }.padding(12).background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
-    }
-
-    private var submitButton: some View {
-        Button(action: submit) {
-            Text("Search").font(.subheadline.weight(.semibold)).foregroundStyle(PublicStyle.background).frame(minHeight: 44)
-        }
             .buttonStyle(.borderedProminent)
             .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
-            .accessibilityIdentifier("public.submitSearch")
+            .accessibilityLabel("Search").accessibilityIdentifier("public.submitSearch")
+        }
     }
 
     @ViewBuilder private var results: some View {
@@ -141,67 +114,62 @@ struct PublicSearchScreen: View {
             Text("Enter a title or creator.").font(.subheadline)
                 .foregroundStyle(PublicStyle.ink).padding(.top, 8).accessibilityIdentifier("public.searchIdle")
         } else {
+            let sources = PublicSearchSource.allCases.filter { session.submittedSearchSources.contains($0) }.map(\.rawValue).joined(separator: " + ")
+            let kinds = PublicYouTubeSession.searchKindOrder.filter { session.submittedSearchKinds.contains($0) }.map(kindTitle).joined(separator: " + ")
             (Text("Results for “\(submittedQuery)”").font(.headline)
-                + Text("\n\(resultCount) \(resultCount == 1 ? "result" : "results") · \(usesLocalResults ? "On this device" : "YouTube") · \(submittedKind.rawValue.capitalized)").font(.subheadline))
+                + Text("\n\(session.searchResultCount) \(session.searchResultCount == 1 ? "result" : "results") · \(sources) · \(kinds)").font(.subheadline))
                 .foregroundStyle(PublicStyle.ink).accessibilityIdentifier("public.searchResultsHeading")
-            if loading {
-                ProgressView("Searching YouTube").accessibilityIdentifier("public.searchLoading")
-            }
-            if !usesLocalResults, let error = session.searchError {
-                PublicNotice(message: "Couldn’t search YouTube. " + error, symbol: "exclamationmark.circle")
-                    .accessibilityIdentifier("public.searchError")
-                Button("Retry", systemImage: "arrow.clockwise") {
-                    Task {
-                        if session.searchPages.items.isEmpty { await session.retrySearch() }
-                        else { await session.nextSearchPage() }
-                    }
-                }
-                    .buttonStyle(.bordered).frame(minHeight: 44).disabled(loading)
-                    .accessibilityIdentifier(session.searchPages.items.isEmpty ? "public.retrySearch" : "public.retrySearchPage")
-            } else if resultCount == 0 && !loading {
-                PublicEmptyState(symbol: "magnifyingglass", title: usesLocalResults ? "No saved items match “\(submittedQuery)”" : "No results for “\(submittedQuery)”", detail: "Try another title or creator, or choose a different source.")
+            if session.searchResultCount == 0 && !session.searching && session.searchError == nil {
+                PublicEmptyState(symbol: "magnifyingglass", title: "No results for “\(submittedQuery)”", detail: "Try another title or creator, or choose different filters.")
                     .accessibilityIdentifier("public.searchEmpty")
                 Button("Edit search") { focused = true }.frame(minHeight: 44)
             }
-            if usesLocalResults {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    ForEach(localVideos) { track in
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text("Saved video · On this device").font(.caption).foregroundStyle(.secondary)
-                            PublicCollectionRow(session: session, track: track, category: .videos)
-                        }
-                    }
-                    ForEach(localPlaylists) { playlist in
-                        NavigationLink { PublicPlaylistDetail(session: session, playlistID: playlist.id) } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(playlist.name).font(.headline)
-                                Text("Local playlist · On this device").font(.caption).foregroundStyle(.secondary)
-                            }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).padding(.vertical, 8)
-                        }
-                    }
+            if session.submittedSearchSources.contains(.saved) {
+                savedResults
+            }
+            ForEach(session.remoteSearchKinds, id: \.self) { kind in remoteResults(kind) }
+        }
+    }
+
+    private var savedResults: some View {
+        LazyVStack(alignment: .leading, spacing: 8) {
+            Text("On this device").font(.headline).accessibilityAddTraits(.isHeader)
+            ForEach(session.savedSearchVideos) { track in
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Saved video · On this device").font(.caption).foregroundStyle(.secondary)
+                    PublicCollectionRow(session: session, track: track, category: .videos)
                 }
-            } else {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if session.searchItems.contains(where: { $0.source == "local" }) {
-                        Text("Saved on this device").font(.headline).accessibilityAddTraits(.isHeader)
-                        ForEach(session.searchItems.filter { $0.source == "local" }, id: \.rowID) { PublicCatalogRow(session: session, item: $0) }
-                    }
-                    if session.searchItems.contains(where: { $0.source != "local" }) {
-                        Text("YouTube").font(.headline).padding(.top, 12).accessibilityAddTraits(.isHeader)
-                        ForEach(session.searchItems.filter { $0.source != "local" }, id: \.rowID) { PublicCatalogRow(session: session, item: $0) }
-                    }
-                }
-                if session.searchError == nil && session.searchPages.nextPageToken != nil {
-                    Button("Load next page", systemImage: "arrow.down.circle") { Task { await session.nextSearchPage() } }
-                        .frame(minHeight: 44).disabled(loading).accessibilityIdentifier("public.nextSearchPage")
+            }
+            ForEach(session.savedSearchPlaylists) { playlist in
+                NavigationLink { PublicPlaylistDetail(session: session, playlistID: playlist.id) } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(playlist.name).font(.headline)
+                        Text("Local playlist · On this device").font(.caption).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).padding(.vertical, 8)
                 }
             }
         }
     }
 
-    private func normalizeDraftKind() {
-        if (scope == .saved || !session.apiConfigured) && session.searchKind == .channel { session.searchKind = .video }
+    private func remoteResults(_ kind: MusesCatalog.CatalogItem.Kind) -> some View {
+        let pager = session.searchPager(for: kind)
+        return LazyVStack(alignment: .leading, spacing: 8) {
+            Text("YouTube · " + kindTitle(kind)).font(.headline).accessibilityAddTraits(.isHeader)
+            if pager.loading { ProgressView("Searching YouTube").accessibilityIdentifier("public.searchLoading." + kind.rawValue) }
+            ForEach(pager.items, id: \.rowID) { PublicCatalogRow(session: session, item: $0) }
+            if let error = pager.error {
+                PublicNotice(message: "Couldn’t search YouTube \(kindTitle(kind).lowercased()). " + error, symbol: "exclamationmark.circle")
+                    .accessibilityIdentifier("public.searchError." + kind.rawValue)
+                Button("Retry", systemImage: "arrow.clockwise") { Task { await session.retrySearch(kind: kind) } }
+                    .buttonStyle(.bordered).frame(minHeight: 44).disabled(pager.loading)
+                    .accessibilityIdentifier(pager.items.isEmpty ? "public.retrySearch." + kind.rawValue : "public.retrySearchPage." + kind.rawValue)
+            } else if pager.nextPageToken != nil {
+                Button("Load next page", systemImage: "arrow.down.circle") { Task { await session.nextSearchPage(kind: kind) } }
+                    .frame(minHeight: 44).disabled(pager.loading).accessibilityIdentifier("public.nextSearchPage." + kind.rawValue)
+            }
+        }
     }
+
     private func consumeFocusRequest() {
         if focusRequested { focused = true; focusRequested = false }
     }
@@ -209,10 +177,6 @@ struct PublicSearchScreen: View {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !term.isEmpty, !session.searching else { return }
         focused = false
-        if !session.apiConfigured && scope == .youtube { session.searchKind = .video }
-        session.clearSearchResults()
-        if scope == .youtube && session.apiConfigured {
-            Task { await session.search(term) }
-        } else { session.searchSaved(term) }
+        Task { await session.search(term) }
     }
 }
