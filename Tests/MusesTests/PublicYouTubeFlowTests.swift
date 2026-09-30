@@ -712,3 +712,112 @@ extension PublicLocalLibraryFlowTests {
         XCTAssertEqual(try session.repository?.queue(), session.queue.snapshot)
     }
 }
+
+@MainActor final class PublicPlaybackCommandTests: XCTestCase {
+    func testRapidTapsDispatchAckAndOppositeStateCannotPretendPlaybackConfirmed() throws {
+        let commands = PublicPlaybackCommandController(timeout: .seconds(3600))
+        defer { commands.reset() }
+        let play = try XCTUnwrap(commands.begin(.play, generation: 1))
+        XCTAssertNil(commands.begin(.play, generation: 1))
+        XCTAssertNil(commands.begin(.pause, generation: 1), "Rapid taps cannot enqueue contradictory commands")
+        commands.dispatched(play, failure: nil)
+        XCTAssertEqual(commands.pending, play, "JS dispatch acknowledgement does not mean Playing")
+        commands.confirmed(.pause, generation: 1)
+        commands.confirmed(.play, generation: 0)
+        XCTAssertEqual(commands.pending, play)
+        commands.confirmed(.play, generation: 1)
+        XCTAssertNil(commands.pending)
+        XCTAssertNil(commands.failure)
+    }
+
+    func testTimeoutRetryAndOldCallbackCannotClearOrFailNewRequest() throws {
+        let commands = PublicPlaybackCommandController(timeout: .seconds(3600))
+        defer { commands.reset() }
+        let old = try XCTUnwrap(commands.begin(.pause, generation: 1))
+        commands.expire(old)
+        XCTAssertNil(commands.pending)
+        XCTAssertEqual(commands.failedRequest, old)
+        XCTAssertNotNil(commands.failure)
+        let retry = try XCTUnwrap(commands.begin(.pause, generation: 1))
+        commands.dispatched(old, failure: "Old bridge failed")
+        commands.expire(old)
+        XCTAssertEqual(commands.pending, retry)
+        XCTAssertNil(commands.failure)
+        commands.reset()
+        let nextVideo = try XCTUnwrap(commands.begin(.play, generation: 2))
+        commands.confirmed(.play, generation: 1)
+        commands.dispatched(retry, failure: "Old page failed")
+        XCTAssertEqual(commands.pending, nextVideo)
+        commands.confirmed(.play, generation: 2)
+        XCTAssertNil(commands.pending)
+    }
+
+    func testBlockedPlaybackAndDeliveryFailureRemainSeparateAndRecoverable() throws {
+        let commands = PublicPlaybackCommandController(timeout: .seconds(3600))
+        defer { commands.reset() }
+        _ = commands.begin(.play, generation: 1)
+        commands.blocked(generation: 0)
+        XCTAssertNotNil(commands.pending)
+        commands.blocked(generation: 1)
+        XCTAssertNil(commands.pending)
+        XCTAssertNotNil(commands.failedRequest, "Keep generation/action metadata for a later real confirmation")
+        XCTAssertFalse(commands.retryAllowed, "Blocked playback directs the user to visible controls")
+        XCTAssertTrue(try XCTUnwrap(commands.failure).contains("visible player controls"))
+        commands.confirmed(.play, generation: 1)
+        XCTAssertNil(commands.failure, "User playback via the real visible controls clears the blocked notice")
+        let pause = try XCTUnwrap(commands.begin(.pause, generation: 1))
+        commands.dispatched(pause, failure: "Bridge failed")
+        XCTAssertEqual(commands.failedRequest, pause)
+        XCTAssertNil(commands.pending)
+        commands.confirmed(.pause, generation: 1)
+        XCTAssertNil(commands.failure, "A late real confirmation resolves the command failure")
+    }
+
+    func testHostPauseGuardExpiresAtConfirmationAndBackgroundNeverAutoplays() {
+        var policy = IFrameHostPausePolicy()
+        policy.requestPause()
+        XCTAssertTrue(policy.suppressPlaying)
+        policy.endRequest() // Actual Paused/cued event.
+        XCTAssertFalse(policy.suppressPlaying, "The iframe's own Play control works after host Pause")
+        policy.setBackgrounded(true)
+        policy.endRequest()
+        XCTAssertTrue(policy.suppressPlaying, "Pause confirmation does not lift foreground restriction")
+        policy.setBackgrounded(false)
+        XCTAssertFalse(policy.suppressPlaying, "After confirmed Pause, iframe Play works on foreground return")
+        policy.requestPause()
+        policy.setBackgrounded(true)
+        policy.setBackgrounded(false)
+        XCTAssertTrue(policy.suppressPlaying, "Foreground before Pause acknowledgement must still reject late Playing")
+        XCTAssertTrue(policy.pendingPause)
+        policy.endRequest() // Real Paused arrives after foreground.
+        XCTAssertFalse(policy.suppressPlaying)
+        policy.requestPlay() // Explicit user Play is allowed; transition itself did not request it.
+        XCTAssertFalse(policy.suppressPlaying)
+    }
+}
+
+extension PublicLocalLibraryFlowTests {
+    func testPublicHostPauseDoesNotForgeConfirmedStateAndInactiveCancelsPending() async throws {
+        let session = PublicYouTubeSession(storeURL: try store(), catalogOverride: allowedCatalog())
+        session.open(try VideoID("abcdefghijk"), title: "Confirmed")
+        let adapter = YouTubeIFrameAdapter()
+        session.attach(adapter)
+        await waitForCheck(adapter: adapter, session: session)
+        let id = try XCTUnwrap(IFrameVideoID("abcdefghijk"))
+        // Unit event seam verifies session policy, separately from the real-player UI test.
+        adapter.onEvent?(.init(videoID: id, generation: adapter.currentGeneration, kind: .playing))
+        XCTAssertEqual(session.state.state, .playing)
+        session.pause()
+        XCTAssertEqual(session.state.state, .playing, "Only real Paused events change confirmed state")
+        let pending = session.playbackCommands.begin(.play, generation: adapter.currentGeneration)
+        XCTAssertNotNil(pending)
+        session.suspendVisiblePlayback()
+        XCTAssertNil(session.playbackCommands.pending)
+        XCTAssertNil(session.playbackCommands.failure)
+        XCTAssertEqual(session.state.state, .playing)
+        adapter.onEvent?(.init(videoID: id, generation: adapter.currentGeneration, kind: .paused))
+        XCTAssertEqual(session.state.state, .paused)
+        session.detach()
+        XCTAssertNil(session.playbackCommands.pending)
+    }
+}

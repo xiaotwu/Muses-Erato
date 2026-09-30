@@ -1,6 +1,15 @@
 # Remaining CI / runtime validation
 
-Date: 2026-09-29 (America/Los_Angeles). Work is in progress. Coordinator owns commit/push/PR/dispatch and physical-device signing; this stream performs local validation and read-only GitHub inspection.
+Date: 2026-09-29–30 (America/Los_Angeles). Local CI/runtime work completed; subsequent remote execution remains coordinator-owned. Coordinator owns commit/push/PR/dispatch and physical-device signing; this stream performs local validation and read-only GitHub inspection.
+
+## Final local outcome
+
+- Whole phone Public suite, one invocation of current generated composition: **30 passed / 0 failed / 2 explicit live skips**, total32, exit0. Result `/tmp/muses-quality-remaining-20260929/public-ui-current.xcresult`; summary `public-ui-current-summary.json`; 867.860 seconds test execution. iPad class excluded by scheme, not counted as idiom skips. New live/iPad files compiled in this build. Later new Settings contrast test was added after compilation and has owner evidence; not included in this32.
+- Official iOS18.2/22C150 imported, available, actually booted; four selected Public UI checks **4 passed / 0 failed / 0 skipped**, exit0. Earlier CLI “unavailable” outcomes are superseded for achievable runtime18 coverage by the successful portal18.2 route.
+- Final CI/spec routing validated using actionlint1.7.12, YAML, shell/Python and generated XML. MusesPublicAccessibilityAudit remains a strict optional diagnostic with raw findings, not a pass.
+- Default Public Release rebuilt/audited successfully after plist metadata update. Real hosted execution is not claimed from local checks. Coordinator has separately committed/pushed; this stream made no commits or remote writes except explicitly authorized coordination messages.
+
+The phone suite's start/end fingerprints differ due to concurrent owner fixes and own manifest routing. Full list: `public-ui-current-changes.json`. Package/API decoding changed after its build; this UI result does not prove the final branch freeze. Per coordinator instruction, no third whole local suite was started; final remote CI covers the newer freeze. Runtime18 start/end production/Packages/Platform hashes match, with only owner iPad test class split differing after compilation. Historical progress below is retained to distinguish initial unavailable/download attempts and prior composition from final results.
 
 ## Full Public UI, one command
 
@@ -83,3 +92,82 @@ Actual `xcodebuild test` completed exit0 with Xcode27 on imported iOS18.2/22C150
 
 All four used actual runtime18 UI automation. Production/Packages/Platform hashes at runtime18 start/end remain identical; test-owner audit class split changed only the UI source listed below, after compilation. This does not invalidate the four selected unchanged methods; it does not cover new audit composition.
 - `Tests/MusesPublicUITests/PublicIPadLayoutUITests.swift`
+
+## Final phone result and resource cleanup
+
+Phone suite finished 2026-09-30 00:16:39 PDT: all32 scheduled methods completed, 30passes and only PublicLiveServiceUITests' two opt-in skips, no failures. Full log and xcresult remain at the paths above. Fingerprints `public-ui-current-start.json`, `public-ui-current-end.json`, `public-ui-current-changes.json` retain the exact8 changed tracked paths, including the4 production owner files,2 test files and2 manifests. No third full invocation.
+
+Only this stream's iOS26.5 phone and newly created iOS18.2 simulator are shut down after evidence collection; device definitions, completed official disk image and all existing/new runtimes retained. Other owners' simulators and physical device untouched.
+
+## Remote Native failure follow-up (2026-09-30)
+
+Baseline head `d25825c4c32b6e3961154c05d94d34b4142f1355`, run36682903307, Native job109782216578. Distribution and units passed; NativeUI artifact11083496573 reports **1passed/1failed/0skipped** on iPhone17Pro/iOS26.5/23F77, hosted Xcode26.6. Sole failure is controls method line31, `XCTAssertFalse(openPlayer.frame.isEmpty)`. Settings disappearance and mini existence had already succeeded; subsequent frame reads/center tap, native toggle, position slider, hittable queue, Website playback, and final mini geometry assertions all passed. Post-failure Native Now Playing screenshot confirms rendered controls. This is a transient AX frame-readiness check after sheet dismissal, not evidence for the later unpushed Add menu or Play/Pause changes.
+
+Logs retrieved read-only with `gh api --allow-escape-sequences`, redirected then ANSI-sanitized; treated only as data. Evidence root `/tmp/muses-native-remote-36682903307`: `job-sanitized.log`, artifact/NativeUI.xcresult, summary.json, all-attachments/manifest.json. Repeated artifact extraction returned existing-file error; original extracted NativeUI summary and attachments are readable.
+
+Patch replaces mini existence-only wait with a predicate requiring existence plus nonempty on-screen frame **within the same5second budget**. Original geometric assertions and every business assertion remain. No sleeps, larger timeout, extra skip or production changes. UI owner's two new Add-menu entry changes preserved in current file. Isolated archived baseline copy receives only this readiness patch and retains baseline old entrypoint; validating its entire two-method NativeUI class locally on exclusive iPhoneAir/iOS26.5 with Xcode27 (`patched-baseline.xcresult`). This separates remote baseline diagnosis from current production edits and is not a hosted Xcode26.6 rerun. Result pending.
+
+Native follow-up completed: isolated d25825c + readiness patch **2passed/0failed/0skipped**, xcodebuild exit0. Home/History70.027s; controls54.773s. Evidence `/tmp/muses-native-remote-36682903307/patched-baseline.xcresult`, patched-summary.json and patched-baseline.log. Comparing all tracked Swift/plist/manifests in the archived copy against d25825c confirms the only difference is PublicNativePlayerUITests.swift (baseline-source-differences.json). No production or CI change was needed. Current shared file includes the same patch plus owner's already-present Add-menu adaptations; those latest layout changes are not covered by the isolated baseline result. Hosted Xcode26.6 confirmation remains the next coordinator-owned run.
+
+## Latest affected iOS18 regression and hosted Public follow-up
+
+Coordinator froze current Home/Search/player production after d25825c and requested affected-only iOS18.2 checks, no live service and no full suite. Started a temporary ignored MusesRuntime18Affected scheme selecting six existing fixture tests: simplified populated Home/Add/Search hierarchy (ordinary and maximum text), empty Home, Search type change/submission/clear identity, basic new-install Add/OpenLink/player/Library route, and Made-for-Kids recovery surface. Evidence root `/tmp/muses-runtime18-affected-20260930`, `affected.xcresult`/`affected.log`, complete source start fingerprint `source-start.json`. Actual iOS18.2 iPhone16Pro795B1D41-210F-4A34-99B1-7D9CA42F851A; no other owner's simulator used. No tracked test/spec/production changes in this phase. Results pending.
+
+Hosted baseline Public job109782216622 is still in progress; read-only GET returned no completed failure state. Job log endpoint404 while active is not evidence of an application failure. Native failure diagnosis remains separate as above. Will retrieve the completed job and any failure artifact when available.
+
+Latest pre-final-layout iOS18 affected result: **5passed/1failed/0skipped**, exit65, `/tmp/muses-runtime18-affected-20260930/affected.xcresult` and summary.json. Only testSimplifiedEmptyHome line158 (`public.add.isHittable`) failed. Both populated Home/Add/Search ordinary/maximum text, Search draft/submitted kind identity, basic Add/player/Library route and recovery surface passed. Empty Home screenshot shows Home title and Add+ clearly visible; it does not reproduce owner's later iOS26 screenshot lacking that toolbar.
+
+Ignored one-case empty-Add diagnostic retains a strict5s `isHittable` wait and **fails1/1**: exists=true and frame(284.7,52.3,58.3,52) valid, but isHittable=false persists across all5s. Then actual XCTest button.tap() opens Add menu; openLink/import/create entries all pass hittability assertions. Log shows system computed hit point{-1,-1}; this is not proved to be a transient readiness issue, so no timeout increase/wait-only patch applied to the owned test. Evidence empty-add-diagnostic.xcresult/log and retained AX tree/menu screenshot. No original failure has been suppressed.
+
+Coordinator subsequently requested a further final layout (Home plus-only, Search filters toolbar menu, Queue in player/mini), owned by UI/session streams. Above result predates that change; waiting for explicit freeze before any further affected rerun. Fingerprint captured after completion is named source-post-completion.json, not asserted as an exact end-of-test snapshot.
+
+## Hosted Public baseline completed; iPad CI environment scope fixed
+
+Run36682903307/d25825c Public job109782216622 completed failure **before any iPad test**. Public artifact11084290430 (`quality-Public`, 13.5MB) contains Public.xcresult: **82passed/0failed/2skipped**, total84 =51unit passes+31UI passes+2live skips. Its app regression step ran07:26:33–07:53:51UTC (27m18s), UI execution1328.301s (22m08s), versus earlier local current phone867.860s; no evidence of a hung test or60m timeout. Distribution/audit also succeeded.
+
+The iPad step created7E5EAF24-F8BF-42C9-A6B9-DFC1A046B46B, bootstatus reached terminalFinished, then shell failed `MUSES_CI_IPAD: unbound variable`. Root cause: Python appended UDID to GITHUB_ENV and the same run shell immediately tried to expand it; GitHub imports that file for later steps, not the writer's current step. No PublicIPad.xcresult exists, so no iPad application assertions executed.
+
+Fixed quality.yml by splitting Create isolated iPad test simulator and subsequent Run Public iPad regression. Cleanup still gets envUDID, all test scopes/timeouts unchanged. actionlint, all12 run blocks' bash syntax, Python compilation and explicit writer/next-step consumer structural assertions passed. Hosted rerun remains coordinator-owned. Read-only evidence: `/tmp/muses-native-remote-36682903307/public-job-sanitized.log`, public-status.json, public-artifact/Public.xcresult, public-summary.json.
+
+GitHub environment-file scope is corroborated by [official workflow commands documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable): writer steps do not receive the new value; subsequent steps do.
+
+Hosted Settings strict contrast audit passed13.669s in Public baseline, remains normal gate. Final-layout rerun has intentionally not started before the coordinator freeze signal; prior affected6/diagnostic failures remain visible. CI fix is ready for integration, no commit/push/dispatch by this stream.
+
+## Final flat-menu Home/Search iOS18 targeted invocation
+
+On coordinator's explicit UI-owner freeze signal, started five related existing methods only: populated simplified hierarchy ordinary/maximum text, emptyHome ordinary/maximum text, and Search type draft/submitted identity. Home is symbol-only plus; Search uses one flat filter menu with Source/Type sections. The owner replaced unreliable emptyHome AX-hittable-only check with validbounds plus actual menu-open/action assertions. Earlier raw5/6 and diagnostic failure remain preserved; this invocation tests the newly adapted behavior. No live/restriction/full-suite rerun.
+
+Evidence `/tmp/muses-runtime18-flat-menu-20260930/flat-menu.xcresult`, flat-menu.log, source-start.json. Using previously imported iOS18.2 iPhone16Pro, existing independent runtime18 DerivedData. Session queue changes are not yet claimed frozen or validated here; waiting for separate signal before player/mini affected checks.
+
+## Paused at explicit user request — 2026-09-30
+
+Only the already-running final flat-menu command was allowed to finish. Result **5passed/0failed/0skipped**, xcodebuild exit0. Complete evidence `/tmp/muses-runtime18-flat-menu-20260930/flat-menu.xcresult`, summary.json and flat-menu.log. Five methods: populated Home/Add/flat Source-Type Search ordinary/maximum text; emptyHome plus actual-menu route ordinary/maximum text; Search type selection preserves submitted results until new submit, clear returns idle. No live service run or whole-suite rerun.
+
+Start/end fingerprints saved as source-start.json/source-end.json/source-changes.json. Concurrent session/test changes listed below are retained; this result does not verify the later Queue sheet→visible player handoff, final player/mini Queue placement or queued-only recovery on iOS18. Those planned extra checks were **not started**. No new suite, remoteCI, commit/push or further code modification after the pause signal. Existing Native readiness adapter and iPad CI environment-scope fixes are prepared but hosted rerun remains unverified. Earlier affected5/6 and persistent emptyAdd AX diagnosis stay preserved, superseded only for the new owner-adapted emptyHome behavior by these real final5passes.
+
+Resume only on an explicit human-user command. On resume: obtain latest UI/session freeze; run only the still-unverified Queue routes on iOS18 if still requested; coordinator owns integration commit/push and hosted confirmation.
+
+Concurrent changed paths:
+- `Sources/Muses/Features/Public/PublicNativePlayerView.swift`
+- `Sources/Muses/Features/Public/PublicRootView.swift`
+- `Tests/MusesPublicUITests/PublicQueuePlacementUITests.swift`
+
+
+## Resumed integration checks — 2026-09-30
+
+The user explicitly resumed work after the earlier pause and authorized physical-device QA. The coordinator owns that QA and the final commit/push; this workstream performed only isolated local unit, distribution compilation and read-only CI checks.
+
+Current source snapshot verification, using Xcode 27.0 (27A266a), iOS 26.5 (23F77), dedicated iPhone Air simulator `E48EB26A-B7BF-45E6-82D7-BA46C3ACA8C8`:
+
+- Public app unit tests: **56 passed, 0 failed, 0 skipped**.
+- Native common + engine unit tests: **58 passed, 0 failed, 0 skipped**.
+- Public Release and Native distribution configurations: generic simulator builds both succeeded (unsigned; arm64 and x86_64).
+- Public static artifact audit passed. Signed entitlements remain unverified on these unsigned simulator artifacts.
+- All current Public UI target sources compiled during the Public unit build; no UI cases were executed in this resumed check.
+- iFrame contract checks passed, including stale same-video callback and blocked-playback event gating.
+- `actionlint`, all 12 workflow shell block syntax checks and embedded Python compilation passed.
+- Source fingerprints across `Sources/**/*.swift`, `Tests/**/*.swift` and both project specifications were unchanged from the start through the end of these checks.
+
+Evidence: `/tmp/muses-quality-resumed-20260930`, including both `.xcresult` bundles, summary JSON, distribution logs, artifact audit log and source fingerprints. Generated projects are ignored under `.artifacts/quality-resume-public` and `.artifacts/quality-resume-native`; derived data is independent. The dedicated simulator was shut down after verification; other owners' simulators and the physical device were untouched.
+
+Read-only hosted baseline `36682903307`, head `d25825c4c32b6e3961154c05d94d34b4142f1355`, remains completed with failure. The existing iPad `GITHUB_ENV` writer/consumer split and Native button readiness fix are retained. These local results do not establish SDK 26.6 compilation or a repaired hosted run; the coordinator's final integrated commit/push must trigger that confirmation. No commit, push, dispatch or repeated Home/Search/iOS 18 UI run was performed by this workstream.

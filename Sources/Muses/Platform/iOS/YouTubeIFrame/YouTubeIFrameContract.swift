@@ -26,7 +26,7 @@ enum IFrameFailure: Equatable, Sendable {
 }
 
 enum IFrameEventKind: Equatable, Sendable {
-    case loading, ready, playing, paused, buffering, ended, cued
+    case loading, ready, playing, paused, buffering, ended, cued, playBlocked
     case time(position: Double, duration: Double)
     case failed(IFrameFailure)
 }
@@ -80,6 +80,7 @@ struct IFrameEventGate {
 
         let kind: IFrameEventKind
         switch name {
+        case "playBlocked": kind = .playBlocked
         case "ready": kind = .ready
         case "playing": kind = .playing
         case "paused": kind = .paused
@@ -111,4 +112,16 @@ struct IFrameEventGate {
         }
         return IFrameEvent(videoID: id, generation: generation, kind: kind)
     }
+}
+
+/// A host pause blocks a late Playing event only until pause is confirmed. Background
+/// suppression remains independent, and returning to the foreground never requests playback.
+struct IFrameHostPausePolicy {
+    private(set) var backgrounded = false
+    private(set) var pendingPause = false
+    var suppressPlaying: Bool { backgrounded || pendingPause }
+    mutating func requestPlay() { pendingPause = false }
+    mutating func requestPause() { pendingPause = true }
+    mutating func endRequest() { pendingPause = false }
+    mutating func setBackgrounded(_ value: Bool) { backgrounded = value; if value { pendingPause = true } }
 }

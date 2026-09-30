@@ -10,7 +10,7 @@ import XCTest
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         // Deliberately omit the fixture catalog: requests and player events must be real.
         app.launch()
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 15))
         return app
     }
 
@@ -29,7 +29,8 @@ import XCTest
 
     func testRealVisibleYouTubePlayerReportsPlaying() throws {
         let app = try liveApp()
-        app.buttons["public.openLinkEntry"].tap()
+        app.buttons["public.add"].tap()
+        app.buttons["public.add.openLink"].tap()
         let field = app.textFields["public.link"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()

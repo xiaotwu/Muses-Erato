@@ -6,8 +6,9 @@ import XCTest
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
-        app.buttons["public.openLinkEntry"].tap()
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
+        app.buttons["public.add"].tap()
+        app.buttons["public.add.openLink"].tap()
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText("dQw4w9WgXcQ")
@@ -36,8 +37,9 @@ import XCTest
     }
     private func openVideo(_ id: String, app: XCUIApplication) {
         app.launch()
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
-        app.buttons["public.openLinkEntry"].tap()
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
+        app.buttons["public.add"].tap()
+        app.buttons["public.add.openLink"].tap()
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText(id)
@@ -50,7 +52,7 @@ import XCTest
         app.buttons["library.add"].tap()
         reveal(app.buttons["public.createPlaylist"], in: app)
     }
-    func testClearUpNextFromLibraryTopAndPlayer() {
+    func testClearUpNextFromMiniPlayerAndPlayer() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
@@ -67,17 +69,16 @@ import XCTest
         reveal(app.buttons["Add to queue"], in: app); app.buttons["Add to queue"].tap()
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["public.queue"].tap()
-        let menuClear = app.buttons["Clear Up Next"]
+        let menuClear = app.buttons["public.clearUpNext"]
         XCTAssertTrue(menuClear.isEnabled)
         menuClear.tap()
         XCTAssertTrue(app.staticTexts["Your current video and playback are kept. Only upcoming videos are removed."].exists)
         app.alerts.buttons["Cancel"].tap()
-        app.buttons["public.queue"].tap(); app.buttons["Clear Up Next"].tap()
+        app.buttons["public.clearUpNext"].tap()
         app.alerts.buttons["Clear Up Next"].tap()
         app.terminate(); app.launch(); app.tabBars.buttons["Library"].tap()
         app.buttons["public.queue"].tap()
-        XCTAssertFalse(app.buttons["Clear Up Next"].isEnabled)
-        app.buttons["Open Queue"].tap()
+        XCTAssertFalse(app.buttons["public.clearUpNext"].isEnabled)
         XCTAssertTrue(app.staticTexts["Now playing"].exists)
         XCTAssertTrue(app.staticTexts["YouTube video dQw4w9WgXcQ"].exists)
     }
@@ -86,7 +87,7 @@ import XCTest
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
         if app.tabBars.buttons["Library"].exists { app.tabBars.buttons["Library"].tap() }
         else { app.buttons["Library"].firstMatch.tap() }
         selectCategory("Playlists", app: app)
@@ -168,7 +169,6 @@ import XCTest
             app.swipeDown()
         }
         app.buttons["public.queue"].tap()
-        app.buttons["Open Queue"].tap()
         XCTAssertTrue(app.navigationBars["Queue"].exists)
         XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'queue.entry.'")).count, 2)
         app.buttons["Edit"].tap()

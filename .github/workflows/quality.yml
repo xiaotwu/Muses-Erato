@@ -111,7 +111,7 @@ jobs:
             -destination "platform=iOS Simulator,id=$MUSES_CI_SIMULATOR" \
             -derivedDataPath "$RUNNER_TEMP/regression" -resultBundlePath "$RUNNER_TEMP/${{ matrix.channel }}.xcresult" \
             -parallel-testing-enabled NO -collect-test-diagnostics never CODE_SIGNING_ALLOWED=NO test
-      - name: Run Public iPad regression
+      - name: Create isolated iPad test simulator
         if: matrix.channel == 'Public'
         shell: bash
         run: |
@@ -131,6 +131,11 @@ jobs:
           subprocess.run(['xcrun', 'simctl', 'boot', udid], check=True)
           subprocess.run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], check=True)
           PY
+      - name: Run Public iPad regression
+        if: matrix.channel == 'Public'
+        shell: bash
+        run: |
+          set -euo pipefail
           xcodebuild -project '${{ matrix.directory }}/${{ matrix.project }}.xcodeproj' \
             -scheme MusesPublicIPad -configuration Debug \
             -destination "platform=iOS Simulator,id=$MUSES_CI_IPAD" \

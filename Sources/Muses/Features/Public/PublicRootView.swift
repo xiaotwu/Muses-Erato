@@ -94,7 +94,7 @@ struct PublicRootView: View {
             } else {
                 if #available(iOS 26.1, *) {
                     compactTabs(systemAccessory: true)
-                        .tabViewBottomAccessory(isEnabled: session.currentTrack != nil && !session.showPlayer) {
+                        .tabViewBottomAccessory(isEnabled: (session.currentTrack != nil || session.hasNext) && !session.showPlayer) {
                             PublicMiniPlayer(session: session, systemAccessory: true)
                         }
                 } else {
@@ -111,7 +111,7 @@ struct PublicRootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await session.maintainCatalogData(); await session.hydrateDisplayMetadata() } }
-            else { session.checkpointPlayback(force: true) }
+            else { session.suspendVisiblePlayback() }
         }
         .task(id: session.apiConfigured) { await session.hydrateDisplayMetadata() }
         .tint(PublicStyle.gold)
@@ -155,7 +155,7 @@ struct PublicRootView: View {
     }
 
     @ViewBuilder private var miniPlayer: some View {
-        if session.currentTrack != nil && !session.showPlayer { PublicMiniPlayer(session: session) }
+        if (session.currentTrack != nil || session.hasNext) && !session.showPlayer { PublicMiniPlayer(session: session) }
     }
 
     @ViewBuilder
@@ -180,8 +180,7 @@ struct PublicRootView: View {
                     PublicHomeSavedVideos(session: session)
                 }
                 PublicHomeLocalPlaylists(session: session, showAll: { session.selectedCategory = .playlists; selection = .library })
-                PublicHomePlaylistShelves(session: session, showAccount: { showSettings = true })
-                if !session.libraryTracks.isEmpty || !session.playlists.isEmpty || !session.accountPlaylistPages.items.isEmpty { startActions }
+                if session.signedIn { PublicHomePlaylistShelves(session: session, showAccount: { showSettings = true }) }
             }
             .frame(maxWidth: 900, alignment: .leading)
             .padding(.horizontal, PublicStyle.inset).padding(.vertical, 12)
@@ -196,10 +195,19 @@ struct PublicRootView: View {
         .navigationTitle("Home").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { activeTool = .link } label: { PublicIconActionLabel(title: "Open YouTube link", symbol: "link") }
-                    .accessibilityIdentifier("public.openLinkEntry")
+                Menu {
+                    Button { activeTool = .link } label: { Label("Open YouTube link", systemImage: "link") }
+                        .accessibilityIdentifier("public.add.openLink")
+                    Button { activeTool = .importPlaylist } label: { Label("Import playlist", systemImage: "square.and.arrow.down") }
+                        .accessibilityIdentifier("public.add.import")
+                    Button { playlistName = ""; creatingPlaylist = true } label: { Label("Create local playlist", systemImage: "plus.rectangle.on.folder") }
+                        .accessibilityIdentifier("public.add.create")
+                } label: {
+                    Image(systemName: "plus").frame(minWidth: 44, minHeight: 44)
+                }
+                    .accessibilityLabel("Add to library")
+                    .accessibilityIdentifier("public.add")
             }
-            queueToolbar
             settingsToolbar
         }
     }
@@ -254,14 +262,32 @@ struct PublicRootView: View {
 
     private var search: some View {
         PublicSearchScreen(session: session, focusRequested: $searchFocusRequested)
-            .toolbar { queueToolbar; settingsToolbar }
+            .toolbar {
+                settingsToolbar
+            }
     }
 
     private var homeStartActions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PublicEmptyState(symbol: "play.rectangle", title: "Start your library", detail: "Find a video, open a YouTube link, or import a playlist.")
-            startActions
-        }.accessibilityIdentifier("home.empty")
+            Text("Start your library").font(.title2.weight(.bold)).accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("home.empty")
+            Text("Search for a video, or use + to open a link or import a playlist.").font(.subheadline).foregroundStyle(PublicStyle.ink)
+            Button { session.searchKind = .video; searchFocusRequested = true; selection = .search } label: {
+                Label("Search videos", systemImage: "magnifyingglass").foregroundStyle(PublicStyle.background)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }.buttonStyle(.borderedProminent).accessibilityIdentifier("public.start.search")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 20) { homeSecondaryActions }
+                VStack(alignment: .leading, spacing: 4) { homeSecondaryActions }
+            }
+        }.padding(20).background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    @ViewBuilder private var homeSecondaryActions: some View {
+        Button { activeTool = .link } label: { Label("Open link", systemImage: "link").frame(minHeight: 44).contentShape(Rectangle()) }
+            .buttonStyle(.plain).accessibilityIdentifier("public.start.link")
+        Button { activeTool = .importPlaylist } label: { Label("Import playlist", systemImage: "square.and.arrow.down").frame(minHeight: 44).contentShape(Rectangle()) }
+            .buttonStyle(.plain).accessibilityIdentifier("public.start.import")
     }
 
     private var startActions: some View {
@@ -323,7 +349,6 @@ struct PublicRootView: View {
             Button("Sync details") { Task { await session.refreshSavedMetadata() } }
         } message: { Text("Updates saved titles and metadata using cloud information. Local playlists and notes remain.") }
         .toolbar {
-            queueToolbar
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { activeTool = .importPlaylist } label: { Label("Import playlists", systemImage: "square.and.arrow.down") }
@@ -335,32 +360,6 @@ struct PublicRootView: View {
             }
             settingsToolbar
         }
-    }
-
-    private struct LibraryQueueControl: View {
-        let session: PublicYouTubeSession
-        @State private var confirming = false
-        var body: some View {
-            Menu {
-                NavigationLink { PublicQueueView(session: session) } label: {
-                    Label("Open Queue", systemImage: "list.bullet")
-                }
-                Button("Clear Up Next", systemImage: "text.badge.minus", role: .destructive) { confirming = true }
-                    .disabled(!session.hasNext)
-            } label: {
-                PublicIconActionLabel(title: "Queue", symbol: "list.bullet")
-            }
-            .accessibilityValue("\(session.queue.snapshot.upcoming.count) upcoming")
-            .accessibilityIdentifier("public.queue")
-            .alert("Clear all upcoming videos?", isPresented: $confirming) {
-                Button("Clear Up Next", role: .destructive) { session.clearUpcoming() }
-                Button("Cancel", role: .cancel) {}
-            } message: { Text("Your current video and playback are kept. Only upcoming videos are removed.") }
-        }
-    }
-
-    @ToolbarContentBuilder private var queueToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) { LibraryQueueControl(session: session) }
     }
 
     @ViewBuilder private var libraryClearControl: some View {
@@ -730,6 +729,20 @@ private struct PublicWebPlayerView: View {
                 Button("Retry saving position", systemImage: "arrow.clockwise") { session.retryPlaybackCheckpoint() }
                     .frame(minHeight: 44).accessibilityIdentifier("public.retryCheckpoint")
             }
+            if session.isPlaybackCommandPending {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text(session.playbackToggleLabel).font(.subheadline)
+                }.accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("public.playbackCommandPending")
+            }
+            if let message = session.playbackCommands.failure {
+                PublicNotice(message: message, symbol: "exclamationmark.circle")
+                if session.canRetryPlaybackCommand {
+                    Button("Retry control action", systemImage: "arrow.clockwise") { session.retryPlaybackCommand() }
+                        .frame(minHeight: 44).accessibilityIdentifier("public.retryPlaybackCommand")
+                }
+            }
             VStack(spacing: 8) {
                 let duration = Double(session.state.durationMilliseconds ?? 0) / 1000
                 let position = Double(session.state.positionMilliseconds) / 1000
@@ -737,15 +750,17 @@ private struct PublicWebPlayerView: View {
                     if editing { scrubPosition = position; scrubbing = true }
                     else { scrubbing = false; session.seekPlayback(seconds: scrubPosition) }
                 }).disabled(!session.hasCurrentPlaybackTime || duration <= 0).accessibilityLabel("Playback position")
-                HStack(spacing: 24) {
+                HStack(spacing: 16) {
                     if let track = session.currentTrack { PublicCurrentBookmarkButton(session: session, trackID: track.id) }
                     Spacer(minLength: 0)
-                    Button { session.state.state == .playing ? session.pause() : session.play() } label: {
-                        Image(systemName: session.state.state == .playing ? "pause.fill" : "play.fill").font(.system(size: 36)).frame(width: 64, height: 64)
-                    }.disabled(session.state.capabilities.isEmpty)
-                        .accessibilityLabel(session.state.state == .playing ? "Pause" : "Play")
+                    Button { session.togglePlayback() } label: {
+                        Image(systemName: session.state.state == .playing || session.state.state == .buffering ? "pause.fill" : "play.fill").font(.system(size: 36)).frame(width: 64, height: 64)
+                    }.disabled(session.state.capabilities.isEmpty || session.isPlaybackCommandPending)
+                        .accessibilityLabel(session.playbackToggleLabel)
+                        .accessibilityIdentifier("public.playbackToggle")
                     Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.title2).frame(width: 44, height: 44) }
                         .disabled(!session.hasNext).accessibilityLabel("Next")
+                    PublicQueueControl(session: session, identifier: "player.queue")
                     Spacer(minLength: 0)
                 }.buttonStyle(.plain)
             }
@@ -1049,8 +1064,45 @@ struct PublicVideoDetail: View {
     }
 }
 
+/// Local presentation also works from the iOS tab accessory, outside a NavigationStack.
+struct PublicQueueControl: View {
+    let session: PublicYouTubeSession
+    var identifier = "public.queue"
+    @State private var showingQueue = false
+    @State private var openPlayerAfterDismissal = false
+
+    var body: some View {
+        Button { showingQueue = true } label: {
+            PublicIconActionLabel(title: "Queue", symbol: "list.bullet")
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue("\(session.queue.snapshot.upcoming.count) upcoming")
+        .accessibilityIdentifier(identifier)
+        .sheet(isPresented: $showingQueue, onDismiss: {
+            if openPlayerAfterDismissal {
+                openPlayerAfterDismissal = false
+                session.showPlayer = true
+            }
+        }) {
+            NavigationStack {
+                PublicQueueView(session: session, onOpenPlayer: {
+                    openPlayerAfterDismissal = !session.showPlayer
+                    showingQueue = false
+                })
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Close") { showingQueue = false }
+                                .accessibilityLabel("Close Queue").accessibilityIdentifier("player.queue.close")
+                        }
+                    }
+            }
+        }
+    }
+}
+
 struct PublicQueueView: View {
     let session: PublicYouTubeSession
+    var onOpenPlayer: (() -> Void)? = nil
     @State private var removedEntries: [UUID] = []
     @State private var confirmingRemoval = false
     var body: some View {
@@ -1060,7 +1112,9 @@ struct PublicQueueView: View {
                     HStack {
                         PublicQueueTrackLabel(track: current)
                         Spacer()
-                        Button { session.showPlayer = true } label: { PublicIconActionLabel(title: "Open visible player", symbol: "play.fill") }
+                        Button {
+                            if let onOpenPlayer { onOpenPlayer() } else { session.showPlayer = true }
+                        } label: { PublicIconActionLabel(title: "Open visible player", symbol: "play.fill") }
                     }.buttonStyle(.borderless)
                 }
             }

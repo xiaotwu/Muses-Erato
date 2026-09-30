@@ -77,14 +77,10 @@ import XCTest
         app.tabBars.buttons["Home"].tap()
         capture(largeText ? "Home populated accessibility text" : "Home populated playlists", app)
         app.tabBars.buttons["Search"].tap()
-        if largeText {
-            app.buttons["public.searchSource"].tap(); app.buttons["On this device"].tap()
-            app.buttons["public.searchKind"].tap(); app.buttons["Playlists"].tap()
-        } else {
-            app.segmentedControls["public.searchSource"].buttons["On this device"].tap()
-            XCTAssertFalse(app.segmentedControls["public.searchKind"].buttons["Channels"].exists)
-            app.segmentedControls["public.searchKind"].buttons["Playlists"].tap()
-        }
+        app.buttons["public.searchFilters"].tap(); app.buttons["On this device"].tap()
+        app.buttons["public.searchFilters"].tap()
+        XCTAssertFalse(app.buttons["Channels"].exists)
+        app.buttons["Playlists"].tap()
         let search = app.textFields["public.search"]
         reveal(search, app: app); search.tap(); search.typeText("Fixture\n")
         XCTAssertTrue(app.staticTexts["Local playlist · On this device"].waitForExistence(timeout: 5))

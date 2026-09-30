@@ -10,8 +10,8 @@ Muses-Erato is the iOS 18+ port of [Muses for macOS](https://github.com/xiaotwu/
 - Account-owned playlist and YouTube Music share-link import, with ordered repeated entries and atomic local save.
 - Four Library categories: all saved videos, local playlists, independent favorites and confirmed playback history, with adaptive cards/lists and scoped deletion.
 - Notes and time bookmarks, with paused positioning in the visible player.
-- Queue reordering/removal and a Library-level **Clear Up Next** action that preserves the current video.
-- Content-first Home, explicit local/YouTube search states, and adaptive iPhone/iPad navigation.
+- Queue reordering/removal and a queue-sheet **Clear Up Next** action that preserves the current video.
+- Content-first Home with a + menu, navigation-bar Search filters, Queue in player controls, and adaptive iPhone/iPad navigation.
 - A concise first-launch consent sheet and a complete, sectioned policy in Settings > Privacy.
 
 Google sign-in, search, visible playback, queue controls and account playlist import/counts/playback have been exercised on a physical iPhone. Automatic loading and original-name refinements are being completed. Notes/bookmarks, migration activation and recovery have simulator/package evidence; live bookmark positioning and final migration/retention acceptance remain open. See [implementation status](docs/implementation-status.md) for exact evidence and remaining gates.

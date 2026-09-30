@@ -12,19 +12,26 @@ struct PublicMiniPlayer: View {
                     PublicPlayerArtwork(videoID: session.currentTrack?.publicVideoID?.rawValue)
                         .frame(width: 46, height: 46).clipShape(RoundedRectangle(cornerRadius: 8))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(session.currentTrack?.displayTitle ?? "Now Playing").font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Text(session.currentTrack?.displayTitle ?? "Up next").font(.subheadline.weight(.semibold)).lineLimit(1)
                         if session.nativePlaybackEnabled { Text(session.currentTrack?.displayArtist ?? "YouTube").font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityLabel("Open Now Playing").accessibilityIdentifier("player.mini.open")
+            }.buttonStyle(.plain).disabled(session.currentTrack == nil)
+                .accessibilityLabel("Open Now Playing").accessibilityIdentifier("player.mini.open")
+            if session.nativePlaybackEnabled {
+                Button {
+                    session.nativePlayback.wantsPlayback ? session.pause() : session.play()
+                } label: {
+                    Image(systemName: session.state.state == .playing ? "pause.fill" : "play.fill").font(.title3).frame(width: 44, height: 44)
+                }.disabled(session.currentTrack == nil).accessibilityLabel(session.state.state == .playing ? "Pause" : "Play")
+            }
+            PublicQueueControl(session: session)
             Button {
-                if session.nativePlaybackEnabled { session.nativePlayback.wantsPlayback ? session.pause() : session.play() }
-                else { session.showPlayer = true }
-            } label: {
-                Image(systemName: session.state.state == .playing ? "pause.fill" : "play.fill").font(.title3).frame(width: 44, height: 44)
-            }.accessibilityLabel(session.state.state == .playing ? "Pause" : "Play")
-            Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.title3).frame(width: 44, height: 44) }
-                .disabled(!session.hasNext).accessibilityLabel("Next")
+                let openingFirst = session.currentTrack == nil
+                session.next()
+                if openingFirst, session.currentTrack != nil { session.showPlayer = true }
+            } label: { Image(systemName: "forward.end.fill").font(.title3).frame(width: 44, height: 44) }
+                .disabled(!session.hasNext).accessibilityLabel(session.currentTrack == nil ? "Open queued video" : "Next")
         }.padding(.horizontal, 12).padding(.vertical, 8)
             .modifier(PublicFloatingPlayerSurface(systemAccessory: systemAccessory))
     }
@@ -118,7 +125,7 @@ struct PublicNativePlayerView: View {
                     } label: { Image(systemName: "ellipsis").frame(width: 44, height: 44) }.accessibilityLabel("Playback actions")
                 }
             }
-            .sheet(isPresented: $showingQueue) { NavigationStack { PublicQueueView(session: session).toolbar { ToolbarItem(placement: .topBarLeading) { Button("Done") { showingQueue = false } } } } }
+            .sheet(isPresented: $showingQueue) { NavigationStack { PublicQueueView(session: session, onOpenPlayer: { showingQueue = false }).toolbar { ToolbarItem(placement: .topBarLeading) { Button("Done") { showingQueue = false } } } } }
             .sheet(isPresented: $showingNotebook) {
                 NavigationStack {
                     ScrollView { if let track = session.currentTrack { PublicNotebookContent(session: session, trackID: track.id).padding(20) } }

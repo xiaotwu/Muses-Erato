@@ -34,16 +34,16 @@ final class PublicPrivacyUITests: XCTestCase {
         XCTAssertFalse(proceed.isEnabled)
         XCTAssertTrue(app.buttons["privacy.notNow"].isHittable, "Refusal must be reachable on the first screen")
         capture("First launch", app: app)
-        XCTAssertFalse(app.buttons["public.openLinkEntry"].exists)
+        XCTAssertFalse(app.buttons["public.add"].exists)
         reveal(app.buttons["privacy.agreement"], in: app)
         app.buttons["privacy.agreement"].tap()
         XCTAssertTrue(proceed.isEnabled)
         reveal(proceed, in: app)
         proceed.tap()
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
         app.terminate()
         app.launch()
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
         XCTAssertFalse(proceed.exists)
     }
     func testPolicyRoundTripAndRefusalNeverAccept() {
@@ -67,7 +67,7 @@ final class PublicPrivacyUITests: XCTestCase {
         notNow.tap()
         let reopen = app.buttons["privacy.reopen"]
         XCTAssertTrue(reopen.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["public.openLinkEntry"].exists)
+        XCTAssertFalse(app.buttons["public.add"].exists)
         reopen.tap()
         XCTAssertTrue(app.buttons["privacy.continue"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["privacy.continue"].isEnabled)
@@ -82,7 +82,7 @@ final class PublicPrivacyUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["privacy.readPolicy"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["privacy.continue"].isEnabled)
-        XCTAssertFalse(app.buttons["public.openLinkEntry"].exists)
+        XCTAssertFalse(app.buttons["public.add"].exists)
     }
 
     func testLargestTextCanReachConsentAndExit() {
@@ -102,7 +102,7 @@ final class PublicPrivacyUITests: XCTestCase {
         capture("Consent accessibility text", app: app)
         refuse.tap()
         XCTAssertTrue(app.buttons["privacy.reopen"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["public.openLinkEntry"].exists)
+        XCTAssertFalse(app.buttons["public.add"].exists)
     }
 
     func testUnavailablePolicyBlocksSavedConsentAndFixtureBypass() {
@@ -118,7 +118,7 @@ final class PublicPrivacyUITests: XCTestCase {
             agreement.tap()
             XCTAssertFalse(app.buttons["privacy.continue"].isEnabled)
             XCTAssertTrue(app.staticTexts["Privacy policy unavailable"].exists)
-            XCTAssertFalse(app.buttons["public.openLinkEntry"].exists)
+            XCTAssertFalse(app.buttons["public.add"].exists)
             app.terminate()
         }
     }
@@ -147,8 +147,9 @@ final class PublicPrivacyUITests: XCTestCase {
         let app = newApp()
         app.launchEnvironment["MUSES_UI_TEST_PRIVACY"] = "accepted"
         app.launch()
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
-        app.buttons["public.openLinkEntry"].tap()
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
+        app.buttons["public.add"].tap()
+        app.buttons["public.add.openLink"].tap()
         let field = app.textFields["public.link"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()

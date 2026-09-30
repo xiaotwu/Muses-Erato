@@ -39,6 +39,14 @@ struct ContractChecks {
         check(gate.accept(identityError, isMainFrame: true, originScheme: "https",
                           originHost: "com.xiaotwu.muses.erato")?.kind == .failed(.missingClientIdentity),
               "identity error mapping failed")
+        let blocked: [String: Any] = ["kind": "playBlocked", "videoID": second.rawValue,
+                                      "generation": String(secondGeneration)]
+        check(gate.accept(blocked, isMainFrame: true, originScheme: "https",
+                          originHost: "com.xiaotwu.muses.erato")?.kind == .playBlocked,
+              "scripted playback block event lost")
+        check(gate.accept(blocked, isMainFrame: false, originScheme: "https",
+                          originHost: "com.xiaotwu.muses.erato") == nil,
+              "blocked event must obey the same origin/frame gate")
         let ended: [String: Any] = ["kind": "ended", "videoID": second.rawValue,
                                     "generation": String(secondGeneration)]
         check(gate.accept(ended, isMainFrame: true, originScheme: "https",
@@ -53,6 +61,8 @@ struct ContractChecks {
         check(nextGeneration > secondGeneration, "same-video reload reused generation")
         check(gate.accept(error, isMainFrame: true, originScheme: "https",
                           originHost: "com.xiaotwu.muses.erato") == nil, "old same-video callback accepted")
+        check(gate.accept(blocked, isMainFrame: true, originScheme: "https",
+                          originHost: "com.xiaotwu.muses.erato") == nil, "stale block cannot fail new playback")
         gate.teardown()
         check(gate.accept(error, isMainFrame: true, originScheme: "https",
                           originHost: "com.xiaotwu.muses.erato") == nil, "post-teardown accepted")

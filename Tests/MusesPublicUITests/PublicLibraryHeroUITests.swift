@@ -38,8 +38,9 @@ import XCTest
         else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.12)).tap() }
     }
     private func saveVideo(_ app: XCUIApplication) {
-        let entry = app.buttons["public.openLinkEntry"]
+        let entry = app.buttons["public.add"]
         XCTAssertTrue(entry.waitForExistence(timeout: 5)); entry.tap()
+        app.buttons["public.add.openLink"].tap()
         reveal(app.textFields["public.link"], app: app)
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText("dQw4w9WgXcQ")

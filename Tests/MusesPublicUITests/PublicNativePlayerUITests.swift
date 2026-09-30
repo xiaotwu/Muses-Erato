@@ -6,7 +6,8 @@ import XCTest
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
-        app.buttons["public.openLinkEntry"].tap()
+        app.buttons["public.add"].tap()
+        app.buttons["public.add.openLink"].tap()
         app.textFields["public.link"].tap(); app.textFields["public.link"].typeText("dQw4w9WgXcQ")
         app.buttons["public.open"].tap()
         XCTAssertTrue(app.buttons["Close player"].waitForExistence(timeout: 8)); app.buttons["Close player"].tap()
@@ -25,12 +26,22 @@ import XCTest
         closeSettings.tap()
         XCTAssertTrue(closeSettings.waitForNonExistence(timeout: 5), "Settings must finish dismissal before opening the player")
         let openPlayer = app.buttons["player.mini.open"]
-        XCTAssertTrue(openPlayer.waitForExistence(timeout: 5))
+        var openFrame = CGRect.zero
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard openPlayer.exists else { return false }
+            let frame = openPlayer.frame
+            guard !frame.isEmpty && app.frame.contains(frame) else { return false }
+            openFrame = frame
+            return true
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed,
+            "Mini player must expose an on-screen frame before opening")
         // The system tab accessory can expose an invalid AX activation point after a sheet closes.
-        // Its visible frame remains valid; tap its center and still require the real player controls.
-        XCTAssertFalse(openPlayer.frame.isEmpty)
-        XCTAssertTrue(app.frame.contains(openPlayer.frame))
-        openPlayer.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        // Once its frame is ready, tap its center and still require the real player controls.
+        XCTAssertFalse(openFrame.isEmpty)
+        XCTAssertTrue(app.frame.contains(openFrame))
+        app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: openFrame.midX, dy: openFrame.midY)).tap()
         XCTAssertTrue(app.buttons["player.toggle"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.sliders["Playback position"].exists)
         XCTAssertTrue(app.buttons["player.queue"].isHittable)
@@ -43,13 +54,25 @@ import XCTest
         let mini = app.buttons["player.mini.open"]
         let tabs = app.tabBars.firstMatch
         XCTAssertLessThanOrEqual(mini.frame.maxY, tabs.frame.minY + 2, "Mini player must sit above the tab bar")
+        let miniQueue = app.buttons["public.queue"]
+        XCTAssertTrue(miniQueue.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(miniQueue.frame.width + 0.000001, 44)
+        XCTAssertGreaterThanOrEqual(miniQueue.frame.height + 0.000001, 44)
+        XCTAssertTrue(app.frame.contains(miniQueue.frame))
+        XCTAssertLessThanOrEqual(mini.frame.maxX, miniQueue.frame.minX, "Queue must leave the Native title/artwork open region intact")
+        let miniShot = XCTAttachment(screenshot: app.screenshot()); miniShot.name = "Native mini player with Queue"; miniShot.lifetime = .keepAlways; add(miniShot)
+        miniQueue.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.navigationBars["Queue"].waitForExistence(timeout: 5))
+        app.buttons["Open visible player"].tap()
+        XCTAssertTrue(app.buttons["player.toggle"].waitForExistence(timeout: 8), "Native mini Queue must dismiss before presenting the Native player")
     }
     func testHomeAndHistoryRowsPlayWithoutDetailsAndHeroCoversRemainPassive() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
-        app.buttons["public.openLinkEntry"].tap()
+        app.buttons["public.add"].tap()
+        app.buttons["public.add.openLink"].tap()
         app.textFields["public.link"].tap(); app.textFields["public.link"].typeText("dQw4w9WgXcQ")
         app.buttons["public.open"].tap()
         XCTAssertTrue(app.buttons["Close player"].waitForExistence(timeout: 8)); app.buttons["Close player"].tap()

@@ -59,11 +59,7 @@ struct PublicHomePlaylistShelves: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if typeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 4) { youtubeHeading; websiteLink }
-            } else {
-                HStack { youtubeHeading; Spacer(); websiteLink }
-            }
+            youtubeHeading
             if session.signedIn {
                 if !session.accountPlaylistPages.items.isEmpty {
                     if typeSize.isAccessibilitySize {
@@ -111,17 +107,6 @@ struct PublicHomePlaylistShelves: View {
         }
     }
     private var youtubeHeading: some View { PublicHomeHeading(title: "YouTube Playlists") }
-    private var websiteLink: some View {
-        Link(destination: URL(string: "https://music.youtube.com/")!) {
-            Label {
-                Text("YouTube Music").foregroundStyle(PublicStyle.ink)
-            } icon: {
-                Image(systemName: "arrow.up.right").foregroundStyle(PublicStyle.gold)
-            }.font(.subheadline).frame(minHeight: 44)
-        }.accessibilityElement(children: .combine)
-            .accessibilityLabel("YouTube Music")
-            .accessibilityIdentifier("home.youtubeMusic")
-    }
 
 }
 

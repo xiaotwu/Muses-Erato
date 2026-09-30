@@ -34,8 +34,9 @@ import XCTest
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
-        let entry = app.buttons["public.openLinkEntry"]
+        let entry = app.buttons["public.add"]
         XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        app.buttons["public.add.openLink"].tap()
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText("dQw4w9WgXcQ")

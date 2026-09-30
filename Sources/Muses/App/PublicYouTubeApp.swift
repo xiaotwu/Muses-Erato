@@ -89,6 +89,23 @@ final class PublicYouTubeSession {
             pendingRestart: deletingLocalData && !cleanupInFlight || PublicStoreRouter.deletionNeedsRestart(destinationURL: destinationURL))
     }
     let playbackCheckpoint = PublicPlaybackCheckpointController()
+    @ObservationIgnored lazy var playbackCommands: PublicPlaybackCommandController = {
+        let controller = PublicPlaybackCommandController()
+        controller.onFailure = { [weak self] request in
+            guard let self, request.generation == self.adapterGeneration else { return }
+            if request.action == .pause { self.adapter?.cancelPendingPause() }
+        }
+        return controller
+    }()
+    var isPlaybackCommandPending: Bool { playbackCommands.pending != nil }
+    var playbackToggleLabel: String {
+        if let pending = playbackCommands.pending { return pending.action == .play ? "Play requested" : "Pausing" }
+        return state.state == .playing || state.state == .buffering ? "Pause" : "Play"
+    }
+    var canRetryPlaybackCommand: Bool {
+        guard playbackCommands.retryAllowed, let failed = playbackCommands.failedRequest else { return false }
+        return adapter != nil && adapterGeneration != 0 && failed.generation == adapterGeneration
+    }
     private let checkpointNow: () -> Date
     private let beforeQueueSave: () throws -> Void
 
@@ -887,6 +904,7 @@ final class PublicYouTubeSession {
     }
 
     func attach(_ player: YouTubeIFrameAdapter) {
+        playbackCommands.reset()
         nativePlayback.stop()
         adapter?.teardown()
         adapter = player
@@ -898,6 +916,7 @@ final class PublicYouTubeSession {
     }
 
     func detach() {
+        playbackCommands.reset()
         contentCheck?.cancel()
         contentCheckID = UUID()
         adapter?.teardown()
@@ -912,6 +931,7 @@ final class PublicYouTubeSession {
     }
 
     private func loadCurrent(nativeAutoplay: Bool? = nil) {
+        playbackCommands.reset()
         if nativePlaybackEnabled {
             contentCheck?.cancel(); contentCheckID = UUID()
             adapter?.teardown(); adapter = nil; adapterGeneration = 0
@@ -1008,9 +1028,14 @@ final class PublicYouTubeSession {
                     }
                 } catch { report("Bookmark position could not be prepared: \(error.localizedDescription)", for: .playback)}
             }
-        case .cued: state.state = .ready
+        case .cued:
+            state.state = .ready
+            playbackCommands.confirmed(.pause, generation: event.generation)
+        case .playBlocked: playbackCommands.blocked(generation: event.generation)
         case .playing:
+            playbackCommands.confirmed(.play, generation: event.generation)
             state.state = .playing
+            state.intent = .play
             queue.setIntent(.play)
             if let entryID = queue.snapshot.current?.id, recordedEntryID != entryID {
                 if let track = currentTrack {
@@ -1024,7 +1049,10 @@ final class PublicYouTubeSession {
                     }
                 }
             }
-        case .paused: state.state = .paused; queue.setIntent(.pause); checkpointPlayback(force: true)
+        case .paused:
+            playbackCommands.confirmed(.pause, generation: event.generation)
+            state.state = .paused; state.intent = .pause
+            queue.setIntent(.pause); checkpointPlayback(force: true)
         case .buffering: state.state = .buffering
         case .ended: state.state = .ended; next()
         case .time(let position, let duration):
@@ -1036,6 +1064,7 @@ final class PublicYouTubeSession {
             queue.checkpoint(positionMilliseconds: state.positionMilliseconds)
             checkpointPlayback(force: false)
         case .failed(let reason):
+            playbackCommands.reset()
             bookmarkSeeking.cancel()
             hasCurrentPlaybackTime = false
             state.state = .failed
@@ -1044,22 +1073,62 @@ final class PublicYouTubeSession {
         }
     }
 
+    func togglePlayback() {
+        guard !isPlaybackCommandPending else { return }
+        if state.state == .playing || state.state == .buffering { pause() } else { play() }
+    }
+
+    func retryPlaybackCommand() {
+        guard canRetryPlaybackCommand, let request = playbackCommands.failedRequest else { return }
+        requestPlaybackCommand(request.action)
+    }
+
+    private func requestPlaybackCommand(_ action: PublicPlaybackCommandController.Action) {
+        guard let request = playbackCommands.begin(action, generation: adapterGeneration) else { return }
+        guard let adapter, adapterGeneration != 0 else {
+            playbackCommands.dispatched(request, failure: "The visible YouTube player is not ready. Use its controls when ready.")
+            return
+        }
+        let complete: (Result<Void, YouTubeIFrameAdapter.CommandError>) -> Void = { [weak self] result in
+            guard let self else { return }
+            if case .failure = result {
+                self.playbackCommands.dispatched(request, failure: "The command could not reach the YouTube player. Retry or use its visible controls.")
+            } else { self.playbackCommands.dispatched(request, failure: nil) }
+        }
+        if action == .play {
+            do { try adapter.play(completion: complete) }
+            catch { playbackCommands.dispatched(request, failure: "The visible YouTube player is not ready. Use its controls when ready.") }
+        } else { adapter.pause(completion: complete) }
+    }
+
     func play() {
         if nativePlaybackEnabled {
             if nativePlayback.loaded || state.state == .loading || state.state == .buffering { nativePlayback.play() }
             else { loadCurrent(nativeAutoplay: true) }
             return
         }
-        guard adapterGeneration != 0 else { return }
-        do { try adapter?.play() }
-        catch { report("Player is still loading. Use its visible controls when ready.", for: .playback)}
+        requestPlaybackCommand(.play)
     }
     func pause() {
         if nativePlaybackEnabled { nativePlayback.pause() }
-        adapter?.pause()
+        else {
+            // Explicit lifecycle/host pause may supersede a pending Play; UI toggle itself
+            // is disabled while pending, so repeated taps never issue contradictory commands.
+            if playbackCommands.pending?.action == .play { playbackCommands.reset() }
+            requestPlaybackCommand(.pause)
+        }
         queue.setIntent(.pause)
         state.intent = .pause
-        if state.state == .playing || state.state == .buffering { state.state = .paused }
+        checkpointPlayback(force: true)
+    }
+
+    func suspendVisiblePlayback() {
+        playbackCommands.reset()
+        if !nativePlaybackEnabled {
+            adapter?.pause()
+            queue.setIntent(.pause)
+            state.intent = .pause
+        }
         checkpointPlayback(force: true)
     }
     func next() {
@@ -1096,7 +1165,7 @@ final class PublicYouTubeSession {
         guard nativePlaybackEnabled else { return }
         switch event {
         case .playing:
-            state.state = .playing; queue.setIntent(.play)
+            state.state = .playing; state.intent = .play; queue.setIntent(.play)
             if let current = queue.snapshot.current, recordedEntryID != current.id {
                 let entry = PlaybackHistoryEntry(id: UUID(), trackID: current.trackID, date: Date())
                 do { try repository?.put(entry, kind: .history, id: entry.id.uuidString); playedIDs.insert(current.trackID, at: 0); recordedEntryID = current.id }
@@ -1167,6 +1236,7 @@ final class PublicYouTubeSession {
 
     private func clearVisibleLibrary() {
         nativePlayback.stop()
+        playbackCommands.reset()
         playbackCheckpoint.reset()
         operationFailures = [:]
         notebook.reset()
@@ -1292,6 +1362,7 @@ extension PublicYouTubeSession {
                 bookmarkSeeking.cancel(); bookmarkCueMilliseconds = nil; hasCurrentPlaybackTime = false
                 contentCheck?.cancel(); contentCheckID = UUID()
                 adapter?.teardown(); adapter = nil; adapterGeneration = 0
+                playbackCommands.reset()
                 playbackCheckpoint.reset()
                 operationFailures[.playback] = nil
                 recordedEntryID = nil; showPlayer = false; state = PlaybackSnapshot()

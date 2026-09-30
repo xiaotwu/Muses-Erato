@@ -26,10 +26,8 @@ import XCTest
             system.buttons["Zoom-button"].tap()
             app.activate()
         }
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 10))
-        for id in ["public.start.search", "public.start.link", "public.start.import"] {
-            XCTAssertGreaterThanOrEqual(app.buttons[id].frame.height, 44, "Discovery touch target must be inside the button label")
-        }
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["public.add"].label.contains("Add"))
         return app
     }
 
@@ -60,7 +58,8 @@ import XCTest
         XCTAssertTrue(item.isHittable)
     }
     func saveVideo(_ app: XCUIApplication) {
-        app.buttons["public.openLinkEntry"].tap()
+        app.buttons["public.add"].tap()
+        app.buttons["public.add.openLink"].tap()
         let field = app.textFields["public.link"]
         XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText("dQw4w9WgXcQ")
         app.buttons["public.open"].tap()
@@ -79,8 +78,7 @@ import XCTest
         app.buttons["public.submitSearch"].tap()
     }
     func choose(_ choice: String, picker: String, app: XCUIApplication, largeText: Bool = false) {
-        if largeText { app.buttons[picker].tap(); app.buttons[choice].tap() }
-        else { app.segmentedControls[picker].buttons[choice].tap() }
+        app.buttons["public.searchFilters"].tap(); app.buttons[choice].tap()
     }
 
 }
@@ -137,7 +135,23 @@ import XCTest
         capture("iPad landscape empty Library", app: app)
         XCUIDevice.shared.orientation = .portrait
         select("Home", in: app)
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].isHittable)
+        let addControl = app.buttons["public.add"]
+        XCTAssertTrue(addControl.waitForExistence(timeout: 5))
+        XCTAssertFalse(addControl.frame.isEmpty)
+        // Application bounds use a local origin after windowing; window and
+        // descendant frames share screen coordinates, including its offset.
+        let windowFrame = app.windows.firstMatch.frame
+        let addFrame = addControl.frame
+        let controlBounds = XCTAttachment(string: "Application: \(app.frame); window: \(windowFrame); Add: \(addFrame)")
+        controlBounds.name = "iPad narrow window Add bounds"; controlBounds.lifetime = .keepAlways; add(controlBounds)
+        XCTAssertTrue(windowFrame.contains(addFrame), "Add must fit inside the visible application window")
+        addControl.tap()
+        for id in ["public.add.openLink", "public.add.import", "public.add.create"] {
+            XCTAssertTrue(app.buttons[id].isHittable)
+        }
+        app.buttons["public.add.openLink"].tap()
+        XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
         capture("iPad portrait Home", app: app)
         app.buttons["Settings"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
@@ -150,7 +164,7 @@ import XCTest
         XCTAssertTrue(app.buttons["public.start.search"].isHittable)
         app.buttons["public.start.search"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.segmentedControls["public.searchKind"].buttons["Videos"].isSelected)
+        XCTAssertTrue((app.buttons["public.searchFilters"].value as? String)?.contains("Videos") == true)
         capture("iPad landscape focused Search", app: app)
     }
 
@@ -195,10 +209,25 @@ import XCTest
         app.buttons["public.start.search"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         capture("iPad narrow window Search", app: app)
-        app.staticTexts["Find a video or playlist"].tap()
+        app.staticTexts["public.searchIdle"].tap()
         XCTAssertFalse(app.keyboards.firstMatch.exists, "Dismiss keyboard before using the bottom tab bar")
         select("Home", in: app, regular: false)
-        XCTAssertTrue(app.buttons["public.openLinkEntry"].isHittable)
+        let addControl = app.buttons["public.add"]
+        XCTAssertTrue(addControl.waitForExistence(timeout: 5))
+        XCTAssertFalse(addControl.frame.isEmpty)
+        // Application uses a local origin; window and control frames use screen coordinates.
+        let windowFrame = app.windows.firstMatch.frame
+        let addFrame = addControl.frame
+        let controlBounds = XCTAttachment(string: "Application: \(app.frame); window: \(windowFrame); Add: \(addFrame)")
+        controlBounds.name = "iPad narrow window Add bounds"; controlBounds.lifetime = .keepAlways; add(controlBounds)
+        XCTAssertTrue(windowFrame.contains(addFrame), "Add must fit inside the visible application window")
+        addControl.tap()
+        for id in ["public.add.openLink", "public.add.import", "public.add.create"] {
+            XCTAssertTrue(app.buttons[id].isHittable)
+        }
+        app.buttons["public.add.openLink"].tap()
+        XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
         app.buttons["Settings"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         capture("iPad narrow window Settings", app: app)

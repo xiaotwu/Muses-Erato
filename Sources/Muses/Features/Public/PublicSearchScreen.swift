@@ -31,16 +31,8 @@ struct PublicSearchScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 searchInput
-                if typeSize.isAccessibilitySize { accessibleSourcePicker }
-                else { sourcePicker.pickerStyle(.segmented) }
-                if typeSize.isAccessibilitySize { accessibleKindPicker }
-                else { kindPicker.pickerStyle(.segmented) }
                 if !submittedQuery.isEmpty && session.searchKind != submittedKind {
                     Text("Search in \(session.searchKind.rawValue.capitalized) when you submit.").font(.footnote).foregroundStyle(.secondary)
-                }
-                if scope == .saved {
-                    Text("Search saved videos and local playlists without an online request.")
-                        .font(.footnote).foregroundStyle(.secondary)
                 }
                 if !session.apiConfigured {
                     PublicNotice(message: "YouTube search is unavailable in this configuration. Search saved items on this device.", symbol: "wifi.slash")
@@ -56,6 +48,7 @@ struct PublicSearchScreen: View {
         .background(PublicKeyboardDismissal { focused = false })
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Search").navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { filterMenu } }
         .onAppear {
             if !submittedQuery.isEmpty && query.isEmpty { query = submittedQuery; scope = session.isSubmittedSearchLocal ? .saved : .youtube }
             else if !session.apiConfigured { scope = .saved }
@@ -69,48 +62,61 @@ struct PublicSearchScreen: View {
         }
     }
 
-    private var accessibleSourcePicker: some View {
+    private var filterMenu: some View {
         Menu {
-            ForEach(Scope.allCases, id: \.self) { value in
-                Button(value.rawValue) { scope = value }.disabled(value == .youtube && !session.apiConfigured)
+            Section("Source") {
+                ForEach(Scope.allCases, id: \.self) { value in
+                    Button { scope = value } label: {
+                        HStack {
+                            Text(value.rawValue)
+                            if scope == value { Image(systemName: "checkmark").accessibilityHidden(true) }
+                        }
+                    }
+                    .accessibilityAddTraits(scope == value ? .isSelected : [])
+                    .accessibilityIdentifier("public.searchSource." + (value == .youtube ? "youtube" : "saved"))
+                    .disabled(value == .youtube && !session.apiConfigured)
+                }
+            }
+            Section("Type") {
+                kindOption("Videos", kind: .video)
+                kindOption("Playlists", kind: .playlist)
+                if scope == .youtube && session.apiConfigured { kindOption("Channels", kind: .channel) }
             }
         } label: {
-            HStack {
-                Text(scope.rawValue).fixedSize(horizontal: false, vertical: true)
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 18))
-            }.frame(minHeight: 44)
-        }.accessibilityLabel("Search source").accessibilityValue(scope.rawValue).accessibilityIdentifier("public.searchSource")
-    }
-    private var accessibleKindPicker: some View {
-        Menu {
-            Button("Videos") { session.searchKind = .video }
-            Button("Playlists") { session.searchKind = .playlist }
-            if scope == .youtube && session.apiConfigured { Button("Channels") { session.searchKind = .channel } }
-        } label: {
-            HStack {
-                Text(session.searchKind == .video ? "Videos" : session.searchKind == .playlist ? "Playlists" : "Channels")
-                    .fixedSize(horizontal: false, vertical: true)
-                Image(systemName: "chevron.up.chevron.down").font(.system(size: 18))
-            }.frame(minHeight: 44)
-        }.accessibilityLabel("Search type").accessibilityValue(session.searchKind.rawValue).accessibilityIdentifier("public.searchKind")
+            Image(systemName: "slider.horizontal.3").frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel("Search filters")
+        .accessibilityValue("\(scope.rawValue), \(kindTitle)")
+        .accessibilityIdentifier("public.searchFilters")
     }
 
-    private var sourcePicker: some View {
-        Picker("Search source", selection: $scope) {
-            ForEach(Scope.allCases, id: \.self) { Text($0.rawValue).tag($0).disabled($0 == .youtube && !session.apiConfigured) }
-        }.accessibilityIdentifier("public.searchSource")
+    private var kindTitle: String {
+        session.searchKind == .video ? "Videos" : session.searchKind == .playlist ? "Playlists" : "Channels"
     }
-    private var kindPicker: some View {
-        Picker("Search type", selection: $session.searchKind) {
-            Text("Videos").tag(MusesCatalog.CatalogItem.Kind.video)
-            Text("Playlists").tag(MusesCatalog.CatalogItem.Kind.playlist)
-            if scope == .youtube && session.apiConfigured { Text("Channels").tag(MusesCatalog.CatalogItem.Kind.channel) }
-        }.accessibilityIdentifier("public.searchKind")
+
+    private func kindOption(_ title: String, kind: MusesCatalog.CatalogItem.Kind) -> some View {
+        Button { session.searchKind = kind } label: {
+            HStack {
+                Text(title)
+                if session.searchKind == kind { Image(systemName: "checkmark").accessibilityHidden(true) }
+            }
+        }.accessibilityAddTraits(session.searchKind == kind ? .isSelected : [])
+            .accessibilityIdentifier("public.searchKind." + kind.rawValue)
     }
 
     private var searchInput: some View {
+        Group {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) { queryInput; submitButton }
+            } else {
+                HStack(spacing: 8) { queryInput; submitButton }
+            }
+        }
+    }
+
+    private var queryInput: some View {
         HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").font(.system(size: 18)).foregroundStyle(PublicStyle.gold).accessibilityHidden(true)
             TextField(scope == .saved ? "Search saved items" : "Search YouTube", text: $query)
                 .submitLabel(.search).autocorrectionDisabled().focused($focused)
                 .onSubmit(submit).frame(minHeight: 44).accessibilityIdentifier("public.search")
@@ -118,20 +124,26 @@ struct PublicSearchScreen: View {
                 Button { query = ""; session.clearSearchResults() } label: { PublicIconActionLabel(title: "Clear search", symbol: "xmark.circle") }
                     .buttonStyle(.plain).accessibilityIdentifier("public.clearSearch")
             }
-            Button(action: submit) { PublicIconActionLabel(title: scope == .saved ? "Search saved items" : "Search YouTube", symbol: "magnifyingglass") }
-                .buttonStyle(.borderedProminent)
-                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
-                .accessibilityIdentifier("public.submitSearch")
         }.padding(12).background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var submitButton: some View {
+        Button(action: submit) {
+            Text("Search").font(.subheadline.weight(.semibold)).foregroundStyle(PublicStyle.background).frame(minHeight: 44)
+        }
+            .buttonStyle(.borderedProminent)
+            .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
+            .accessibilityIdentifier("public.submitSearch")
     }
 
     @ViewBuilder private var results: some View {
         if submittedQuery.isEmpty {
-            PublicEmptyState(symbol: "magnifyingglass", title: "Find a video or playlist", detail: "Choose a source and type, enter a title or creator, then search.")
-                .accessibilityIdentifier("public.searchIdle")
+            Text("Enter a title or creator.").font(.subheadline)
+                .foregroundStyle(PublicStyle.ink).padding(.top, 8).accessibilityIdentifier("public.searchIdle")
         } else {
-            Text("\(resultCount) \(resultCount == 1 ? "result" : "results") for “\(submittedQuery)” · \(submittedKind.rawValue.capitalized)")
-                .font(.subheadline).foregroundStyle(.secondary).accessibilityIdentifier("public.searchResultsHeading")
+            (Text("Results for “\(submittedQuery)”").font(.headline)
+                + Text("\n\(resultCount) \(resultCount == 1 ? "result" : "results") · \(usesLocalResults ? "On this device" : "YouTube") · \(submittedKind.rawValue.capitalized)").font(.subheadline))
+                .foregroundStyle(PublicStyle.ink).accessibilityIdentifier("public.searchResultsHeading")
             if loading {
                 ProgressView("Searching YouTube").accessibilityIdentifier("public.searchLoading")
             }
