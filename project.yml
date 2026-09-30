@@ -44,6 +44,7 @@ targets:
       # Exact old models + read-only snapshot reader share the historical Muses module.
       # No inherited networking, playback, or application services are linked.
       - path: Sources/Muses/App/PublicYouTubeApp.swift
+      - path: Sources/Muses/App/PublicSessionControllers.swift
       - path: Sources/Muses/App/PublicCredentialDeletion.swift
       - path: Sources/Muses/App/PublicWebsiteDataDeletion.swift
       - path: Sources/Muses/Features/Public/PublicMigrationArchiveView.swift
@@ -90,6 +91,7 @@ targets:
       - path: Sources/Muses/Resources/PublicPrivacyPolicy.md
         buildPhase: resources
       - path: Sources/Muses/Features/Public/PublicCatalogViews.swift
+      - path: Sources/Muses/Features/Public/PublicSearchScreen.swift
       - path: Sources/Muses/Features/Public/PublicLibraryHeroViews.swift
       - path: Sources/Muses/Features/Public/PublicCollectionDeck.swift
       - path: Sources/Muses/Features/Public/PublicPlaylistImportView.swift
@@ -130,9 +132,9 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: Tests/MusesTests/ExperimentalNativePlaybackTests.swift
       - path: Tests/MusesTests/PublicYouTubeFlowTests.swift
       - path: Tests/MusesTests/PublicNotebookTests.swift
+      - path: Tests/MusesTests/PublicPrivacyPolicyTests.swift
       - path: Tests/MusesTests/PublicPlaylistImportTests.swift
       - path: Tests/MusesTests/PublicUpgradeStartupTests.swift
       - path: Tests/LegacyMigrationTests/PhysicalLegacyFixture.swift
@@ -147,6 +149,26 @@ targets:
         BUNDLE_LOADER: "$(TEST_HOST)"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses"
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+
+  MusesNativeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/MusesTests/ExperimentalNativePlaybackTests.swift
+    dependencies:
+      - target: Muses
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiaotwu.muses.erato.nativetests
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Muses.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Muses"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+      configs:
+        Debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG MUSES_NATIVE_PLAYBACK"
+        Native:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MUSES_NATIVE_PLAYBACK"
 
   MusesNativeLiveTests:
     type: bundle.unit-test
@@ -187,7 +209,40 @@ schemes:
       config: Debug
       targets:
         - MusesTests
-        - MusesPublicUITests
+        - MusesNativeTests
+        - name: MusesPublicUITests
+          skippedTests:
+            - PublicIPadLayoutUITests
+            - PublicIPadAccessibilityAuditUITests
+
+  # Deterministic engine tests use generated local audio, without live extraction.
+  MusesNative:
+    build:
+      targets:
+        Muses: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MusesTests
+        - MusesNativeTests
+    archive:
+      config: Native
+
+  # Select only Native UI scenarios; compile the shared helpers in the existing UI target.
+  MusesNativeUI:
+    build:
+      targets:
+        Muses: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: MusesPublicUITests
+          selectedTests:
+            - PublicNativePlayerUITests
 
   MusesNativeLive:
     build:

@@ -26,17 +26,14 @@ import XCTest
         XCTAssertTrue(app.staticTexts["Failed"].waitForExistence(timeout: 8))
         let notices = app.staticTexts.matching(identifier: "Made for Kids videos are not supported by this embedded player. Open this video in YouTube.")
         XCTAssertTrue(notices.firstMatch.waitForExistence(timeout: 5))
-        // The presenting Home and player both show the shared session failure.
-        // Check the visible label rather than requiring one global match.
+        // Playback failure is shown only in its player recovery surface.
         XCTAssertTrue(notices.allElementsBoundByIndex.contains { $0.isHittable })
         XCTAssertFalse(app.buttons["Play"].isEnabled)
         XCTAssertTrue(app.buttons["Close player"].isEnabled)
-        app.buttons["Playback actions"].tap()
-        let external = app.buttons["Website playback"]
+        let external = app.buttons["public.openYouTube"]
         XCTAssertTrue(external.waitForExistence(timeout: 5))
         XCTAssertTrue(external.isEnabled)
-        // Dismiss the menu without launching the external website.
-        app.navigationBars["Now Playing"].staticTexts["Now Playing"].tap()
+        XCTAssertTrue(app.buttons["public.retryPlayback"].exists)
         app.buttons["Close player"].tap()
         XCTAssertTrue(app.buttons["public.openLinkEntry"].waitForExistence(timeout: 5))
     }
@@ -52,10 +49,39 @@ import XCTest
         reveal(next, in: app); next.tap()
         XCTAssertTrue(app.buttons["Retry"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Fixture first video"].exists)
+        let failedPage = XCTAttachment(screenshot: app.screenshot())
+        failedPage.name = "Search retained results and retry"; failedPage.lifetime = .keepAlways; add(failedPage)
         app.buttons["Retry"].tap()
         XCTAssertTrue(app.staticTexts["Fixture second video"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Load next page"].exists)
     }
+    func testSearchTypeChangeWaitsForSubmitAndClearReturnsToIdle() {
+        let app = launch(); app.tabBars.buttons["Search"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["public.searchIdle"].exists)
+        let field = app.textFields["public.search"]
+        field.tap(); field.typeText("fixture\n")
+        XCTAssertTrue(app.staticTexts["Fixture first video"].waitForExistence(timeout: 5))
+        app.segmentedControls["public.searchKind"].buttons["Playlists"].tap()
+        XCTAssertTrue(app.staticTexts["Fixture first video"].exists, "Type selection does not replace results or make a request")
+        XCTAssertTrue(app.staticTexts["Search in Playlist when you submit."].exists)
+        app.buttons["public.clearSearch"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["public.searchIdle"].exists)
+        XCTAssertFalse(app.staticTexts["Fixture first video"].exists)
+        XCTAssertFalse(app.buttons["Load next page"].exists)
+    }
+
+    func testSearchVideosEntrySelectsVideoAndFocusesWithoutSubmitting() {
+        let app = launch(); app.tabBars.buttons["Search"].tap()
+        app.segmentedControls["public.searchKind"].buttons["Channels"].tap()
+        app.tabBars.buttons["Home"].tap()
+        let entry = app.buttons["public.start.search"]
+        reveal(entry, in: app); entry.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.segmentedControls["public.searchKind"].buttons["Videos"].isSelected)
+        XCTAssertTrue(app.descendants(matching: .any)["public.searchIdle"].exists)
+        XCTAssertFalse(app.staticTexts["Fixture first video"].exists)
+    }
+
     func testPlaylistAndChannelLinkBrowsing() {
         let app = launch()
         let entry = app.buttons["public.openLinkEntry"]
@@ -123,12 +149,13 @@ extension PublicCatalogUITests {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
             app.launch()
         }
-        XCTAssertTrue(app.staticTexts["Recently Played"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["YouTube Playlists"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Recently Played"].exists, "Empty recent history is omitted")
         XCTAssertFalse(app.staticTexts["Public recommendations"].exists)
         XCTAssertFalse(app.staticTexts["Your recommendations"].exists)
         XCTAssertFalse(app.buttons["home.music.video:abcdefghijk"].exists)
         XCTAssertTrue(app.links["home.youtubeMusic"].exists || app.buttons["home.youtubeMusic"].exists)
-        XCTAssertTrue(app.staticTexts["On YouTube"].exists)
+        XCTAssertTrue(app.staticTexts["YouTube Playlists"].exists)
         let homeImage = XCTAttachment(screenshot: app.screenshot())
         homeImage.name = largeText ? "Home large text" : "Home recent listening and YouTube playlists"; homeImage.lifetime = .keepAlways; add(homeImage)
         app.buttons["Settings"].firstMatch.tap()

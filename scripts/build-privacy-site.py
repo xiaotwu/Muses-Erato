@@ -48,8 +48,13 @@ def expected_files():
     blocks = []
     for index, paragraph in enumerate(policy.strip().split("\n\n")):
         if index == 0:
-            title, version = paragraph.split("\n", 1)
-            blocks.extend([f"<h1>{escape(title)}</h1>", f"<p>{escape(version)}</p>"])
+            title, *remaining = paragraph.split("\n", 1)
+            title = title.removeprefix("# ")
+            blocks.append(f"<h1>{escape(title)}</h1>")
+            if remaining:
+                blocks.append(f"<p>{escape(remaining[0])}</p>")
+        elif paragraph.startswith("## ") and "\n" not in paragraph:
+            blocks.append(f"<h2>{escape(paragraph.removeprefix('## '))}</h2>")
         else:
             tag = "h2" if paragraph in SECTIONS else "p"
             blocks.append(f"<{tag}>{escape(paragraph).replace(chr(10), '<br>')}</{tag}>")

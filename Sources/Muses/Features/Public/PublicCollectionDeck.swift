@@ -210,7 +210,7 @@ struct PublicPlaylistBlock: View {
                     .frame(minHeight: 44, alignment: .leading).contentShape(Rectangle())
             }.buttonStyle(.plain).frame(minHeight: 44, alignment: .leading)
                 .accessibilityIdentifier("playlist.open.\(playlist.id)")
-            Text("\(playlist.entryCount) entries").font(.caption).foregroundStyle(.secondary)
+            Text("\(playlist.entryCount) \(playlist.entryCount == 1 ? "entry" : "entries")").font(.caption).foregroundStyle(.secondary)
         }
     }
     private var actions: some View {

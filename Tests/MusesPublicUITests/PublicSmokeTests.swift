@@ -1,6 +1,6 @@
 import XCTest
 
-final class PublicSmokeTests: XCTestCase {
+@MainActor final class PublicSmokeTests: XCTestCase {
     func testNewInstallNavigationAndVisiblePlayerRoute() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
@@ -30,20 +30,9 @@ final class PublicSmokeTests: XCTestCase {
         XCTAssertTrue(element.isHittable)
     }
     private func selectCategory(_ name: String, app: XCUIApplication) {
-        let rail = app.scrollViews["library.categories"]
-        reveal(rail, in: app)
         let button = app.buttons["library.category.\(name)"]
-        for direction in 0..<2 {
-            for _ in 0..<8 {
-                if button.isHittable {
-                    button.tap()
-                    if button.isSelected { return }
-                }
-                if direction == 0 { rail.swipeRight(velocity: .slow) }
-                else { rail.swipeLeft(velocity: .slow) }
-            }
-        }
-        XCTFail("Category not reachable: \(name)")
+        reveal(button, in: app); button.tap()
+        XCTAssertTrue(button.isSelected)
     }
     private func openVideo(_ id: String, app: XCUIApplication) {
         app.launch()
@@ -214,14 +203,13 @@ final class PublicSmokeTests: XCTestCase {
 }
 
 
-/// Opening a link stores metadata; Library membership requires a playlist.
+/// Adds existing saved videos to a local playlist without changing their independent Library membership.
 @MainActor func addSavedVideosToLocalPlaylist(_ app: XCUIApplication, name: String) {
     app.tabBars.buttons["Library"].tap()
     app.buttons["library.add"].tap(); app.buttons["public.createPlaylist"].tap()
     app.alerts.textFields.firstMatch.typeText(name); app.alerts.buttons["Create"].tap()
-    let rail = app.scrollViews["library.categories"]
     let playlists = app.buttons["library.category.Playlists"]
-    for _ in 0..<7 where !playlists.isHittable { rail.swipeLeft(velocity: .slow) }
+    for _ in 0..<7 where !playlists.isHittable { app.swipeDown() }
     playlists.tap()
     let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS %@", name)).firstMatch
     XCTAssertTrue(row.waitForExistence(timeout: 5)); row.tap()
@@ -230,6 +218,6 @@ final class PublicSmokeTests: XCTestCase {
     app.buttons["Done"].tap()
     app.navigationBars.buttons.firstMatch.tap()
     let videos = app.buttons["library.category.Videos"]
-    for _ in 0..<7 where !videos.isHittable { rail.swipeRight(velocity: .slow) }
+    for _ in 0..<7 where !videos.isHittable { app.swipeDown() }
     videos.tap()
 }

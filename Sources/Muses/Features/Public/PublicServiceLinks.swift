@@ -1,5 +1,33 @@
 import SwiftUI
 
+/// Only policy/provider links are needed during setup; no account or session is constructed.
+struct PublicPolicyLinks: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) { links }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) { links }.fixedSize(horizontal: true, vertical: false)
+                    VStack(alignment: .leading, spacing: 8) { links }
+                }
+            }
+        }
+        .buttonStyle(.borderless)
+        .accessibilityHint("Opens in your browser")
+    }
+
+    @ViewBuilder private var links: some View {
+            Link(destination: URL(string: "https://www.youtube.com/t/terms")!) {
+                PublicTextActionLabel(title: "YouTube Terms", symbol: "doc.text")
+            }.accessibilityIdentifier("privacy.terms")
+            Link(destination: URL(string: "https://policies.google.com/privacy")!) {
+                PublicTextActionLabel(title: "Google Privacy", symbol: "hand.raised")
+            }.accessibilityIdentifier("privacy.googlePrivacy")
+    }
+}
+
 /// Public support and provider controls remain accessible without exposing account data.
 struct PublicServiceLinks: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize

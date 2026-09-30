@@ -19,22 +19,24 @@ struct PublicSettingsView: View {
             Section {
                 NavigationLink { PublicLibraryDataSettingsView(session: session) } label: {
                     Label("Library & data", systemImage: "square.stack")
-                }
+                }.accessibilityIdentifier("settings.libraryData")
                 NavigationLink { PublicPlaybackSettingsView(session: session) } label: {
                     Label("Playback", systemImage: "play.circle")
-                }
+                }.accessibilityIdentifier("settings.playback")
                 NavigationLink {
-                    List {
-                        NavigationLink { PublicPrivacyView() } label: {
-                            Label("Privacy policy", systemImage: "hand.raised")
-                        }
-                        PublicServiceLinks()
-                    }
-                    .navigationTitle("Privacy & support")
-                    .navigationBarTitleDisplayMode(.inline)
+                    PublicPrivacySettingsView()
                 } label: {
                     Label("Privacy & support", systemImage: "hand.raised")
-                }
+                }.accessibilityIdentifier("settings.privacy")
+            }
+            Section {
+                LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unavailable")
+                    .accessibilityIdentifier("settings.version")
+                LabeledContent("Build", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Unavailable")
+                    .accessibilityIdentifier("settings.build")
+                LabeledContent("Edition", value: PublicPrivacyPolicy.buildDescription)
+            } header: {
+                Text("About").foregroundStyle(PublicStyle.ink)
             }
         }
         .listStyle(.insetGrouped)
@@ -64,7 +66,7 @@ private struct PublicAccountSettingsView: View {
                     Text("Account cleanup needs attention.").foregroundStyle(.secondary)
                     Button { Task { await session.retryAccountCleanup() } } label: {
                         Label("Retry cleanup", systemImage: "arrow.clockwise")
-                    }
+                    }.disabled(session.accountOperation.isRunning)
                 }
             } else if session.signedIn {
                 Section {
@@ -94,21 +96,23 @@ private struct PublicAccountSettingsView: View {
                 Section("Account management") {
                     Button { Task { await session.signOut(revokeAccess: false) } } label: {
                         Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                    }
+                    }.disabled(session.accountOperation.isRunning)
                     Button(role: .destructive) { confirmingRevocation = true } label: {
                         Label("Revoke access", systemImage: "lock.slash")
-                    }
+                    }.disabled(session.accountOperation.isRunning)
                 }
             } else if session.oauthConfigured {
                 Section {
                     Button { Task { await session.signIn() } } label: {
                         Label("Sign in with Google", systemImage: "person.crop.circle.badge.plus")
-                    }
+                    }.disabled(session.accountOperation.isRunning)
                 }
             } else {
                 Text("Google sign-in is unavailable. Your local library still works.").foregroundStyle(.secondary)
             }
-            if let error = session.failureMessage { Section { Text(error).foregroundStyle(.secondary) } }
+            Section {
+                PublicSettingsOperationFeedback(state: session.accountOperation, progress: "Updating account…", identifier: "settings.accountFeedback")
+            }
         }
         .listStyle(.insetGrouped)
         .listSectionSpacing(20)
@@ -138,16 +142,19 @@ private struct PublicLibraryDataSettingsView: View {
             Section {
                 Button { confirmingSync = true } label: {
                     Label("Refresh details", systemImage: "arrow.clockwise")
-                }.disabled(session.refreshingMetadata)
+                }.disabled(session.metadataRefreshOperation.isRunning || session.localDataDeletionOperation.isRunning || session.localDataDeletionOperation.pendingRestart)
+                .accessibilityIdentifier("settings.refreshDetails")
+                PublicSettingsOperationFeedback(state: session.metadataRefreshOperation, progress: "Refreshing details…", identifier: "settings.refreshFeedback")
             }
             Section {
                 Button(role: .destructive) { confirmingDeletion = true } label: {
-                    Label("Delete local data", systemImage: "trash")
-                }
+                    Label(session.localDataDeletionOperation.pendingRestart ? "Retry local cleanup" : "Delete local data", systemImage: "trash")
+                }.disabled(session.localDataDeletionOperation.isRunning)
+                .accessibilityIdentifier("settings.deleteLocalData")
+                PublicSettingsOperationFeedback(state: session.localDataDeletionOperation, progress: "Removing local data…", identifier: "settings.deletionFeedback")
             } footer: {
                 Text("Includes notes, bookmarks and retained originals.")
             }
-            if let error = session.failureMessage { Text(error).foregroundStyle(.secondary) }
         }
         .navigationTitle("Library & data")
         .navigationBarTitleDisplayMode(.inline)
@@ -219,7 +226,7 @@ private struct PublicAccountIdentity: View {
                 Text(session.accountChannelPages.items.first?.title ?? "Google account")
                     .font(.headline).foregroundStyle(.primary)
                     .accessibilityIdentifier("account.nickname")
-                Text(status).font(.footnote).foregroundStyle(.secondary)
+                Text(status).font(.footnote).foregroundStyle(PublicStyle.ink)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }.padding(.vertical, 6)
@@ -286,5 +293,44 @@ private struct PublicAccountCollectionFooter: View {
             }.accessibilityIdentifier("account.load.\(title)")
         }
         if page.loaded && page.items.isEmpty && !page.loading { Text("No \(title)").foregroundStyle(.secondary) }
+    }
+}
+
+private struct PublicPrivacySettingsView: View {
+    var body: some View {
+        List {
+            Section {
+                NavigationLink { PublicPrivacyView() } label: {
+                    Label("Privacy policy", systemImage: "hand.raised")
+                }.accessibilityIdentifier("settings.policy")
+                LabeledContent("Current policy", value: PublicPrivacyPolicy.version)
+                LabeledContent("Agreed policy", value: PublicPrivacyPolicy.defaults.string(forKey: PublicPrivacyPolicy.acceptanceKey) ?? "Not recorded")
+            }
+            Section { PublicServiceLinks() } header: {
+                Text("Provider & support").foregroundStyle(PublicStyle.ink)
+            }
+        }
+        .navigationTitle("Privacy & support")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct PublicSettingsOperationFeedback: View {
+    let state: PublicOperationState
+    let progress: String
+    let identifier: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if state.isRunning { ProgressView(progress) }
+            if let message = state.message { Text(message).foregroundStyle(.secondary) }
+            if let error = state.error, error != state.message {
+                Label(error, systemImage: "exclamationmark.circle").foregroundStyle(.secondary)
+            }
+            if state.pendingRestart {
+                Text("Restart Muses if cleanup remains pending.").font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityIdentifier(identifier)
     }
 }

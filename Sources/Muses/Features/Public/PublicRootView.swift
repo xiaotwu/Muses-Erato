@@ -15,6 +15,7 @@ enum PublicStyle {
     static let ink = Color(uiColor: .label)
     static let muted = Color(uiColor: .secondaryLabel)
     static let inset: CGFloat = 20
+    static func videoCount(_ count: Int) -> String { "\(count) \(count == 1 ? "video" : "videos")" }
 }
 
 private enum PublicDestination: Int, CaseIterable, Identifiable {
@@ -51,10 +52,10 @@ struct PublicRootView: View {
     @State private var showSettings = false
     @State private var link = ""
     @FocusState private var linkFocused: Bool
-    @FocusState private var searchFocused: Bool
-    @State private var query = ""
     @State private var confirmingSync = false
-    @State private var libraryPresentation: PublicLibraryPresentation = .cards
+    @AppStorage("public.library.presentation") private var libraryPresentation: PublicLibraryPresentation = .list
+    @State private var libraryQuery = ""
+    @State private var searchFocusRequested = false
 
     var body: some View {
         Group {
@@ -78,7 +79,10 @@ struct PublicRootView: View {
                             .listRowBackground(
                                 selection == destination ? PublicStyle.gold.opacity(0.15) : Color.clear
                             )
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(destination.title)
                             .accessibilityAddTraits(selection == destination ? .isSelected : [])
+                            .accessibilityIdentifier("public.sidebar.\(destination.title)")
                         }
                     }
                     .navigationTitle("Muses")
@@ -107,10 +111,11 @@ struct PublicRootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await session.maintainCatalogData(); await session.hydrateDisplayMetadata() } }
+            else { session.checkpointPlayback(force: true) }
         }
         .task(id: session.apiConfigured) { await session.hydrateDisplayMetadata() }
         .tint(PublicStyle.gold)
-        .background(PublicKeyboardDismissal { linkFocused = false; searchFocused = false })
+        .background(PublicKeyboardDismissal { linkFocused = false })
         .sheet(isPresented: $showSettings) {
             NavigationStack { settings }
                 .tint(PublicStyle.gold)
@@ -165,20 +170,27 @@ struct PublicRootView: View {
     private var home: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
-                if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
-                PublicHomeLibraryContent(session: session) {
-                    session.selectedCategory = .history; selection = .library
+                if let message = session.libraryFailureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
+                if session.libraryTracks.isEmpty && session.libraryHistory.isEmpty && session.playlists.isEmpty && session.accountPlaylistPages.items.isEmpty {
+                    homeStartActions
                 }
-                PublicHomePlaylistShelves(session: session)
+                if !session.libraryHistory.isEmpty {
+                    PublicHomeLibraryContent(session: session) { session.selectedCategory = .history; selection = .library }
+                } else if session.playlists.isEmpty && !session.libraryTracks.isEmpty {
+                    PublicHomeSavedVideos(session: session)
+                }
+                PublicHomeLocalPlaylists(session: session, showAll: { session.selectedCategory = .playlists; selection = .library })
+                PublicHomePlaylistShelves(session: session, showAccount: { showSettings = true })
+                if !session.libraryTracks.isEmpty || !session.playlists.isEmpty || !session.accountPlaylistPages.items.isEmpty { startActions }
             }
             .frame(maxWidth: 900, alignment: .leading)
             .padding(.horizontal, PublicStyle.inset).padding(.vertical, 12)
             .frame(maxWidth: .infinity)
         }
         .background(PublicStyle.background)
-        .task(id: session.musicHomeScope) { if session.signedIn { await session.loadAccountCollections() } }
+        .task(id: session.musicHomeScope) { if session.signedIn { await session.loadHomeAccountPlaylists() } }
         .refreshable {
-            if session.signedIn { await session.loadAccountCollections() }
+            if session.signedIn { await session.loadHomeAccountPlaylists(refresh: true) }
         }
         .navigationDestination(item: $session.catalogRoute) { route in PublicCatalogDetail(session: session, route: route) }
         .navigationTitle("Home").navigationBarTitleDisplayMode(.inline)
@@ -241,102 +253,53 @@ struct PublicRootView: View {
     }
 
     private var search: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(PublicStyle.muted)
-                    TextField("Search YouTube", text: $query)
-                        .submitLabel(.search)
-                        .autocorrectionDisabled()
-                        .focused($searchFocused)
-                        .onSubmit(submitSearch)
-                        .accessibilityIdentifier("public.search")
-                    Button(action: submitSearch) { PublicIconActionLabel(title: "Search YouTube", symbol: "magnifyingglass") }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
-                }
-                .padding(15)
-                .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
-                Picker("Search type", selection: $session.searchKind) {
-                    Text("Videos").tag(MusesCatalog.CatalogItem.Kind.video)
-                    Text("Playlists").tag(MusesCatalog.CatalogItem.Kind.playlist)
-                    Text("Channels").tag(MusesCatalog.CatalogItem.Kind.channel)
-                }
-                .pickerStyle(.segmented).accessibilityIdentifier("public.searchKind")
-                .onChange(of: session.searchKind) { _, _ in
-                    if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { submitSearch() }
-                }
-                if session.searching {
-                    ProgressView("Searching YouTube")
-                }
-                if !session.apiConfigured {
-                    PublicNotice(
-                        message: "Online search is unavailable. Saved videos and YouTube links still work.",
-                        symbol: "wifi.slash"
-                    )
-                }
-                if let error = session.searchError {
-                    PublicNotice(message: error, symbol: "exclamationmark.circle")
-                        .accessibilityIdentifier("public.searchError")
-                }
-                Text(session.searchItems.isEmpty ? "Results" : "\(session.searchItems.count) results")
-                    .font(.subheadline).foregroundStyle(.secondary).accessibilityIdentifier("public.searchResultsHeading")
-                if session.searchItems.isEmpty && !session.searching {
-                    PublicEmptyState(
-                        symbol: "magnifyingglass",
-                        title: "Nothing to show yet",
-                        detail: "Enter a title or artist, then submit your search."
-                    )
-                }
-                LazyVStack(spacing: 0) {
-                    ForEach(session.searchItems, id: \.rowID) { item in
-                        PublicCatalogRow(session: session, item: item)
-                    }
-                }
-                if session.searchPages.loaded || session.searchPages.error != nil {
-                    PublicCatalogPaging(page: session.searchPages) { await session.nextSearchPage() }
-                }
-            }
-            .frame(maxWidth: 900, alignment: .leading)
-            .padding(.horizontal, PublicStyle.inset)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-        }
-        .background(PublicStyle.background)
-        .navigationTitle("Search")
-        .scrollDismissesKeyboard(.interactively)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            queueToolbar
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { query = ""; session.clearSearchResults() } label: { PublicIconActionLabel(title: "Clear search", symbol: "trash") }
-                    .disabled(query.isEmpty && session.searchItems.isEmpty && !session.searching)
-                    .accessibilityIdentifier("public.clearSearch")
-            }
-            settingsToolbar
+        PublicSearchScreen(session: session, focusRequested: $searchFocusRequested)
+            .toolbar { queueToolbar; settingsToolbar }
+    }
+
+    private var homeStartActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            PublicEmptyState(symbol: "play.rectangle", title: "Start your library", detail: "Find a video, open a YouTube link, or import a playlist.")
+            startActions
+        }.accessibilityIdentifier("home.empty")
+    }
+
+    private var startActions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { discoveryButtons }
+            VStack(alignment: .leading, spacing: 8) { discoveryButtons }
         }
     }
 
-    private func submitSearch() {
-        searchFocused = false
-        Task { await session.search(query) }
+    @ViewBuilder private var discoveryButtons: some View {
+        Button { session.searchKind = .video; searchFocusRequested = true; selection = .search } label: {
+            Label("Search videos", systemImage: "magnifyingglass").frame(minHeight: 44)
+        }.buttonStyle(.borderedProminent).accessibilityIdentifier("public.start.search")
+        Button { activeTool = .link } label: {
+            Label("Open link", systemImage: "link").frame(minHeight: 44)
+        }.buttonStyle(.bordered).accessibilityIdentifier("public.start.link")
+        Button { activeTool = .importPlaylist } label: {
+            Label("Import playlist", systemImage: "square.and.arrow.down").frame(minHeight: 44)
+        }.buttonStyle(.bordered).accessibilityIdentifier("public.start.import")
     }
 
     private var library: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PublicLibraryCategories(session: session)
+                TextField("Find in this collection", text: $libraryQuery)
+                    .textFieldStyle(.roundedBorder).frame(minHeight: 44)
+                    .accessibilityIdentifier("library.filter")
                 HStack(spacing: 8) {
-                    Text(categoryDetail).font(.subheadline).foregroundStyle(.secondary)
+                    Text(categoryDetail).font(.subheadline).foregroundStyle(PublicStyle.ink)
                         .accessibilityIdentifier("library.itemCount")
                     Spacer(minLength: 0)
-                    if [.songs, .videos, .favorites, .history].contains(session.selectedCategory) {
+                    if !categoryTracks.isEmpty && session.selectedCategory != .playlists {
                         PublicLibraryPresentationControl(presentation: $libraryPresentation)
                     }
                     libraryClearControl
                 }
-                if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
+                if let message = session.libraryFailureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
                 if session.selectedCategory == .playlists, let message = session.playlistNameRefreshMessage {
                     PublicNotice(message: message, symbol: "exclamationmark.circle")
                 }
@@ -348,6 +311,10 @@ struct PublicRootView: View {
             .frame(maxWidth: .infinity)
         }
         .background(PublicStyle.background)
+        .onAppear {
+            if ![LibraryCategory.videos, .playlists, .favorites, .history].contains(session.selectedCategory) { session.selectedCategory = .videos }
+        }
+        .onChange(of: session.selectedCategory) { _, _ in libraryQuery = "" }
         .navigationTitle("Library")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { confirmingSync = true }
@@ -397,76 +364,72 @@ struct PublicRootView: View {
     }
 
     @ViewBuilder private var libraryClearControl: some View {
-        if [.videos, .songs, .favorites, .playlists, .history].contains(session.selectedCategory) {
+        if collectionCount > 0 {
             PublicLibraryClearButton(session: session, category: session.selectedCategory)
-                .accessibilityHint(categoryDetail)
         }
     }
 
-    private var playlistSongs: [MusesDomain.Track] { session.libraryTracks }
-
+    private var categoryTracks: [MusesDomain.Track] {
+        switch session.selectedCategory {
+        case .favorites: session.libraryFavorites
+        case .history: session.libraryHistory
+        default: session.libraryTracks
+        }
+    }
+    private var filteredTracks: [MusesDomain.Track] {
+        let term = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return term.isEmpty ? categoryTracks : categoryTracks.filter {
+            $0.displayTitle.localizedCaseInsensitiveContains(term) || $0.displayArtist.localizedCaseInsensitiveContains(term)
+        }
+    }
+    private var collectionCount: Int { session.selectedCategory == .playlists ? session.playlists.count : categoryTracks.count }
     private var categoryDetail: String {
-        switch session.selectedCategory {
-        case .videos: "\(session.libraryTracks.count) videos"
-        case .songs: "\(playlistSongs.count) songs"
-        case .favorites: "\(session.libraryFavorites.count) favorites"
-        case .playlists: "\(session.playlists.count) local playlists"
-        case .history: "\(session.libraryHistory.count) played"
-        case .subscriptions: session.signedIn ? "\(session.subscriptions.count) loaded" : "Sign in required"
-        default: "Unavailable in this version"
-        }
+        if session.selectedCategory == .playlists { return "\(session.playlists.count) local \(session.playlists.count == 1 ? "playlist" : "playlists")" }
+        return libraryQuery.isEmpty ? PublicStyle.videoCount(categoryTracks.count) : "\(filteredTracks.count) of \(PublicStyle.videoCount(categoryTracks.count))"
     }
 
-    @ViewBuilder
-    private var categoryContent: some View {
+    @ViewBuilder private var categoryContent: some View {
+        if session.selectedCategory == .playlists {
+            let lists = session.playlists.filter { libraryQuery.isEmpty || $0.name.localizedCaseInsensitiveContains(libraryQuery) }
+            if session.playlists.isEmpty {
+                PublicEmptyState(symbol: "music.note.list", title: "No local playlists", detail: "Import a YouTube playlist or create a playlist on this device.")
+                Button("Create playlist", systemImage: "plus") { playlistName = ""; creatingPlaylist = true }
+                    .frame(minHeight: 44).buttonStyle(.bordered)
+                startActions
+            } else if lists.isEmpty {
+                noFilterMatches
+            } else {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    ForEach(lists) { playlist in PublicPlaylistBlock(session: session, playlist: playlist) }
+                }.task { await session.refreshPlaylistNames() }
+            }
+        } else if categoryTracks.isEmpty {
+            PublicEmptyState(symbol: session.selectedCategory.symbol, title: emptyLibraryTitle, detail: emptyLibraryDetail)
+            startActions
+        } else if filteredTracks.isEmpty {
+            noFilterMatches
+        } else {
+            PublicLibraryHeroShelf(session: session, tracks: filteredTracks, category: session.selectedCategory, presentation: $libraryPresentation)
+        }
+    }
+    private var emptyLibraryTitle: String {
         switch session.selectedCategory {
-        case .videos:
-            if session.libraryTracks.isEmpty {
-                PublicEmptyState(symbol: "play.rectangle", title: "No playlist videos", detail: "Import a playlist or add a video to a playlist.")
-            } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryTracks, category: session.selectedCategory, presentation: $libraryPresentation)
-            }
-        case .songs:
-            let songs = playlistSongs
-            if songs.isEmpty {
-                PublicEmptyState(symbol: "music.note", title: "No playlist songs", detail: "Import a playlist or add saved videos to a playlist.")
-            } else {
-                PublicLibraryHeroShelf(session: session, tracks: songs, category: .songs, presentation: $libraryPresentation)
-            }
-        case .favorites:
-            if session.libraryFavorites.isEmpty {
-                PublicEmptyState(symbol: "heart", title: "No favorites yet", detail: "Open a saved video and choose Favorite.")
-            } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryFavorites, category: .favorites, presentation: $libraryPresentation)
-            }
-        case .playlists:
-            PublicPlaylistCollection(session: session)
-        case .history:
-            if session.libraryHistory.isEmpty {
-                PublicEmptyState(symbol: "clock", title: "No listening history", detail: "Videos appear after the official player confirms playback.")
-            } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryHistory, category: .history, presentation: $libraryPresentation)
-            }
-        case .subscriptions:
-            if session.signedIn {
-                if session.subscriptions.isEmpty {
-                    PublicEmptyState(symbol: "person.crop.rectangle.stack", title: "No subscriptions loaded", detail: "Refresh to read subscriptions from your YouTube account.")
-                }
-                ForEach(session.subscriptions, id: \.rowID) { item in
-                    PublicCatalogRow(session: session, item: item)
-                }
-                PublicCatalogPaging(page: session.subscriptionPages, initialTitle: "Load subscriptions") { await session.loadSubscriptions() }
-            } else {
-                PublicEmptyState(symbol: "person.crop.rectangle.stack", title: "Sign in to see subscriptions", detail: "A configured Google account grants read-only access to your YouTube subscriptions.")
-                Button("Account settings") { showSettings = true }
-                    .buttonStyle(.bordered)
-            }
-        default:
-            PublicEmptyState(
-                symbol: session.selectedCategory.symbol,
-                title: "\(session.selectedCategory.rawValue) are not available",
-                detail: "This category needs account data or an official YouTube endpoint that this public version does not support."
-            )
+        case .favorites: "No favorites yet"
+        case .history: "No playback history"
+        default: "No saved videos"
+        }
+    }
+    private var emptyLibraryDetail: String {
+        switch session.selectedCategory {
+        case .favorites: "Open a video and choose Favorite. Favorites stay here without a playlist."
+        case .history: "Videos appear after the player confirms playback."
+        default: "Open a video link or import a playlist to save videos on this device."
+        }
+    }
+    private var noFilterMatches: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            PublicEmptyState(symbol: "magnifyingglass", title: "No matching saved items", detail: "Try another title or creator in this collection.")
+            Button("Clear filter") { libraryQuery = "" }.frame(minHeight: 44)
         }
     }
 
@@ -526,7 +489,7 @@ private struct PublicPageHeading: View {
     }
 }
 
-private struct PublicNotice: View {
+struct PublicNotice: View {
     let message: String
     let symbol: String
 
@@ -540,7 +503,7 @@ private struct PublicNotice: View {
     }
 }
 
-private struct PublicEmptyState: View {
+struct PublicEmptyState: View {
     let symbol: String
     let title: String
     let detail: String
@@ -555,7 +518,7 @@ private struct PublicEmptyState: View {
                 .foregroundStyle(PublicStyle.ink)
             Text(detail)
                 .font(.subheadline)
-                .foregroundStyle(PublicStyle.muted)
+                .foregroundStyle(PublicStyle.ink)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -697,7 +660,7 @@ private struct PublicWebPlayerView: View {
                 session.detach()
                 adapter = nil
             }
-        }
+        }.tint(PublicStyle.gold)
     }
 
     private var playerColumn: some View {
@@ -752,8 +715,20 @@ private struct PublicWebPlayerView: View {
                         symbol: session.currentTrack?.liked == true ? "heart.fill" : "heart")
                 }
             }
-            if let message = session.failureMessage {
+            if let message = session.queueFailureMessage {
                 PublicNotice(message: message, symbol: "exclamationmark.circle")
+            }
+            if let message = session.playbackError, message != session.playbackCheckpoint.failure {
+                PublicNotice(message: message, symbol: "exclamationmark.circle")
+                ViewThatFits(in: .horizontal) {
+                    HStack { playbackRecoveryActions }
+                    VStack(alignment: .leading) { playbackRecoveryActions }
+                }
+            }
+            if let message = session.playbackCheckpoint.failure {
+                PublicNotice(message: message, symbol: "externaldrive.badge.exclamationmark")
+                Button("Retry saving position", systemImage: "arrow.clockwise") { session.retryPlaybackCheckpoint() }
+                    .frame(minHeight: 44).accessibilityIdentifier("public.retryCheckpoint")
             }
             VStack(spacing: 8) {
                 let duration = Double(session.state.durationMilliseconds ?? 0) / 1000
@@ -776,6 +751,17 @@ private struct PublicWebPlayerView: View {
             }
 
             .accessibilityElement(children: .contain)
+        }
+    }
+
+    @ViewBuilder private var playbackRecoveryActions: some View {
+        Button("Retry playback", systemImage: "arrow.clockwise") { session.retryPlayback() }
+            .buttonStyle(.borderedProminent).frame(minHeight: 44)
+            .disabled(!session.canRetryPlayback).accessibilityIdentifier("public.retryPlayback")
+        if let video = session.currentTrack?.publicVideoID,
+           let url = URL(string: "https://www.youtube.com/watch?v=\(video.rawValue)") {
+            Button("Open YouTube", systemImage: "arrow.up.right") { openURL(url) }
+                .buttonStyle(.bordered).frame(minHeight: 44).accessibilityIdentifier("public.openYouTube")
         }
     }
 
@@ -1026,7 +1012,8 @@ struct PublicVideoDetail: View {
                 }
                 PublicNotebookSections(session: session, trackID: trackID)
             }
-            if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
+            if let message = session.queueFailureMessage { Text(message).foregroundStyle(.red) }
+            if let message = session.failureMessage, message != session.queueFailureMessage { Text(message).foregroundStyle(.red) }
         }
         .navigationTitle("Details")
         .navigationBarTitleDisplayMode(.inline)
@@ -1111,7 +1098,7 @@ struct PublicQueueView: View {
                     PublicClearUpNextButton(session: session)
                 }
             }
-            if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
+            if let message = session.queueFailureMessage { Text(message).foregroundStyle(.red) }
         }
         .alert("Remove selected queue entries?", isPresented: $confirmingRemoval) {
             Button("Cancel", role: .cancel) {}

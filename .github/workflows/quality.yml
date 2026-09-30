@@ -1,0 +1,168 @@
+name: App quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packages:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Test all local packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for package in Packages/MusesDomain Packages/MusesQueue Packages/MusesPersistence Packages/MusesNetworking Packages/MusesCatalog Packages/MusesCore Platform/iOS/OAuth; do
+            swift test --package-path "$package"
+          done
+
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - channel: Public
+            spec: project-public.yml
+            project: MusesPublic
+            scheme: MusesPublic
+            directory: .artifacts/ci-project
+            distribution: Release
+          - channel: Native
+            spec: project.yml
+            project: Muses
+            scheme: MusesNative
+            directory: .
+            distribution: Native
+    steps:
+      - uses: actions/checkout@v6
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Install XcodeGen and inspect toolchain
+        run: |
+          brew install xcodegen
+          xcodebuild -version
+          swift --version
+          python3 - <<'PY'
+          import subprocess
+          sdk = subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-version'], text=True).strip()
+          assert tuple(map(int, sdk.split('.'))) >= (26, 1), f'iOS 26.1+ SDK required; selected {sdk}'
+          PY
+      - name: Generate channel project
+        run: |
+          mkdir -p '${{ matrix.directory }}'
+          xcodegen generate --spec '${{ matrix.spec }}' --project '${{ matrix.directory }}' --project-root .
+      - name: Create isolated test simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun simctl list --json > "$RUNNER_TEMP/simulators.json"
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          data = json.loads(Path(os.environ['RUNNER_TEMP'], 'simulators.json').read_text())
+          sdk = tuple(map(int, subprocess.check_output(['xcrun', '--sdk', 'iphonesimulator', '--show-sdk-version'], text=True).strip().split('.')))
+          runtimes = [r for r in data['runtimes'] if r.get('isAvailable') and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-') and (18,) <= tuple(map(int, r['version'].split('.'))) <= sdk]
+          assert runtimes, f'No available iOS 18+ runtime compatible with selected SDK {sdk}'
+          runtime = max(runtimes, key=lambda r: tuple(map(int, r['version'].split('.'))))
+          assert int(runtime['version'].split('.')[0]) >= 18, 'iOS 18+ runtime required'
+          # Choose a device that the selected runtime already supports.
+          available = data['devices'][runtime['identifier']]
+          device = next(d for d in available if d.get('isAvailable') and d['name'].startswith('iPhone'))
+          udid = subprocess.check_output(['xcrun', 'simctl', 'create', 'Muses CI', device['deviceTypeIdentifier'], runtime['identifier']], text=True).strip()
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'MUSES_CI_SIMULATOR={udid}\nMUSES_CI_RUNTIME={runtime["identifier"]}\n')
+          subprocess.run(['xcrun', 'simctl', 'boot', udid], check=True)
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], check=True)
+          PY
+      - name: Build distribution configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project '${{ matrix.directory }}/${{ matrix.project }}.xcodeproj' \
+            -scheme '${{ matrix.scheme }}' -configuration '${{ matrix.distribution }}' \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/distribution" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Audit Public distribution capabilities
+        if: matrix.channel == 'Public'
+        run: python3 scripts/audit-public-artifact.py "$RUNNER_TEMP/distribution/Build/Products/Release-iphonesimulator/Muses.app"
+      - name: Run deterministic application regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project '${{ matrix.directory }}/${{ matrix.project }}.xcodeproj' \
+            -scheme '${{ matrix.scheme }}' -configuration Debug \
+            -destination "platform=iOS Simulator,id=$MUSES_CI_SIMULATOR" \
+            -derivedDataPath "$RUNNER_TEMP/regression" -resultBundlePath "$RUNNER_TEMP/${{ matrix.channel }}.xcresult" \
+            -parallel-testing-enabled NO -collect-test-diagnostics never CODE_SIGNING_ALLOWED=NO test
+      - name: Run Public iPad regression
+        if: matrix.channel == 'Public'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          data = json.loads(Path(os.environ['RUNNER_TEMP'], 'simulators.json').read_text())
+          runtime = os.environ['MUSES_CI_RUNTIME']
+          devices = [d for d in data['devices'][runtime] if d.get('isAvailable') and d['name'].startswith('iPad')]
+          assert devices, 'No available iPad device for selected runtime'
+          device = next((d for d in devices if 'Pro 13-inch' in d['name']), devices[0])
+          udid = subprocess.check_output(['xcrun', 'simctl', 'create', 'Muses CI iPad', device['deviceTypeIdentifier'], runtime], text=True).strip()
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'MUSES_CI_IPAD={udid}\n')
+          subprocess.run(['xcrun', 'simctl', 'shutdown', os.environ['MUSES_CI_SIMULATOR']], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          subprocess.run(['xcrun', 'simctl', 'boot', udid], check=True)
+          subprocess.run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], check=True)
+          PY
+          xcodebuild -project '${{ matrix.directory }}/${{ matrix.project }}.xcodeproj' \
+            -scheme MusesPublicIPad -configuration Debug \
+            -destination "platform=iOS Simulator,id=$MUSES_CI_IPAD" \
+            -derivedDataPath "$RUNNER_TEMP/regression" -resultBundlePath "$RUNNER_TEMP/PublicIPad.xcresult" \
+            -parallel-testing-enabled NO -collect-test-diagnostics never CODE_SIGNING_ALLOWED=NO test
+      - name: Run Native UI regression
+        if: matrix.channel == 'Native'
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project '${{ matrix.directory }}/${{ matrix.project }}.xcodeproj' \
+            -scheme MusesNativeUI -configuration Debug \
+            -destination "platform=iOS Simulator,id=$MUSES_CI_SIMULATOR" \
+            -derivedDataPath "$RUNNER_TEMP/regression" -resultBundlePath "$RUNNER_TEMP/NativeUI.xcresult" \
+            -parallel-testing-enabled NO -collect-test-diagnostics never CODE_SIGNING_ALLOWED=NO test
+      - name: Upload regression evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-${{ matrix.channel }}
+          path: |
+            ${{ runner.temp }}/${{ matrix.channel }}.xcresult
+            ${{ runner.temp }}/NativeUI.xcresult
+            ${{ runner.temp }}/PublicIPad.xcresult
+          if-no-files-found: ignore
+      - name: Remove test simulator
+        if: always() && env.MUSES_CI_SIMULATOR != ''
+        run: |
+          xcrun simctl shutdown "$MUSES_CI_SIMULATOR" || true
+          xcrun simctl delete "$MUSES_CI_SIMULATOR"
+      - name: Remove iPad test simulator
+        if: always() && env.MUSES_CI_IPAD != ''
+        run: |
+          xcrun simctl shutdown "$MUSES_CI_IPAD" || true
+          xcrun simctl delete "$MUSES_CI_IPAD"

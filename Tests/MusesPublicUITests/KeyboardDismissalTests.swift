@@ -20,7 +20,7 @@ import XCTest
         XCTAssertTrue(search.waitForExistence(timeout: 3))
         search.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
-        tapNonInputContent(app.staticTexts["public.searchResultsHeading"])
+        tapNonInputContent(app.staticTexts["Find a video or playlist"])
         expectNoKeyboard(app)
     }
 

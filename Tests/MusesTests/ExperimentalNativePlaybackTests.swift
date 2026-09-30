@@ -1,3 +1,4 @@
+#if MUSES_NATIVE_PLAYBACK
 import XCTest
 import AVFoundation
 import MediaPlayer
@@ -5,6 +6,10 @@ import UIKit
 @testable import Muses
 
 @MainActor final class ExperimentalNativePlaybackTests: XCTestCase {
+    func testNativeCompositionEnablesEngine() {
+        XCTAssertTrue(ExperimentalNativePlayback.available)
+    }
+
     func testLateResolutionCannotReplaceNewTrackOrReviveStoppedPlayer() async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -79,3 +84,5 @@ import UIKit
     }
 
 }
+
+#endif

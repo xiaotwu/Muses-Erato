@@ -21,8 +21,16 @@ import XCTest
         XCTAssertTrue(app.alerts["Enable experimental background playback?"].waitForExistence(timeout: 3))
         app.alerts.buttons["Enable background audio"].tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        app.buttons["Close settings"].tap()
-        XCTAssertTrue(app.buttons["player.mini.open"].waitForExistence(timeout: 5)); app.buttons["player.mini.open"].tap()
+        let closeSettings = app.buttons["Close settings"]
+        closeSettings.tap()
+        XCTAssertTrue(closeSettings.waitForNonExistence(timeout: 5), "Settings must finish dismissal before opening the player")
+        let openPlayer = app.buttons["player.mini.open"]
+        XCTAssertTrue(openPlayer.waitForExistence(timeout: 5))
+        // The system tab accessory can expose an invalid AX activation point after a sheet closes.
+        // Its visible frame remains valid; tap its center and still require the real player controls.
+        XCTAssertFalse(openPlayer.frame.isEmpty)
+        XCTAssertTrue(app.frame.contains(openPlayer.frame))
+        openPlayer.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.buttons["player.toggle"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.sliders["Playback position"].exists)
         XCTAssertTrue(app.buttons["player.queue"].isHittable)

@@ -9,7 +9,7 @@ struct PublicLibraryCategories: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Namespace private var categoryGlass
     @ViewBuilder private func categoryLabel(_ category: LibraryCategory) -> some View {
-        let label = Text(category.rawValue)
+        let label = Text(category == .videos ? "All Saved" : category.rawValue)
             .font(.subheadline.weight(session.selectedCategory == category ? .semibold : .regular))
             .foregroundStyle(.primary).padding(.horizontal, 14).frame(minHeight: 44)
         if session.selectedCategory == category {
@@ -19,30 +19,31 @@ struct PublicLibraryCategories: View {
             } else { label.background(PublicStyle.surface, in: Capsule()) }
         } else { label }
     }
+    @Environment(\.dynamicTypeSize) private var typeSize
+    private let categories: [LibraryCategory] = [.videos, .playlists, .favorites, .history]
+    private func button(_ category: LibraryCategory) -> some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) { session.selectedCategory = category }
+        } label: { categoryLabel(category) }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(category == .videos ? "All Saved" : category.rawValue)
+            .accessibilityAddTraits(session.selectedCategory == category ? .isSelected : [])
+            .accessibilityIdentifier("library.category.\(category.rawValue)")
+    }
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    ForEach(LibraryCategory.allCases.filter { ![.artists, .albums, .subscriptions].contains($0) }) { category in
-                        Button {
-                            withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) { session.selectedCategory = category }
-                        } label: {
-                            categoryLabel(category)
-                        }
-                        .buttonStyle(.plain).id(category)
-                        .accessibilityAddTraits(session.selectedCategory == category ? .isSelected : [])
-                        .accessibilityIdentifier("library.category.\(category.rawValue)")
-                    }
-                }.padding(.vertical, 3)
+        ViewThatFits(in: .horizontal) {
+            if !typeSize.isAccessibilitySize {
+                HStack(spacing: 4) { ForEach(categories) { button($0) } }.fixedSize(horizontal: true, vertical: false)
             }
-            .scrollIndicators(.hidden)
-            .accessibilityIdentifier("library.categories")
-            .onAppear { proxy.scrollTo(session.selectedCategory, anchor: .center) }
-            .onChange(of: session.selectedCategory) { _, category in
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(category, anchor: .center) }
-            }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) { button(.videos); button(.playlists) }
+                HStack(spacing: 4) { button(.favorites); button(.history) }
+            }.fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 4) { ForEach(categories) { button($0) } }
         }
     }
+
 }
 
 enum PublicLibraryPresentation: String, CaseIterable { case cards = "Cards", list = "List" }
@@ -64,7 +65,7 @@ struct PublicLibraryPresentationControl: View {
             ForEach(PublicLibraryPresentation.allCases, id: \.self) { mode in
                 Button { presentation = mode } label: {
                     Label(mode.rawValue, systemImage: mode == .cards ? "rectangle.stack" : "list.bullet")
-                        .labelStyle(.iconOnly).font(.subheadline.weight(.semibold))
+                        .labelStyle(.iconOnly).font(.system(size: 18, weight: .semibold))
                         .frame(width: 44, height: 44).contentShape(Capsule())
                         .background(presentation == mode ? Color(uiColor: .tertiarySystemBackground) : .clear, in: Capsule())
                 }.buttonStyle(.plain).accessibilityLabel(mode.rawValue)
@@ -89,7 +90,7 @@ struct PublicLibraryHeroShelf: View {
         VStack(alignment: .leading, spacing: 8) {
             if displayed.isEmpty {
                 ContentUnavailableView("No songs in playlists", systemImage: "music.note.list", description: Text("Add videos to a local playlist to see them here."))
-            } else if presentation == .cards {
+            } else if presentation == .cards && !typeSize.isAccessibilitySize {
                 PublicCollectionDeck(session: session, tracks: displayed, category: category)
             } else {
                 LazyVStack(spacing: 0) {
@@ -157,6 +158,8 @@ struct PublicTrackActions: View {
     var body: some View {
         Menu {
             NavigationLink { PublicVideoDetail(session: session, trackID: track.id) } label: { Label("Video details", systemImage: "info.circle") }
+            if category != .favorites { Button(track.liked ? "Remove favorite" : "Favorite", systemImage: track.liked ? "heart.slash" : "heart") { session.toggleFavorite(track.id) } }
+            PublicAddToPlaylistMenu(session: session, track: track)
             if category == .favorites {
                 Button("Remove favorite", systemImage: "heart.slash", role: .destructive) { removing = true }
             }
@@ -180,7 +183,7 @@ struct PublicTrackActions: View {
 }
 
 extension MusesDomain.Track {
-    var displayTitle: String { metadataOrigin == .placeholder ? "Song details unavailable" : title }
+    var displayTitle: String { metadataOrigin == .placeholder ? "Video details unavailable" : title }
     var displayArtist: String { artist == "YouTube" ? "Unknown artist" : artist }
     var publicVideoID: VideoID? { if case .youtubeVideo(let id) = source { id } else { nil } }
 }
@@ -214,7 +217,7 @@ struct PublicLibraryClearButton: View {
     }
     private var scope: String {
         switch category {
-        case .videos: "only videos in your playlists, and their favorites, history, queue references, notes and bookmarks"
+        case .videos: "all saved videos and their favorites, history, queue references, playlist memberships, notes and bookmarks"
         case .songs: "only saved videos in your local playlists, and their favorites, history, queue entries, notes and bookmarks"
         case .favorites: "favorites only"
         case .playlists: "local playlists only"
@@ -223,12 +226,14 @@ struct PublicLibraryClearButton: View {
         }
     }
     var body: some View {
-        Button { confirming = true } label: {
-            Label("Clear \(category.rawValue.lowercased())", systemImage: "trash")
-                .labelStyle(.iconOnly).font(.system(size: 18)).frame(minWidth: 44, minHeight: 44)
-        }
-        .disabled(count == 0)
-        .accessibilityIdentifier("library.clear.\(category.rawValue)")
+        Menu {
+            Button(role: .destructive) { confirming = true } label: {
+                Label(category == .videos ? "Delete all saved videos" : "Clear \(category.rawValue.lowercased())", systemImage: "trash")
+            }
+            .disabled(count == 0)
+            .accessibilityIdentifier("library.clear.\(category.rawValue)")
+        } label: { PublicIconActionLabel(title: "Collection actions", symbol: "ellipsis") }
+        .accessibilityIdentifier("library.collectionActions")
         .confirmationDialog("Clear \(count) local items?", isPresented: $confirming, titleVisibility: .visible) {
             Button("Clear local items", role: .destructive) {
                 if category == .songs {
@@ -258,7 +263,7 @@ struct PublicLocalPlaylistHero: View {
             NavigationLink { PublicPlaylistDetail(session: session, playlistID: playlist.id) } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(playlist.name).font(.system(.title2, design: .serif, weight: .semibold))
-                    Text("\(playlist.entryCount) videos · On this device").font(.caption)
+                    Text("\(PublicStyle.videoCount(playlist.entryCount)) · On this device").font(.caption)
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.buttonStyle(.plain)
                 .accessibilityIdentifier("playlist.open.\(playlist.id)")
