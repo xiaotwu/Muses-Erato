@@ -44,3 +44,7 @@ Record only redacted statuses, build/commit, approved scope set, public URLs and
 ## Follow-up: selected host / content status
 
 The owner selected `xiaotwu.github.io`; see [deployment plan](pages-deployment-plan.md) for required host-root proof and currently unavailable URLs. The new [content-status restriction](content-status-validation.md) must be shown in the final demonstration/build description. The previously exported 79eff2e IPA predates this change; use a fresh final candidate when recording/submitting. Audience remains Testing and no verification evidence is closed by these local preparations.
+
+## Unmerged Music Home candidate: packet reassessment required
+
+Candidate `ba4c368` additionally attempts a bearer-authorized undocumented YouTube Music Home request, separate from the official Data API collections described above. This packet's earlier scope-use wording/demo is historical and incomplete for that candidate. Do not submit it unchanged or treat guest responses as evidence that the account path is supported. Resolve the endpoint/composition/account-permission decision, final data-use disclosures and real-account behavior first; then update the exact candidate demo and scope-use description. [Candidate assessment and unpublished privacy draft](candidates/ba4c368/README.md). No Google submission or approval occurred here.
