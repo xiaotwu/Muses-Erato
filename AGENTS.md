@@ -5,7 +5,7 @@ Muses-Erato is the iOS member of Project-Muses. The installed app is Muses.
 - Use `../Muses-Polyhymnia` as the product and interaction reference. Current iOS source and explicit user decisions determine implemented capabilities.
 - Adapt the macOS library, collection context, queue, artwork and typography to native iPhone/iPad layouts. Public and experimental Native playback have separate source allowlists and acceptance gates; do not infer Public background audio from macOS.
 - Keep credentials outside Git and preserve existing library data.
-- Run the relevant package/app checks for changes. Build instructions are in README.md and `.github/workflows/quality.yml`.
+- Run the relevant package/app checks for changes. Build instructions are in docs/repository-guide.md and `.github/workflows/quality.yml`.
 - Project-Muses owns GitHub Pages and aggregated releases. Keep native builds, signing, IPA audit and source releases in this repository. The policy builder is a local parity check, not a deployment pipeline.
 - Do not add automated-assistant attribution or co-author trailers to commits.
 
