@@ -1,6 +1,6 @@
 # Muses-Erato
 
-Muses-Erato is the iOS 18+ port of [Muses for macOS](https://github.com/xiaotwu/Muses). The current integration targets public App Store distribution with official YouTube playback and catalog APIs. It is under development and is not ready for public release.
+Muses-Erato is the iOS 18+ port of [Muses for macOS](https://github.com/xiaotwu/Muses-Polyhymnia). The current integration targets public App Store distribution with official YouTube playback and catalog APIs. It is under development and is not ready for public release.
 
 ## Current public implementation
 
@@ -56,4 +56,10 @@ Run app tests with the same scheme/destination and `test` instead of `build`. Pa
 
 ## License
 
-MIT. Ported and adapted from [Muses](https://github.com/xiaotwu/Muses).
+MIT. Ported and adapted from [Muses](https://github.com/xiaotwu/Muses-Polyhymnia).
+
+## Muses family and website
+
+[Project-Muses](https://github.com/xiaotwu/Project-Muses) is the shared website and release hub. [Polyhymnia](https://github.com/xiaotwu/Muses-Polyhymnia) is the macOS product reference; iOS adapts its library and queue concepts while retaining Public/Native playback boundaries. The local checkout lives at `Project-Muses/Muses-Erato`.
+
+Public website: [iOS support](https://xiaotwu.github.io/Project-Muses/ios/) · [Privacy](https://xiaotwu.github.io/Project-Muses/ios/privacy.html) · [Terms](https://xiaotwu.github.io/Project-Muses/ios/terms.html). `scripts/build-privacy-site.py` checks the policy locally; the parent repository publishes its reviewed output. This repository does not deploy Pages. Native signing, export and build gates remain platform-owned.
