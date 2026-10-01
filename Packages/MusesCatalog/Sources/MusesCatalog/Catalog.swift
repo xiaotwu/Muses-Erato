@@ -7,7 +7,14 @@ public enum VideoEmbeddingStatus: String, Sendable, Codable {
     case permitted, madeForKids, notEmbeddable, unknown
 }
 
+public struct VideoPlaybackMetadata: Sendable, Equatable {
+    public let embeddingStatus: VideoEmbeddingStatus
+    public let contentKind: CatalogItem.ContentKind?
+    public let fetchedAt: Date
+}
+
 public struct CatalogItem: Sendable, Equatable, Codable {
+    public enum ContentKind: String, Sendable, Codable { case music, video }
     public enum Kind: String, Sendable, Codable { case video, playlist, channel }
     public let kind: Kind
     public let id: String
@@ -22,10 +29,12 @@ public struct CatalogItem: Sendable, Equatable, Codable {
     public let fetchedAt: Date?
     public let uploadsPlaylistID: String?
     public let embeddingStatus: VideoEmbeddingStatus?
-    public init(kind: Kind, id: String, title: String, channelID: String?, thumbnailURL: URL?, source: String = "youtubeDataAPI", description: String? = nil, uploadsPlaylistID: String? = nil, fetchedAt: Date? = nil, listEntryID: String? = nil, embeddingStatus: VideoEmbeddingStatus? = nil, channelTitle: String? = nil) {
+    public let contentKind: ContentKind?
+    public init(kind: Kind, id: String, title: String, channelID: String?, thumbnailURL: URL?, source: String = "youtubeDataAPI", description: String? = nil, uploadsPlaylistID: String? = nil, fetchedAt: Date? = nil, listEntryID: String? = nil, embeddingStatus: VideoEmbeddingStatus? = nil, channelTitle: String? = nil, contentKind: ContentKind? = nil) {
         self.kind = kind; self.id = id; self.title = title; self.channelID = channelID; self.thumbnailURL = thumbnailURL; self.source = source
         self.channelTitle = channelTitle
         self.embeddingStatus = embeddingStatus
+        self.contentKind = contentKind
         self.listEntryID = listEntryID; self.fetchedAt = fetchedAt; self.description = description; self.uploadsPlaylistID = uploadsPlaylistID
     }
 }
@@ -98,14 +107,21 @@ public actor YouTubeDataCatalog {
     /// A fresh lookup before creating each embedded player. Search/import/cache data
     /// and missing fields never grant permission to embed.
     public func videoEmbeddingStatus(_ id: String) async throws -> VideoEmbeddingStatus {
+        try await videoPlaybackMetadata(id).embeddingStatus
+    }
+    /// Reuses the existing fresh snippet/status lookup; never adds a classification request.
+    public func videoPlaybackMetadata(_ id: String) async throws -> VideoPlaybackMetadata {
         guard id.utf8.count == 11, id.utf8.allSatisfy({
             (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 95
         }) else { throw APIError.invalidResponse }
         let page = try await fetch(.videos, parameters: ["part":"id,snippet,status", "id":id],
                                    pageToken: nil, authorized: false, useCache: false)
         let matches = page.items.filter { $0.id == id && $0.kind == .video }
-        guard matches.count == 1 else { return .unknown }
-        return matches[0].embeddingStatus ?? .unknown
+        guard matches.count == 1 else {
+            return VideoPlaybackMetadata(embeddingStatus: .unknown, contentKind: nil, fetchedAt: page.fetchedAt)
+        }
+        return VideoPlaybackMetadata(embeddingStatus: matches[0].embeddingStatus ?? .unknown,
+                                     contentKind: matches[0].contentKind, fetchedAt: page.fetchedAt)
     }
     public func playlist(id: String, pageToken: String? = nil, authorized: Bool = false) async throws -> CatalogPage {
         try await fetch(.playlistItems, parameters: ["part":"snippet", "playlistId":id, "maxResults":"50"], pageToken: pageToken, authorized: authorized)
@@ -178,7 +194,13 @@ private struct DataItem: Decodable {
     struct ResourceID: Decodable { let kind: String?; let videoId: String?; let playlistId: String?; let channelId: String? }
     struct Thumb: Decodable { let url: URL? }
     struct Thumbs: Decodable { let `default`: Thumb?; let medium: Thumb? }
-    struct Snippet: Decodable { let title: String?; let description: String?; let videoOwnerChannelId: String?; let videoOwnerChannelTitle: String?; let channelId: String?; let channelTitle: String?; let resourceId: ResourceID?; let thumbnails: Thumbs? }
+    struct CategoryID: Decodable {
+        let value: String?
+        init(from decoder: Decoder) throws {
+            value = try? decoder.singleValueContainer().decode(String.self)
+        }
+    }
+    struct Snippet: Decodable { let title: String?; let description: String?; let videoOwnerChannelId: String?; let videoOwnerChannelTitle: String?; let channelId: String?; let channelTitle: String?; let resourceId: ResourceID?; let thumbnails: Thumbs?; let categoryId: CategoryID? }
     struct ContentDetails: Decodable {
         struct Related: Decodable { let uploads: String? }
         let relatedPlaylists: Related?
@@ -214,7 +236,12 @@ private struct DataItem: Decodable {
         case .channels: kind = .channel; rawID = id?.stringValue
         }
         guard let rawID, !rawID.isEmpty else { return nil }
-        return CatalogItem(kind: kind, id: rawID, title: title, channelID: endpoint == .playlistItems ? snippet.videoOwnerChannelId : snippet.channelId, thumbnailURL: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url, description: snippet.description, uploadsPlaylistID: contentDetails?.relatedPlaylists?.uploads, fetchedAt: Date(), listEntryID: endpoint == .playlistItems ? id?.stringValue : nil, embeddingStatus: endpoint == .videos ? (status?.embeddingStatus ?? .unknown) : nil, channelTitle: endpoint == .playlistItems ? snippet.videoOwnerChannelTitle : snippet.channelTitle)
+        let contentKind: CatalogItem.ContentKind?
+        if kind == .video, let category = snippet.categoryId?.value, !category.isEmpty,
+           category.utf8.allSatisfy({ (48...57).contains($0) }), let number = Int(category), number > 0 {
+            contentKind = number == 10 ? .music : .video
+        } else { contentKind = nil }
+        return CatalogItem(kind: kind, id: rawID, title: title, channelID: endpoint == .playlistItems ? snippet.videoOwnerChannelId : snippet.channelId, thumbnailURL: snippet.thumbnails?.medium?.url ?? snippet.thumbnails?.default?.url, description: snippet.description, uploadsPlaylistID: contentDetails?.relatedPlaylists?.uploads, fetchedAt: Date(), listEntryID: endpoint == .playlistItems ? id?.stringValue : nil, embeddingStatus: endpoint == .videos ? (status?.embeddingStatus ?? .unknown) : nil, channelTitle: endpoint == .playlistItems ? snippet.videoOwnerChannelTitle : snippet.channelTitle, contentKind: contentKind)
     }
 }
 private enum IDValue: Decodable {

@@ -16,8 +16,9 @@ final class YouTubeIFrameAdapter: NSObject {
     private var documentID = UUID().uuidString
     private var apiLoaded = false
     private var playerReady = false
-    private var pausedByHost = false
+    private var pausePolicy = IFrameHostPausePolicy()
     private var backgroundObserver: NSObjectProtocol?
+    private var foregroundObserver: NSObjectProtocol?
 
     override init() {
         let appID = (Bundle.main.bundleIdentifier ?? "com.xiaotwu.muses.erato").lowercased()
@@ -39,7 +40,12 @@ final class YouTubeIFrameAdapter: NSObject {
         backgroundObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.pause() }
+            Task { @MainActor [weak self] in self?.pausePolicy.setBackgrounded(true); self?.pause() }
+        }
+        foregroundObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.pausePolicy.setBackgrounded(false) }
         }
     }
 
@@ -48,7 +54,7 @@ final class YouTubeIFrameAdapter: NSObject {
     func load(_ id: IFrameVideoID) -> UInt64 {
         let generation = gate.load(id)
         playerReady = false
-        pausedByHost = false
+        pausePolicy.endRequest()
         onEvent?(IFrameEvent(videoID: id, generation: generation, kind: .loading))
         if apiLoaded {
             send(["action": "switch", "videoID": id.rawValue,
@@ -71,26 +77,30 @@ final class YouTubeIFrameAdapter: NSObject {
         documentID = UUID().uuidString
         apiLoaded = false
         playerReady = false
-        pausedByHost = true
+        pausePolicy.requestPause()
         send(["action": "destroy"])
         view.stopLoading()
         view.loadHTMLString("<!doctype html><html><body style='background:black'></body></html>", baseURL: nil)
     }
 
     /// Call from an explicit user action; the IFrame's own controls also remain available.
-    func play() throws {
-        guard gate.isAlive, gate.videoID != nil, playerReady else {
+    func play(completion: ((Result<Void, CommandError>) -> Void)? = nil) throws {
+        guard gate.isAlive, gate.videoID != nil, playerReady, !pausePolicy.backgrounded else {
             throw CommandError.notReady
         }
-        pausedByHost = false
-        send(["action": "play", "generation": String(gate.generation)])
+        pausePolicy.endRequest()
+        send(["action": "play", "generation": String(gate.generation)], completion: completion)
     }
 
-    func pause() {
-        pausedByHost = true
-        guard gate.isAlive, gate.videoID != nil else { return }
-        send(["action": "pause", "generation": String(gate.generation)])
+    func pause(completion: ((Result<Void, CommandError>) -> Void)? = nil) {
+        pausePolicy.requestPause()
+        guard gate.isAlive, gate.videoID != nil, playerReady else {
+            completion?(.failure(.notReady)); return
+        }
+        send(["action": "pause", "generation": String(gate.generation)], completion: completion)
     }
+
+    func cancelPendingPause() { pausePolicy.endRequest() }
 
     func seek(to seconds: Double) throws {
         guard seconds.isFinite, seconds >= 0 else { throw CommandError.invalidPosition }
@@ -113,7 +123,7 @@ final class YouTubeIFrameAdapter: NSObject {
         guard gate.isAlive else { return }
         gate.teardown()
         playerReady = false
-        pausedByHost = true
+        pausePolicy.requestPause()
         send(["action": "destroy"])
         view.stopLoading()
         view.loadHTMLString("<!doctype html><html><body style='background:black'></body></html>",
@@ -123,16 +133,25 @@ final class YouTubeIFrameAdapter: NSObject {
             NotificationCenter.default.removeObserver(backgroundObserver)
             self.backgroundObserver = nil
         }
+        if let foregroundObserver {
+            NotificationCenter.default.removeObserver(foregroundObserver)
+            self.foregroundObserver = nil
+        }
         view.navigationDelegate = nil
         view.uiDelegate = nil
     }
 
-    enum CommandError: Error { case notReady, invalidPosition }
+    enum CommandError: Error { case notReady, invalidPosition, deliveryFailed }
 
-    private func send(_ command: [String: Any]) {
+    private func send(_ command: [String: Any], completion: ((Result<Void, CommandError>) -> Void)? = nil) {
         guard let data = try? JSONSerialization.data(withJSONObject: command),
-              let json = String(data: data, encoding: .utf8) else { return }
-        view.evaluateJavaScript("window.eratoCommand(\(json))", completionHandler: nil)
+              let json = String(data: data, encoding: .utf8) else { completion?(.failure(.deliveryFailed)); return }
+        let generation = gate.generation
+        view.evaluateJavaScript("window.eratoCommand(\(json))") { [weak self] value, error in
+            guard let self, self.gate.isAlive, self.gate.generation == generation else { return }
+            guard let completion else { return }
+            completion(error == nil && (value as? Bool) == true ? .success(()) : .failure(.deliveryFailed))
+        }
     }
 
     private func receive(_ message: WKScriptMessage) {
@@ -153,8 +172,10 @@ final class YouTubeIFrameAdapter: NSObject {
                                       originScheme: message.frameInfo.securityOrigin.protocol,
                                       originHost: message.frameInfo.securityOrigin.host) else { return }
         if case .ready = event.kind { playerReady = true }
-        if case .playing = event.kind, pausedByHost {
-            // Native pause during buffering remains the final intent.
+        if case .paused = event.kind { pausePolicy.endRequest() }
+        if case .cued = event.kind { pausePolicy.endRequest() }
+        if case .playing = event.kind, pausePolicy.suppressPlaying {
+            // A pending host pause and the foreground-only boundary remain the final intent.
             pause()
             return
         }
@@ -206,14 +227,25 @@ final class YouTubeIFrameAdapter: NSObject {
               const kind = states[String(e.data)];
               if (kind) emit(kind,null,token);
             },
-            onError:function(e){emit('error',{code:e.data},token)}
+            onError:function(e){emit('error',{code:e.data},token)},
+            onAutoplayBlocked:function(){emit('playBlocked',null,token)}
           }
         });
         return;
       }
-      if (!active || command.generation !== active.generation || !player) return;
-      if (command.action === 'play') player.playVideo();
-      if (command.action === 'pause') player.pauseVideo();
+      if (!active || command.generation !== active.generation || !player) return false;
+      if (command.action === 'play') {
+        player.playVideo();
+        if (player.getPlayerState() === 1) emit('playing');
+        return true;
+      }
+      if (command.action === 'pause') {
+        player.pauseVideo();
+        const state = player.getPlayerState();
+        if (state === 2) emit('paused');
+        else if (state === -1 || state === 5) emit('cued');
+        return true;
+      }
       if (command.action === 'bookmark' && Number.isFinite(command.position) && command.position >= 0) {
         // seekTo starts playback from a cued/unstarted state. Cue at startSeconds
         // instead; only use seekTo when the player is already paused.

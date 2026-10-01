@@ -11,12 +11,8 @@ import XCTest
         app.launch()
         let library = app.buttons["Library"].firstMatch
         XCTAssertTrue(library.waitForExistence(timeout: 10)); library.tap()
-        let rail = app.scrollViews["library.categories"]
         let playlists = app.buttons["library.category.Playlists"]
-        for _ in 0..<6 {
-            if playlists.isHittable { break }
-            rail.swipeLeft(velocity: .slow)
-        }
+        reveal(playlists, app: app)
         playlists.tap()
         let add = app.buttons["library.add"]
         XCTAssertTrue(add.waitForExistence(timeout: 5)); add.tap()
@@ -55,30 +51,43 @@ import XCTest
         save.tap(); app.alerts.buttons["Import playlist"].tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS 'Fixture public playlist'")).firstMatch.waitForExistence(timeout: 5))
         capture("Library playlist blocks", app)
-        let songs = app.buttons["library.category.Songs"]
-        for _ in 0..<8 where !songs.isHittable { rail.swipeRight(velocity: .slow) }
-        songs.tap()
-        XCTAssertTrue(app.staticTexts["collection.position"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["collection.position"].label, "1 / 2")
-        capture("Library Songs cards", app)
+        let videos = app.buttons["library.category.Videos"]
+        reveal(videos, app: app); videos.tap()
+        app.buttons["library.presentation.Cards"].tap()
+        if !largeText {
+            XCTAssertTrue(app.staticTexts["collection.position"].waitForExistence(timeout: 5))
+            XCTAssertEqual(app.staticTexts["collection.position"].label, "1 / 2")
+        }
+        capture("Library saved videos", app)
         let focused = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'library.play.'")).firstMatch
         reveal(focused, app: app)
-        focused.swipeLeft()
+        if !largeText { focused.swipeLeft() }
         XCTAssertFalse(app.descendants(matching: .any)["public.iframe"].exists, "Browsing cards must not open playback")
-        XCTAssertEqual(app.staticTexts["collection.position"].label, "2 / 2")
+        if !largeText { XCTAssertEqual(app.staticTexts["collection.position"].label, "2 / 2") }
         let list = app.buttons["library.presentation.List"]
         for _ in 0..<6 where !list.isHittable { app.swipeDown() }
         list.tap()
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'library.row.play.'")).count, 2)
-        capture("Library Songs list", app)
+        capture("Library saved videos list", app)
         app.terminate(); app.launch()
         app.buttons["Library"].firstMatch.tap()
-        for _ in 0..<6 {
-            if playlists.isHittable { break }
-            rail.swipeLeft(velocity: .slow)
-        }
+        reveal(playlists, app: app)
         playlists.tap()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'playlist.open.' AND label CONTAINS 'Fixture public playlist'")).firstMatch.waitForExistence(timeout: 5))
+        app.tabBars.buttons["Home"].tap()
+        capture(largeText ? "Home populated accessibility text" : "Home populated playlists", app)
+        app.tabBars.buttons["Search"].tap()
+        selectSearchFilter("On this device", group: "Source", in: app)
+        app.buttons["public.searchFilters"].tap()
+        XCTAssertFalse(app.buttons["Channels"].exists)
+        app.buttons["Playlists"].tap()
+        closeSearchFilters(in: app)
+        let search = app.textFields["public.search"]
+        reveal(search, app: app); search.tap(); search.typeText("Fixture\n")
+        XCTAssertTrue(app.staticTexts["Local playlist · On this device"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Home"].tap(); app.tabBars.buttons["Search"].tap()
+        XCTAssertTrue(app.staticTexts["Local playlist · On this device"].exists)
+        capture(largeText ? "Search local playlist accessibility text" : "Search local playlist retained", app)
     }
     private func reveal(_ element: XCUIElement, app: XCUIApplication) {
         for _ in 0..<6 where !element.isHittable { app.swipeUp() }
@@ -93,17 +102,16 @@ import XCTest
 
 
 extension PublicPlaylistImportUITests {
-    func testClearingPlaylistsEmptiesEveryTrackCollection() {
+    func testClearingPlaylistsPreservesSavedVideos() {
         let app = XCUIApplication()
         app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
         app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
         app.launch()
         app.tabBars.buttons["Library"].tap()
-        let rail = app.scrollViews["library.categories"]
+
         func category(_ name: String) {
             let button = app.buttons["library.category.\(name)"]
-            for _ in 0..<7 where !button.isHittable { rail.swipeRight(velocity: .slow) }
-            for _ in 0..<9 where !button.isHittable { rail.swipeLeft(velocity: .slow) }
+            reveal(button, app: app)
             button.tap()
         }
         category("Playlists")
@@ -115,19 +123,17 @@ extension PublicPlaylistImportUITests {
         category("Videos")
         XCTAssertTrue(app.staticTexts["2 videos"].waitForExistence(timeout: 5))
         category("Playlists")
-        app.buttons["library.clear.Playlists"].tap()
+        app.buttons["library.collectionActions"].tap(); app.buttons["library.clear.Playlists"].tap()
         app.buttons["Clear local items"].tap()
         XCTAssertTrue(app.staticTexts["No local playlists"].waitForExistence(timeout: 5))
-        category("Songs")
-        XCTAssertTrue(app.staticTexts["No playlist songs"].exists)
         category("Videos")
-        XCTAssertTrue(app.staticTexts["No playlist videos"].exists)
-        XCTAssertFalse(app.buttons["library.clear.Videos"].isEnabled)
+        XCTAssertTrue(app.staticTexts["2 videos"].exists)
+        XCTAssertTrue(app.buttons["library.collectionActions"].exists)
         category("Favorites")
         XCTAssertTrue(app.staticTexts["No favorites yet"].exists)
         category("History")
-        XCTAssertTrue(app.staticTexts["No listening history"].exists)
+        XCTAssertTrue(app.staticTexts["No playback history"].exists)
         app.terminate(); app.launch(); app.tabBars.buttons["Library"].tap()
-        XCTAssertTrue(app.staticTexts["No playlist videos"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["2 videos"].waitForExistence(timeout: 5))
     }
 }

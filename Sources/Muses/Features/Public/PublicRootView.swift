@@ -15,6 +15,7 @@ enum PublicStyle {
     static let ink = Color(uiColor: .label)
     static let muted = Color(uiColor: .secondaryLabel)
     static let inset: CGFloat = 20
+    static func videoCount(_ count: Int) -> String { "\(count) \(count == 1 ? "video" : "videos")" }
 }
 
 private enum PublicDestination: Int, CaseIterable, Identifiable {
@@ -49,12 +50,14 @@ struct PublicRootView: View {
     @State private var creatingPlaylist = false
     @State private var playlistName = ""
     @State private var showSettings = false
+    @State private var showingQueue = false
+    @State private var openPlayerAfterQueueDismissal = false
     @State private var link = ""
     @FocusState private var linkFocused: Bool
-    @FocusState private var searchFocused: Bool
-    @State private var query = ""
     @State private var confirmingSync = false
-    @State private var libraryPresentation: PublicLibraryPresentation = .cards
+    @AppStorage("public.library.presentation") private var libraryPresentation: PublicLibraryPresentation = .list
+    @State private var libraryQuery = ""
+    @State private var searchFocusRequested = false
 
     var body: some View {
         Group {
@@ -78,7 +81,10 @@ struct PublicRootView: View {
                             .listRowBackground(
                                 selection == destination ? PublicStyle.gold.opacity(0.15) : Color.clear
                             )
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(destination.title)
                             .accessibilityAddTraits(selection == destination ? .isSelected : [])
+                            .accessibilityIdentifier("public.sidebar.\(destination.title)")
                         }
                     }
                     .navigationTitle("Muses")
@@ -90,8 +96,8 @@ struct PublicRootView: View {
             } else {
                 if #available(iOS 26.1, *) {
                     compactTabs(systemAccessory: true)
-                        .tabViewBottomAccessory(isEnabled: session.currentTrack != nil && !session.showPlayer) {
-                            PublicMiniPlayer(session: session, systemAccessory: true)
+                        .tabViewBottomAccessory(isEnabled: (session.currentTrack != nil || session.hasNext) && !session.showPlayer) {
+                            PublicMiniPlayer(session: session, systemAccessory: true, onOpenQueue: { showingQueue = true })
                         }
                 } else {
                     compactTabs(systemAccessory: false)
@@ -107,10 +113,11 @@ struct PublicRootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await session.maintainCatalogData(); await session.hydrateDisplayMetadata() } }
+            else { session.suspendVisiblePlayback() }
         }
         .task(id: session.apiConfigured) { await session.hydrateDisplayMetadata() }
         .tint(PublicStyle.gold)
-        .background(PublicKeyboardDismissal { linkFocused = false; searchFocused = false })
+        .background(PublicKeyboardDismissal { linkFocused = false })
         .sheet(isPresented: $showSettings) {
             NavigationStack { settings }
                 .tint(PublicStyle.gold)
@@ -123,6 +130,20 @@ struct PublicRootView: View {
             case .link: linkSheet
             case .importPlaylist: PublicPlaylistImportView(session: session)
             }
+        }
+        // The system tab accessory can rebuild when queue data changes. Keep the
+        // queue presentation on the root so editing or clearing cannot dismiss it.
+        .sheet(isPresented: $showingQueue, onDismiss: {
+            if openPlayerAfterQueueDismissal {
+                openPlayerAfterQueueDismissal = false
+                session.showPlayer = true
+            }
+            session.continueSelectedQueuePlaybackWhenVisible()
+        }) {
+            PublicQueueSheet(session: session, onClose: { showingQueue = false }, onOpenPlayer: {
+                openPlayerAfterQueueDismissal = !session.showPlayer
+                showingQueue = false
+            })
         }
         .alert("Create local playlist", isPresented: $creatingPlaylist) {
             TextField("Playlist name", text: $playlistName)
@@ -150,7 +171,9 @@ struct PublicRootView: View {
     }
 
     @ViewBuilder private var miniPlayer: some View {
-        if session.currentTrack != nil && !session.showPlayer { PublicMiniPlayer(session: session) }
+        if (session.currentTrack != nil || session.hasNext) && !session.showPlayer {
+            PublicMiniPlayer(session: session, onOpenQueue: { showingQueue = true })
+        }
     }
 
     @ViewBuilder
@@ -165,29 +188,44 @@ struct PublicRootView: View {
     private var home: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 28) {
-                if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
-                PublicHomeLibraryContent(session: session) {
-                    session.selectedCategory = .history; selection = .library
+                if let message = session.libraryFailureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
+                if session.libraryTracks.isEmpty && session.libraryHistory.isEmpty && session.playlists.isEmpty && session.accountPlaylistPages.items.isEmpty {
+                    homeStartActions
                 }
-                PublicHomePlaylistShelves(session: session)
+                if !session.libraryHistory.isEmpty {
+                    PublicHomeLibraryContent(session: session) { session.selectedCategory = .history; selection = .library }
+                } else if session.playlists.isEmpty && !session.libraryTracks.isEmpty {
+                    PublicHomeSavedVideos(session: session)
+                }
+                PublicHomeLocalPlaylists(session: session, showAll: { session.selectedCategory = .playlists; selection = .library })
+                if session.signedIn { PublicHomePlaylistShelves(session: session, showAccount: { showSettings = true }) }
             }
             .frame(maxWidth: 900, alignment: .leading)
             .padding(.horizontal, PublicStyle.inset).padding(.vertical, 12)
             .frame(maxWidth: .infinity)
         }
         .background(PublicStyle.background)
-        .task(id: session.musicHomeScope) { if session.signedIn { await session.loadAccountCollections() } }
+        .task(id: session.musicHomeScope) { if session.signedIn { await session.loadHomeAccountPlaylists() } }
         .refreshable {
-            if session.signedIn { await session.loadAccountCollections() }
+            if session.signedIn { await session.loadHomeAccountPlaylists(refresh: true) }
         }
         .navigationDestination(item: $session.catalogRoute) { route in PublicCatalogDetail(session: session, route: route) }
         .navigationTitle("Home").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { activeTool = .link } label: { PublicIconActionLabel(title: "Open YouTube link", symbol: "link") }
-                    .accessibilityIdentifier("public.openLinkEntry")
+                Menu {
+                    Button { activeTool = .link } label: { Label("Open YouTube link", systemImage: "link") }
+                        .accessibilityIdentifier("public.add.openLink")
+                    Button { activeTool = .importPlaylist } label: { Label("Import playlist", systemImage: "square.and.arrow.down") }
+                        .accessibilityIdentifier("public.add.import")
+                    Button { playlistName = ""; creatingPlaylist = true } label: { Label("Create local playlist", systemImage: "plus.rectangle.on.folder") }
+                        .accessibilityIdentifier("public.add.create")
+                } label: {
+                    Image(systemName: "plus").frame(minWidth: 44, minHeight: 44)
+                }
+                    .accessibilityLabel("Add to library")
+                    .accessibilityIdentifier("public.add")
             }
-            queueToolbar
             settingsToolbar
         }
     }
@@ -241,102 +279,68 @@ struct PublicRootView: View {
     }
 
     private var search: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(PublicStyle.muted)
-                    TextField("Search YouTube", text: $query)
-                        .submitLabel(.search)
-                        .autocorrectionDisabled()
-                        .focused($searchFocused)
-                        .onSubmit(submitSearch)
-                        .accessibilityIdentifier("public.search")
-                    Button(action: submitSearch) { PublicIconActionLabel(title: "Search YouTube", symbol: "magnifyingglass") }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || session.searching)
-                }
-                .padding(15)
-                .background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 14))
-                Picker("Search type", selection: $session.searchKind) {
-                    Text("Videos").tag(MusesCatalog.CatalogItem.Kind.video)
-                    Text("Playlists").tag(MusesCatalog.CatalogItem.Kind.playlist)
-                    Text("Channels").tag(MusesCatalog.CatalogItem.Kind.channel)
-                }
-                .pickerStyle(.segmented).accessibilityIdentifier("public.searchKind")
-                .onChange(of: session.searchKind) { _, _ in
-                    if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { submitSearch() }
-                }
-                if session.searching {
-                    ProgressView("Searching YouTube")
-                }
-                if !session.apiConfigured {
-                    PublicNotice(
-                        message: "Online search is unavailable. Saved videos and YouTube links still work.",
-                        symbol: "wifi.slash"
-                    )
-                }
-                if let error = session.searchError {
-                    PublicNotice(message: error, symbol: "exclamationmark.circle")
-                        .accessibilityIdentifier("public.searchError")
-                }
-                Text(session.searchItems.isEmpty ? "Results" : "\(session.searchItems.count) results")
-                    .font(.subheadline).foregroundStyle(.secondary).accessibilityIdentifier("public.searchResultsHeading")
-                if session.searchItems.isEmpty && !session.searching {
-                    PublicEmptyState(
-                        symbol: "magnifyingglass",
-                        title: "Nothing to show yet",
-                        detail: "Enter a title or artist, then submit your search."
-                    )
-                }
-                LazyVStack(spacing: 0) {
-                    ForEach(session.searchItems, id: \.rowID) { item in
-                        PublicCatalogRow(session: session, item: item)
-                    }
-                }
-                if session.searchPages.loaded || session.searchPages.error != nil {
-                    PublicCatalogPaging(page: session.searchPages) { await session.nextSearchPage() }
-                }
+        PublicSearchScreen(session: session, focusRequested: $searchFocusRequested, openSettings: { showSettings = true })
+    }
+
+    private var homeStartActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Start your library").font(.title2.weight(.bold)).accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("home.empty")
+            Text("Search for a video, or use + to open a link or import a playlist.").font(.subheadline).foregroundStyle(PublicStyle.ink)
+            Button { session.searchKind = .video; searchFocusRequested = true; selection = .search } label: {
+                Label("Search videos", systemImage: "magnifyingglass").foregroundStyle(PublicStyle.background)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }.buttonStyle(.borderedProminent).accessibilityIdentifier("public.start.search")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 20) { homeSecondaryActions }
+                VStack(alignment: .leading, spacing: 4) { homeSecondaryActions }
             }
-            .frame(maxWidth: 900, alignment: .leading)
-            .padding(.horizontal, PublicStyle.inset)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-        }
-        .background(PublicStyle.background)
-        .navigationTitle("Search")
-        .scrollDismissesKeyboard(.interactively)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            queueToolbar
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { query = ""; session.clearSearchResults() } label: { PublicIconActionLabel(title: "Clear search", symbol: "trash") }
-                    .disabled(query.isEmpty && session.searchItems.isEmpty && !session.searching)
-                    .accessibilityIdentifier("public.clearSearch")
-            }
-            settingsToolbar
+        }.padding(20).background(PublicStyle.surface, in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    @ViewBuilder private var homeSecondaryActions: some View {
+        Button { activeTool = .link } label: { Label("Open link", systemImage: "link").frame(minHeight: 44).contentShape(Rectangle()) }
+            .buttonStyle(.plain).accessibilityIdentifier("public.start.link")
+        Button { activeTool = .importPlaylist } label: { Label("Import playlist", systemImage: "square.and.arrow.down").frame(minHeight: 44).contentShape(Rectangle()) }
+            .buttonStyle(.plain).accessibilityIdentifier("public.start.import")
+    }
+
+    private var startActions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { discoveryButtons }
+            VStack(alignment: .leading, spacing: 8) { discoveryButtons }
         }
     }
 
-    private func submitSearch() {
-        searchFocused = false
-        Task { await session.search(query) }
+    @ViewBuilder private var discoveryButtons: some View {
+        Button { session.searchKind = .video; searchFocusRequested = true; selection = .search } label: {
+            Label("Search videos", systemImage: "magnifyingglass").frame(minHeight: 44)
+        }.buttonStyle(.borderedProminent).accessibilityIdentifier("public.start.search")
+        Button { activeTool = .link } label: {
+            Label("Open link", systemImage: "link").frame(minHeight: 44)
+        }.buttonStyle(.bordered).accessibilityIdentifier("public.start.link")
+        Button { activeTool = .importPlaylist } label: {
+            Label("Import playlist", systemImage: "square.and.arrow.down").frame(minHeight: 44)
+        }.buttonStyle(.bordered).accessibilityIdentifier("public.start.import")
     }
 
     private var library: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 PublicLibraryCategories(session: session)
+                TextField("Find in this collection", text: $libraryQuery)
+                    .textFieldStyle(.roundedBorder).frame(minHeight: 44)
+                    .accessibilityIdentifier("library.filter")
                 HStack(spacing: 8) {
-                    Text(categoryDetail).font(.subheadline).foregroundStyle(.secondary)
+                    Text(categoryDetail).font(.subheadline).foregroundStyle(PublicStyle.ink)
                         .accessibilityIdentifier("library.itemCount")
                     Spacer(minLength: 0)
-                    if [.songs, .videos, .favorites, .history].contains(session.selectedCategory) {
+                    if !categoryTracks.isEmpty && session.selectedCategory != .playlists {
                         PublicLibraryPresentationControl(presentation: $libraryPresentation)
                     }
                     libraryClearControl
                 }
-                if let message = session.failureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
+                if let message = session.libraryFailureMessage { PublicNotice(message: message, symbol: "exclamationmark.circle") }
                 if session.selectedCategory == .playlists, let message = session.playlistNameRefreshMessage {
                     PublicNotice(message: message, symbol: "exclamationmark.circle")
                 }
@@ -348,6 +352,10 @@ struct PublicRootView: View {
             .frame(maxWidth: .infinity)
         }
         .background(PublicStyle.background)
+        .onAppear {
+            if ![LibraryCategory.videos, .playlists, .favorites, .history].contains(session.selectedCategory) { session.selectedCategory = .videos }
+        }
+        .onChange(of: session.selectedCategory) { _, _ in libraryQuery = "" }
         .navigationTitle("Library")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { confirmingSync = true }
@@ -356,7 +364,6 @@ struct PublicRootView: View {
             Button("Sync details") { Task { await session.refreshSavedMetadata() } }
         } message: { Text("Updates saved titles and metadata using cloud information. Local playlists and notes remain.") }
         .toolbar {
-            queueToolbar
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { activeTool = .importPlaylist } label: { Label("Import playlists", systemImage: "square.and.arrow.down") }
@@ -370,103 +377,73 @@ struct PublicRootView: View {
         }
     }
 
-    private struct LibraryQueueControl: View {
-        let session: PublicYouTubeSession
-        @State private var confirming = false
-        var body: some View {
-            Menu {
-                NavigationLink { PublicQueueView(session: session) } label: {
-                    Label("Open Queue", systemImage: "list.bullet")
-                }
-                Button("Clear Up Next", systemImage: "text.badge.minus", role: .destructive) { confirming = true }
-                    .disabled(!session.hasNext)
-            } label: {
-                PublicIconActionLabel(title: "Queue", symbol: "list.bullet")
-            }
-            .accessibilityValue("\(session.queue.snapshot.upcoming.count) upcoming")
-            .accessibilityIdentifier("public.queue")
-            .alert("Clear all upcoming videos?", isPresented: $confirming) {
-                Button("Clear Up Next", role: .destructive) { session.clearUpcoming() }
-                Button("Cancel", role: .cancel) {}
-            } message: { Text("Your current video and playback are kept. Only upcoming videos are removed.") }
-        }
-    }
-
-    @ToolbarContentBuilder private var queueToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) { LibraryQueueControl(session: session) }
-    }
-
     @ViewBuilder private var libraryClearControl: some View {
-        if [.videos, .songs, .favorites, .playlists, .history].contains(session.selectedCategory) {
+        if collectionCount > 0 {
             PublicLibraryClearButton(session: session, category: session.selectedCategory)
-                .accessibilityHint(categoryDetail)
         }
     }
 
-    private var playlistSongs: [MusesDomain.Track] { session.libraryTracks }
-
+    private var categoryTracks: [MusesDomain.Track] {
+        switch session.selectedCategory {
+        case .favorites: session.libraryFavorites
+        case .history: session.libraryHistory
+        default: session.libraryTracks
+        }
+    }
+    private var filteredTracks: [MusesDomain.Track] {
+        let term = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return term.isEmpty ? categoryTracks : categoryTracks.filter {
+            $0.displayTitle.localizedCaseInsensitiveContains(term) || $0.displayArtist.localizedCaseInsensitiveContains(term)
+        }
+    }
+    private var collectionCount: Int { session.selectedCategory == .playlists ? session.playlists.count : categoryTracks.count }
     private var categoryDetail: String {
-        switch session.selectedCategory {
-        case .videos: "\(session.libraryTracks.count) videos"
-        case .songs: "\(playlistSongs.count) songs"
-        case .favorites: "\(session.libraryFavorites.count) favorites"
-        case .playlists: "\(session.playlists.count) local playlists"
-        case .history: "\(session.libraryHistory.count) played"
-        case .subscriptions: session.signedIn ? "\(session.subscriptions.count) loaded" : "Sign in required"
-        default: "Unavailable in this version"
-        }
+        if session.selectedCategory == .playlists { return "\(session.playlists.count) local \(session.playlists.count == 1 ? "playlist" : "playlists")" }
+        return libraryQuery.isEmpty ? PublicStyle.videoCount(categoryTracks.count) : "\(filteredTracks.count) of \(PublicStyle.videoCount(categoryTracks.count))"
     }
 
-    @ViewBuilder
-    private var categoryContent: some View {
+    @ViewBuilder private var categoryContent: some View {
+        if session.selectedCategory == .playlists {
+            let lists = session.playlists.filter { libraryQuery.isEmpty || $0.name.localizedCaseInsensitiveContains(libraryQuery) }
+            if session.playlists.isEmpty {
+                PublicEmptyState(symbol: "music.note.list", title: "No local playlists", detail: "Import a YouTube playlist or create a playlist on this device.")
+                Button("Create playlist", systemImage: "plus") { playlistName = ""; creatingPlaylist = true }
+                    .frame(minHeight: 44).buttonStyle(.bordered)
+                startActions
+            } else if lists.isEmpty {
+                noFilterMatches
+            } else {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    ForEach(lists) { playlist in PublicPlaylistBlock(session: session, playlist: playlist) }
+                }.task { await session.refreshPlaylistNames() }
+            }
+        } else if categoryTracks.isEmpty {
+            PublicEmptyState(symbol: session.selectedCategory.symbol, title: emptyLibraryTitle, detail: emptyLibraryDetail)
+            startActions
+        } else if filteredTracks.isEmpty {
+            noFilterMatches
+        } else {
+            PublicLibraryHeroShelf(session: session, tracks: filteredTracks, category: session.selectedCategory, presentation: $libraryPresentation)
+        }
+    }
+    private var emptyLibraryTitle: String {
         switch session.selectedCategory {
-        case .videos:
-            if session.libraryTracks.isEmpty {
-                PublicEmptyState(symbol: "play.rectangle", title: "No playlist videos", detail: "Import a playlist or add a video to a playlist.")
-            } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryTracks, category: session.selectedCategory, presentation: $libraryPresentation)
-            }
-        case .songs:
-            let songs = playlistSongs
-            if songs.isEmpty {
-                PublicEmptyState(symbol: "music.note", title: "No playlist songs", detail: "Import a playlist or add saved videos to a playlist.")
-            } else {
-                PublicLibraryHeroShelf(session: session, tracks: songs, category: .songs, presentation: $libraryPresentation)
-            }
-        case .favorites:
-            if session.libraryFavorites.isEmpty {
-                PublicEmptyState(symbol: "heart", title: "No favorites yet", detail: "Open a saved video and choose Favorite.")
-            } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryFavorites, category: .favorites, presentation: $libraryPresentation)
-            }
-        case .playlists:
-            PublicPlaylistCollection(session: session)
-        case .history:
-            if session.libraryHistory.isEmpty {
-                PublicEmptyState(symbol: "clock", title: "No listening history", detail: "Videos appear after the official player confirms playback.")
-            } else {
-                PublicLibraryHeroShelf(session: session, tracks: session.libraryHistory, category: .history, presentation: $libraryPresentation)
-            }
-        case .subscriptions:
-            if session.signedIn {
-                if session.subscriptions.isEmpty {
-                    PublicEmptyState(symbol: "person.crop.rectangle.stack", title: "No subscriptions loaded", detail: "Refresh to read subscriptions from your YouTube account.")
-                }
-                ForEach(session.subscriptions, id: \.rowID) { item in
-                    PublicCatalogRow(session: session, item: item)
-                }
-                PublicCatalogPaging(page: session.subscriptionPages, initialTitle: "Load subscriptions") { await session.loadSubscriptions() }
-            } else {
-                PublicEmptyState(symbol: "person.crop.rectangle.stack", title: "Sign in to see subscriptions", detail: "A configured Google account grants read-only access to your YouTube subscriptions.")
-                Button("Account settings") { showSettings = true }
-                    .buttonStyle(.bordered)
-            }
-        default:
-            PublicEmptyState(
-                symbol: session.selectedCategory.symbol,
-                title: "\(session.selectedCategory.rawValue) are not available",
-                detail: "This category needs account data or an official YouTube endpoint that this public version does not support."
-            )
+        case .favorites: "No favorites yet"
+        case .history: "No playback history"
+        default: "No saved videos"
+        }
+    }
+    private var emptyLibraryDetail: String {
+        switch session.selectedCategory {
+        case .favorites: "Open a video and choose Favorite. Favorites stay here without a playlist."
+        case .history: "Videos appear after the player confirms playback."
+        default: "Open a video link or import a playlist to save videos on this device."
+        }
+    }
+    private var noFilterMatches: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            PublicEmptyState(symbol: "magnifyingglass", title: "No matching saved items", detail: "Try another title or creator in this collection.")
+            Button("Clear filter") { libraryQuery = "" }.frame(minHeight: 44)
         }
     }
 
@@ -526,7 +503,7 @@ private struct PublicPageHeading: View {
     }
 }
 
-private struct PublicNotice: View {
+struct PublicNotice: View {
     let message: String
     let symbol: String
 
@@ -540,7 +517,7 @@ private struct PublicNotice: View {
     }
 }
 
-private struct PublicEmptyState: View {
+struct PublicEmptyState: View {
     let symbol: String
     let title: String
     let detail: String
@@ -555,7 +532,7 @@ private struct PublicEmptyState: View {
                 .foregroundStyle(PublicStyle.ink)
             Text(detail)
                 .font(.subheadline)
-                .foregroundStyle(PublicStyle.muted)
+                .foregroundStyle(PublicStyle.ink)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -617,12 +594,17 @@ private struct PublicWebPlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var scrubPosition = 0.0
     @State private var scrubbing = false
     @State private var adapter: YouTubeIFrameAdapter?
     @State private var confirmingFavoriteRemoval = false
     @State private var removedEntries: [UUID] = []
     @State private var confirmingRemoval = false
+    @State private var showingPlaybackInfo = false
+    @State private var showingNotebook = false
+    @State private var presentation: PublicPlayerPresentation = .video
+    @State private var chosePresentation = false
 
     var body: some View {
         NavigationStack {
@@ -640,20 +622,22 @@ private struct PublicWebPlayerView: View {
                                 .frame(width: min(360, geometry.size.width * 0.35))
                         }
                     } else {
-                        VStack(spacing: 0) {
-                            videoSurface
-                                .padding(.horizontal, 16)
-                                .padding(.top, 12)
+                        let landscape = geometry.size.width > geometry.size.height
+                        let mediaWidth = landscape ? max(272, geometry.size.width * 0.46 - 32) : geometry.size.width - 32
+                        let layout = landscape ? AnyLayout(HStackLayout(alignment: .top, spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
+                        layout {
+                            VStack(spacing: 12) {
+                                PublicPlayerModePicker(selection: Binding(get: { presentation }, set: { presentation = $0; chosePresentation = true }))
+                                    .padding(.horizontal, 4)
+                                mediaSurface(width: mediaWidth, maximumHeight: landscape ? 200 : nil)
+                            }.padding(.horizontal, 16).padding(.top, 12)
+                                .frame(width: landscape ? mediaWidth + 32 : nil)
                             ScrollView {
                                 VStack(alignment: .leading, spacing: 22) {
                                     playerDetails
-                                    queueSection
-                                    if let track = session.currentTrack {
-                                        PublicNotebookContent(session: session, trackID: track.id)
-                                    }
                                 }
                                 .padding(20)
-                            }
+                            }.accessibilityIdentifier("player.details")
                         }
                     }
                 }
@@ -663,10 +647,11 @@ private struct PublicWebPlayerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: { PublicIconActionLabel(title: "Close player", symbol: "chevron.down") }
+                    Button { dismiss() } label: { PublicIconActionLabel(title: "Close player", symbol: "chevron.down").font(.system(size: 22)) }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button("Playback info", systemImage: "info.circle") { showingPlaybackInfo = true }
                         if let track = session.currentTrack {
                             PublicAddToPlaylistMenu(session: session, track: track)
                             if case .youtubeVideo(let id) = track.source,
@@ -674,7 +659,7 @@ private struct PublicWebPlayerView: View {
                                 Button("Website playback", systemImage: "safari") { openURL(url) }
                             }
                         }
-                    } label: { PublicIconActionLabel(title: "Playback actions", symbol: "ellipsis") }
+                    } label: { PublicIconActionLabel(title: "Playback actions", symbol: "ellipsis").font(.system(size: 22)) }
                 }
             }
             .alert("Remove this favorite?", isPresented: $confirmingFavoriteRemoval) {
@@ -688,45 +673,89 @@ private struct PublicWebPlayerView: View {
                     session.editQueue { queue in for id in removedEntries where existing.contains(id) { try queue.remove(id: id) } }
                 }
             }
+            .sheet(isPresented: $showingPlaybackInfo) { PublicPlaybackInfoView(native: false) }
+            .onChange(of: session.queue.snapshot.current?.id, initial: true) { _, _ in
+                chosePresentation = false
+                presentation = session.currentTrack?.contentKind == .music ? .music : .video
+            }
+            .onChange(of: session.currentTrack?.contentKind) { _, kind in
+                if !chosePresentation, !session.isPlaybackCommandPending,
+                   session.state.state != .playing, session.state.state != .buffering {
+                    presentation = kind == .music ? .music : .video
+                }
+            }
+            .onChange(of: session.state.state) { _, state in
+                if state == .playing { chosePresentation = true }
+            }
+            .sheet(isPresented: $showingNotebook) {
+                NavigationStack {
+                    ScrollView {
+                        if let track = session.currentTrack {
+                            VStack(alignment: .leading, spacing: 20) {
+                                PublicCurrentBookmarkButton(session: session, trackID: track.id)
+                                PublicNotebookContent(session: session, trackID: track.id)
+                            }.padding(20)
+                        }
+                    }.navigationTitle("Notes & bookmarks").navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showingNotebook = false } } }
+                }
+            }
             .onAppear {
                 let created = YouTubeIFrameFactory.make()
                 adapter = created
                 session.attach(created)
+                session.continueSelectedQueuePlaybackWhenVisible()
             }
             .onDisappear {
                 session.detach()
                 adapter = nil
             }
-        }
+        }.tint(PublicStyle.gold)
     }
 
     private var playerColumn: some View {
         VStack(spacing: 0) {
-            videoSurface
-                .frame(maxWidth: 800)
-                .padding(24)
+            PublicPlayerModePicker(selection: Binding(get: { presentation }, set: { presentation = $0; chosePresentation = true }))
+                .frame(maxWidth: 340).padding(.top, 16)
+            GeometryReader { geometry in mediaSurface(width: min(500, geometry.size.width - 48)).frame(maxWidth: .infinity) }
+                .frame(height: 300).padding(.vertical, 16)
             ScrollView {
                 playerDetails
                     .frame(maxWidth: 750, alignment: .leading)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
-            }
+            }.accessibilityIdentifier("player.details")
         }
+    }
+
+    private func mediaSurface(width: CGFloat, maximumHeight: CGFloat? = nil) -> some View {
+        let availableWidth = max(272, width)
+        let artworkWidth = max(60, min(160, availableWidth - 212))
+        let videoWidth = presentation == .music ? max(200, availableWidth - artworkWidth - 12) : availableWidth
+        return HStack(spacing: presentation == .music ? 12 : 0) {
+            // Keep both child slots alive; only their frames change between layouts.
+            PublicPlayerArtwork(videoID: session.currentTrack?.publicVideoID?.rawValue)
+                .frame(width: presentation == .music ? artworkWidth : 0, height: 200)
+                .clipShape(RoundedRectangle(cornerRadius: 12)).opacity(presentation == .music ? 1 : 0)
+                .accessibilityHidden(true).allowsHitTesting(false)
+            videoSurface
+                .frame(width: videoWidth, height: presentation == .music ? 200 : min(maximumHeight ?? .infinity, max(200, videoWidth * 9 / 16)))
+        }.frame(maxWidth: .infinity)
     }
 
     private var videoSurface: some View {
         Group {
             if let adapter {
                 PublicIFrameSurface(adapter: adapter)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                    .frame(minHeight: 200)
+                    .frame(minWidth: 200, minHeight: 200)
                     .background(.black)
                     .accessibilityLabel("Visible YouTube player")
                     .accessibilityIdentifier("public.iframe")
+                    .accessibilityValue(playerDiagnosticValue(adapter))
             } else {
                 ProgressView("Preparing YouTube player")
                     .frame(maxWidth: .infinity)
-                    .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                    .frame(minWidth: 200, minHeight: 200)
             }
         }
     }
@@ -737,12 +766,11 @@ private struct PublicWebPlayerView: View {
                 VStack(alignment: .leading, spacing: 4) {
                 Text(session.currentTrack?.displayTitle ?? "Now Playing")
                     .font(.title2.weight(.semibold))
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                     .foregroundStyle(PublicStyle.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(session.state.state.rawValue.capitalized)
-                    .font(.subheadline)
-                    .foregroundStyle(PublicStyle.muted)
-                    .accessibilityIdentifier("public.playbackState")
+                Text(session.currentTrack?.displayArtist ?? "YouTube")
+                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 Button {
@@ -750,32 +778,101 @@ private struct PublicWebPlayerView: View {
                 } label: {
                     PublicIconActionLabel(title: session.currentTrack?.liked == true ? "Remove favorite" : "Favorite",
                         symbol: session.currentTrack?.liked == true ? "heart.fill" : "heart")
+                        .font(.system(size: 22))
                 }
             }
-            if let message = session.failureMessage {
+            playbackControls
+            PublicPlaybackStatus(state: session.state.state.rawValue.capitalized,
+                                 pending: session.isPlaybackCommandPending ? session.playbackToggleLabel : nil)
+            if let milliseconds = session.bookmarkCueMilliseconds {
+                let seconds = Int(milliseconds / 1000)
+                Text("Bookmark at \(seconds / 60):\(String(format: "%02d", seconds % 60)). Press Play to watch.")
+                    .font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("notebook.bookmarkTarget")
+            }
+            if let message = session.queueFailureMessage {
                 PublicNotice(message: message, symbol: "exclamationmark.circle")
             }
-            VStack(spacing: 8) {
+            if let message = session.playbackError, message != session.playbackCheckpoint.failure {
+                PublicNotice(message: message, symbol: "exclamationmark.circle")
+                ViewThatFits(in: .horizontal) {
+                    HStack { playbackRecoveryActions }
+                    VStack(alignment: .leading) { playbackRecoveryActions }
+                }
+            }
+            if let message = session.playbackCheckpoint.failure {
+                PublicNotice(message: message, symbol: "externaldrive.badge.exclamationmark")
+                Button("Retry saving position", systemImage: "arrow.clockwise") { session.retryPlaybackCheckpoint() }
+                    .frame(minHeight: 44).accessibilityIdentifier("public.retryCheckpoint")
+            }
+            if let message = session.playbackCommands.failure {
+                PublicNotice(message: message, symbol: "exclamationmark.circle")
+                if session.canRetryPlaybackCommand {
+                    Button("Retry control action", systemImage: "arrow.clockwise") { session.retryPlaybackCommand() }
+                        .frame(minHeight: 44).accessibilityIdentifier("public.retryPlaybackCommand")
+                }
+                if session.playbackError == nil,
+                   let video = session.currentTrack?.publicVideoID,
+                   let url = URL(string: "https://www.youtube.com/watch?v=\(video.rawValue)") {
+                    Button("Open YouTube", systemImage: "arrow.up.right") { openURL(url) }
+                        .frame(minHeight: 44).accessibilityIdentifier("public.openYouTube")
+                }
+            }
+        }.accessibilityElement(children: .contain)
+    }
+
+    private func playerDiagnosticValue(_ adapter: YouTubeIFrameAdapter) -> String {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["MUSES_UI_TEST_LIBRARY"] != nil {
+            return "\(ObjectIdentifier(adapter)) / webView \(ObjectIdentifier(adapter.view)) / generation \(adapter.currentGeneration) / \(session.currentTrack?.publicVideoID?.rawValue ?? "")"
+        }
+        #endif
+        return ""
+    }
+
+    private var playbackControls: some View {
+            VStack(spacing: 12) {
                 let duration = Double(session.state.durationMilliseconds ?? 0) / 1000
                 let position = Double(session.state.positionMilliseconds) / 1000
                 Slider(value: Binding(get: { scrubbing ? scrubPosition : min(position, max(1, duration)) }, set: { scrubPosition = $0 }), in: 0...max(1, duration), onEditingChanged: { editing in
                     if editing { scrubPosition = position; scrubbing = true }
                     else { scrubbing = false; session.seekPlayback(seconds: scrubPosition) }
                 }).disabled(!session.hasCurrentPlaybackTime || duration <= 0).accessibilityLabel("Playback position")
-                HStack(spacing: 24) {
-                    if let track = session.currentTrack { PublicCurrentBookmarkButton(session: session, trackID: track.id) }
-                    Spacer(minLength: 0)
-                    Button { session.state.state == .playing ? session.pause() : session.play() } label: {
-                        Image(systemName: session.state.state == .playing ? "pause.fill" : "play.fill").font(.system(size: 36)).frame(width: 64, height: 64)
-                    }.disabled(session.state.capabilities.isEmpty)
-                        .accessibilityLabel(session.state.state == .playing ? "Pause" : "Play")
-                    Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.title2).frame(width: 44, height: 44) }
-                        .disabled(!session.hasNext).accessibilityLabel("Next")
-                    Spacer(minLength: 0)
-                }.buttonStyle(.plain)
+                PublicPlaybackTimes(position: scrubbing ? scrubPosition : position, duration: duration)
+                ZStack {
+                    HStack {
+                        Button { showingNotebook = true } label: {
+                            Image(systemName: "text.bubble").font(.system(size: 22)).frame(width: 44, height: 44)
+                        }.accessibilityLabel("Notes & bookmarks").accessibilityIdentifier("player.notebook")
+                        Spacer(minLength: 0)
+                        HStack(spacing: 12) {
+                            Button { session.next() } label: { Image(systemName: "forward.end.fill").font(.system(size: 22)).frame(width: 44, height: 44) }
+                                .disabled(!session.hasNext).accessibilityLabel("Next")
+                            PublicQueueControl(session: session, identifier: "player.queue")
+                                .font(.system(size: 22))
+                        }
+                    }
+                    Button { session.togglePlayback() } label: {
+                        ZStack {
+                            Image(systemName: session.state.state == .playing || session.state.state == .buffering ? "pause.fill" : "play.fill")
+                                .font(.system(size: 32, weight: .semibold)).opacity(session.isPlaybackCommandPending ? 0.15 : 1)
+                            if session.isPlaybackCommandPending { ProgressView().accessibilityHidden(true) }
+                        }.frame(width: 64, height: 64)
+                            .background(PublicStyle.gold.opacity(0.12), in: Circle())
+                    }.disabled(session.state.capabilities.isEmpty || session.isPlaybackCommandPending)
+                        .accessibilityLabel(session.playbackToggleLabel)
+                        .accessibilityIdentifier("public.playbackToggle")
+                }.frame(height: 72).buttonStyle(.plain)
             }
+    }
 
-            .accessibilityElement(children: .contain)
+    @ViewBuilder private var playbackRecoveryActions: some View {
+        Button("Retry playback", systemImage: "arrow.clockwise") { session.retryPlayback() }
+            .buttonStyle(.borderedProminent).frame(minHeight: 44)
+            .disabled(!session.canRetryPlayback).accessibilityIdentifier("public.retryPlayback")
+        if let video = session.currentTrack?.publicVideoID,
+           let url = URL(string: "https://www.youtube.com/watch?v=\(video.rawValue)") {
+            Button("Open YouTube", systemImage: "arrow.up.right") { openURL(url) }
+                .buttonStyle(.bordered).frame(minHeight: 44).accessibilityIdentifier("public.openYouTube")
         }
     }
 
@@ -807,13 +904,17 @@ private struct PublicWebPlayerView: View {
             } else {
                 ForEach(session.queue.snapshot.upcoming) { entry in
                     HStack {
-                        PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID })
+                        Button {
+                            if session.selectQueueEntry(entry.id) { session.continueSelectedQueuePlaybackWhenVisible() }
+                        } label: {
+                            PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID }).frame(minHeight: 44)
+                        }.buttonStyle(.plain)
                         Menu("Queue actions", systemImage: "ellipsis.circle") {
                             Button("Move to next") { session.editQueue { try $0.reorder(id: entry.id, to: 0) } }
                             Button("Remove from queue", role: .destructive) { removedEntries = [entry.id]; confirmingRemoval = true }
                         }
                     }
-                    .padding(12)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(PublicStyle.background, in: RoundedRectangle(cornerRadius: 12))
                 }
             }
@@ -1026,7 +1127,8 @@ struct PublicVideoDetail: View {
                 }
                 PublicNotebookSections(session: session, trackID: trackID)
             }
-            if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
+            if let message = session.queueFailureMessage { Text(message).foregroundStyle(.red) }
+            if let message = session.failureMessage, message != session.queueFailureMessage { Text(message).foregroundStyle(.red) }
         }
         .navigationTitle("Details")
         .navigationBarTitleDisplayMode(.inline)
@@ -1062,8 +1164,60 @@ struct PublicVideoDetail: View {
     }
 }
 
+/// Local presentation also works from the iOS tab accessory, outside a NavigationStack.
+struct PublicQueueControl: View {
+    let session: PublicYouTubeSession
+    var identifier = "public.queue"
+    var onOpenQueue: (() -> Void)? = nil
+    @State private var showingQueue = false
+    @State private var openPlayerAfterDismissal = false
+
+    var body: some View {
+        Button {
+            if let onOpenQueue { onOpenQueue() }
+            else { showingQueue = true }
+        } label: {
+            PublicIconActionLabel(title: "Queue", symbol: "list.bullet")
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue("\(session.queue.snapshot.upcoming.count) upcoming")
+        .accessibilityIdentifier(identifier)
+        .sheet(isPresented: $showingQueue, onDismiss: {
+            if openPlayerAfterDismissal {
+                openPlayerAfterDismissal = false
+                session.showPlayer = true
+            }
+            session.continueSelectedQueuePlaybackWhenVisible()
+        }) {
+            PublicQueueSheet(session: session, onClose: { showingQueue = false }, onOpenPlayer: {
+                openPlayerAfterDismissal = !session.showPlayer
+                showingQueue = false
+            })
+        }
+    }
+}
+
+private struct PublicQueueSheet: View {
+    let session: PublicYouTubeSession
+    let onClose: () -> Void
+    let onOpenPlayer: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            PublicQueueView(session: session, onOpenPlayer: onOpenPlayer)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Close", action: onClose)
+                            .accessibilityLabel("Close Queue").accessibilityIdentifier("player.queue.close")
+                    }
+                }
+        }
+    }
+}
+
 struct PublicQueueView: View {
     let session: PublicYouTubeSession
+    var onOpenPlayer: (() -> Void)? = nil
     @State private var removedEntries: [UUID] = []
     @State private var confirmingRemoval = false
     var body: some View {
@@ -1073,7 +1227,9 @@ struct PublicQueueView: View {
                     HStack {
                         PublicQueueTrackLabel(track: current)
                         Spacer()
-                        Button { session.showPlayer = true } label: { PublicIconActionLabel(title: "Open visible player", symbol: "play.fill") }
+                        Button {
+                            if let onOpenPlayer { onOpenPlayer() } else { session.showPlayer = true }
+                        } label: { PublicIconActionLabel(title: "Open visible player", symbol: "play.fill") }
                     }.buttonStyle(.borderless)
                 }
             }
@@ -1082,8 +1238,14 @@ struct PublicQueueView: View {
                     Text("The queue is empty. Add videos from video details or a local playlist.").foregroundStyle(.secondary)
                 }
                 ForEach(session.queue.snapshot.upcoming) { entry in
-                    HStack {
-                        PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID }, identifier: "queue.entry.\(entry.id)")
+                    HStack(spacing: 8) {
+                        Button {
+                            guard session.selectQueueEntry(entry.id) else { return }
+                            if let onOpenPlayer { onOpenPlayer() } else { session.showPlayer = true }
+                        } label: {
+                            PublicQueueTrackLabel(track: session.tracks.first { $0.id == entry.trackID }, identifier: "queue.entry.\(entry.id)")
+                                .frame(minHeight: 44).contentShape(Rectangle())
+                        }.buttonStyle(.plain).accessibilityIdentifier("queue.select.\(entry.id)")
                         Menu {
                             Button("Move to next", systemImage: "text.line.first.and.arrowtriangle.forward") {
                                 session.editQueue { try $0.reorder(id: entry.id, to: 0) }
@@ -1092,7 +1254,7 @@ struct PublicQueueView: View {
                                 removedEntries = [entry.id]; confirmingRemoval = true
                             }
                         } label: { PublicIconActionLabel(title: "Queue actions", symbol: "ellipsis") }
-                    }
+                    }.listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 12))
                 }
                 .onDelete { indices in
                     removedEntries = indices.map { session.queue.snapshot.upcoming[$0].id }; confirmingRemoval = true
@@ -1111,7 +1273,7 @@ struct PublicQueueView: View {
                     PublicClearUpNextButton(session: session)
                 }
             }
-            if let message = session.failureMessage { Text(message).foregroundStyle(.red) }
+            if let message = session.queueFailureMessage { Text(message).foregroundStyle(.red) }
         }
         .alert("Remove selected queue entries?", isPresented: $confirmingRemoval) {
             Button("Cancel", role: .cancel) {}
@@ -1149,10 +1311,12 @@ private struct PublicQueueTrackLabel: View {
     let track: MusesDomain.Track?
     var identifier = ""
     var body: some View {
-        HStack(spacing: 12) {
-            PublicCompactHeroCover(videoID: track?.publicVideoID?.rawValue)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(track?.displayTitle ?? "Unavailable song").font(.subheadline.weight(.medium)).lineLimit(2).accessibilityIdentifier(identifier)
+        HStack(spacing: 10) {
+            PublicPlayerArtwork(videoID: track?.publicVideoID?.rawValue)
+                .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 7))
+                .accessibilityHidden(true).allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(track?.displayTitle ?? "Unavailable song").font(.subheadline.weight(.medium)).fixedSize(horizontal: false, vertical: true).accessibilityIdentifier(identifier)
                 Text(track?.displayArtist ?? "Unknown artist").font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }.frame(maxWidth: .infinity, alignment: .leading)
         }.frame(maxWidth: .infinity, alignment: .leading)

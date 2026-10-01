@@ -69,3 +69,7 @@ The proof types, exact-file requirements and ongoing token retention follow [Sea
 ## Follow-up: selected host and prepared deployment
 
 The owner selected `xiaotwu.github.io` on 2026-09-27. [The deployment plan](pages-deployment-plan.md) records actual 404 observations, the new manual project Pages workflow and the passive separate host-root homepage. This supersedes the earlier statement that no workflow is prepared; neither artifact has been pushed/deployed and no root verification token exists. Policy and terms now use version `2026-09-27.2` to reflect content-status checks; retention/provider reconciliation remains open before public publication.
+
+## Family migration — 2026-09-30
+
+Project-Muses is now the sole website publication repository. The former Erato Pages workflow is removed. Reviewed local output from `scripts/build-privacy-site.py` is mirrored into the parent `docs/ios/` via `scripts/sync-site-assets.py`; run its `--check` parity gate before publishing. URLs are `https://xiaotwu.github.io/Project-Muses/ios/`, `.../ios/privacy.html` and `.../ios/terms.html`. Historical `/Muses-Erato/` deployment instructions above are superseded. Google Cloud consent URLs, App Store Connect metadata and host ownership verification must be updated separately; moving source does not change those service settings or certify verification.

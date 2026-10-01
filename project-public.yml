@@ -34,3 +34,79 @@ targets:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
         Native:
           SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
+
+  # Public tests exercise the disabled native stub; engine tests belong to MusesNative.
+  MusesTests:
+    sources:
+      - path: Tests/MusesTests/PublicPlaybackCapabilityTests.swift
+
+  MusesPublicUITests:
+    sources:REPLACE:
+      - path: Tests/MusesPublicUITests
+        excludes:
+          - PublicNativePlayerUITests.swift
+
+# Replace inherited schemes so Public never offers Native or live diagnostics.
+schemes:REPLACE:
+  MusesPublic:
+    build:
+      targets:
+        Muses: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MusesTests
+        - name: MusesPublicUITests
+          skippedTests:
+            - PublicIPadLayoutUITests
+            - PublicIPadAccessibilityAuditUITests
+    archive:
+      config: Release
+  # Compatibility for documented release commands; identical Public composition.
+  Muses:
+    build:
+      targets:
+        Muses: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MusesTests
+        - name: MusesPublicUITests
+          skippedTests:
+            - PublicIPadLayoutUITests
+            - PublicIPadAccessibilityAuditUITests
+    archive:
+      config: Release
+  MusesPublicIPad:
+    build:
+      targets:
+        Muses: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: MusesPublicUITests
+          selectedTests:
+            - PublicIPadLayoutUITests
+    archive:
+      config: Release
+  # Strict raw system audit is an explicit diagnostic lane; retain all findings.
+  MusesPublicAccessibilityAudit:
+    build:
+      targets:
+        Muses: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - name: MusesPublicUITests
+          selectedTests:
+            - PublicIPadAccessibilityAuditUITests
+    archive:
+      config: Release

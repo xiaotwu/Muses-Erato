@@ -116,6 +116,7 @@ struct PublicCatalogDetail: View {
     private var item: MusesCatalog.CatalogItem? { metadata.items.first }
     var body: some View {
         List {
+            if let error = session.queueFailureMessage { PublicNotice(message: error, symbol: "exclamationmark.circle") }
             Section {
                 if let item {
                     Text(item.title).font(.headline)
