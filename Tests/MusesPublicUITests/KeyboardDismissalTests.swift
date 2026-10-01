@@ -25,6 +25,24 @@ import XCTest
         expectNoKeyboard(app)
     }
 
+    func testFirstOpenTapWithKeyboardVisibleOpensPlayer() {
+        let app = XCUIApplication()
+        app.launchEnvironment["MUSES_UI_TEST_LIBRARY"] = UUID().uuidString
+        app.launchEnvironment["MUSES_UI_TEST_CATALOG"] = "fixtures"
+        app.launch()
+        XCTAssertTrue(app.buttons["public.add"].waitForExistence(timeout: 10))
+        app.buttons["public.add"].tap()
+        app.buttons["public.add.openLink"].tap()
+        let link = app.textFields["public.link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap(); link.typeText("https://www.youtube.com/watch?v=abcdefghijk")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["public.open"].isEnabled)
+        app.buttons["public.open"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 10), "One Open tap must enter the player while the keyboard is showing")
+        XCTAssertTrue(link.waitForNonExistence(timeout: 3), "Open must close its input sheet")
+    }
+
     private func tapNonInputContent(_ content: XCUIElement) {
         XCTAssertTrue(content.waitForExistence(timeout: 3))
         XCTAssertTrue(content.isHittable, "Expected visible non-input content above the keyboard")

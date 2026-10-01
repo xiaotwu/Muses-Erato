@@ -132,3 +132,33 @@ run36787236113失败仍在Home Open link首次expectNoKeyboard，Search段通过
 t36.10通用predicate开始查询Keyboard.exists，t38.32内部retry1/retry2，t38.62外层3秒wait超时；嵌套隐式重试占据deadline，缺少及时无重试fresh absence评估。最小测试同步修复：改XCTest原生waitForNonExistence(timeout:3)，保持同一Keyboard查询、严格元素不存在、同3秒上限、原outside tap/keyboard出现/内容hittable断言，不改exists为hittable、删断言或加sleep，不改生产/布局/多选。此为可验证同步假设，尚待本机针对性复验及新hosted验证。
 
 原生absence等待修复已完成，仅KeyboardDismissalTests.swift改3行。`keyboard-native-absence-wait.xcresult` SUCCEEDED；Xcode log明确Iteration1/3、2/3、3/3均passed（21.950s/21.626s/21.568s），每次实际Home帮助文字outside tap及Search idle outside tap两段、Keyboard先出现后严格nonexistence都通过。工具summary合并相同test identifier显示1passed，不把该summary误报成只执行一次。没有生产改动、timeout变更、skip、sleep、hittable替代不存在或布局修改。当前test source冻结、可集成；下一hosted需验证间歇同步失败是否消失，本机三次通过不等于已证实远程根因。未commit/push。
+
+## 实机首次Open触摸保护最小生产修复
+
+主线程授权，仅PublicKeyboardDismissal.swift增加轻量UIViewRepresentable marker及主线程弱UIView registry；delegate按同UIWindow、marker真实convert(bounds,to:window)判断触点，保护区return false。Root仅linkCard的public.open Button.background加marker。按钮action独占取消focus/关闭sheet/启动openLink，Help正文仍交给外点手势；既有UIControl、UITextView、alert过滤未动。没有SwiftUI global坐标猜测、AX/private类名、delay/sleep或全窗口手势泛改。
+
+新增KeyboardDismissalTests.testFirstOpenTapWithKeyboardVisibleOpensPlayer：fixture fullURL输入后验证keyboard确实出现、按钮enabled，仅第一次tap public.open，原10s内iframe出现并3s内link sheet元素消失；没有第二tap或手动先收键盘。与原Help+SearchoutsideTap用例共两项sim验证运行中。生产修改意味着旧签名artifact不再匹配，QA/signed与真机操作由主线程重建负责。本线不操作device/commit/push；未触及Search/modes/Queue/palette/video区域。
+
+Open保护修复验证完成：keyboard-protected-open-ui.xcresult 2/2passed、0failed/0skipped，55.3s。新首次Open用例在keyboard可见时一次点击直接进入iframe并关闭输入sheet；原Home帮助文字+Search idle外点后Keyboard严格nonexistence保持通过。当前keyboard生产/test源已冻结，无其它待修改项。Simulator证明回归路径正确，实机原失败根因的UIKit类型/触摸排序仍属推断，须主线程基于新签名QA复验一击Open。旧签名artifact不可当新marker代码验收。没有设备操作/commit/push。
+
+## 首次Open实机证据更新与生产补丁撤销（2026-09-30 18:05 PDT）
+
+本节更新上述保护区域方案的判断，保留先前记录作为历史。主线程实机 bundle `/tmp/muses-device-open-protected-live-20260930.xcresult` 中，fixture 首次Open用例通过（16.582s），三个live打开路径仍失败。只读附件 `.artifacts/remaining-quality/device-open-protected-attachments/manifest.json` 与事件archive发现：三个live Open实际触点均为(321.69,529.35)，失败AX中的按钮frame均为(293,161,68,58)，输入框仍Keyboard Focused且键盘存在。Queue输入值准确为M7lc1UVf-VE；另外两项发送完整URL，AX值截断，不能将发送字符串冒称完整AX字段值。
+
+Queue录屏90E054E8-399D-42BE-B11F-4809B8E0A7C0.mp4在对应点击附近约10.38s显示键盘展开、Sheet从medium上移，按钮已移至约y=257…314，实际y=529.35触点落于按钮下方空白；11.2s时Sheet完全展开、键盘仍可见。因此有直接证据支持live在布局变化期间点击旧位置；没有证据据此归因网络或中文输入法组合状态。fixture输入后额外等待键盘存在并查询Open enabled，live原路径直接tap；成功fixture没有保存事件附件，不能提供其实际触点/frame作数值对照。
+
+仅两个live测试文件修正布局同步：PublicLiveServiceUITests中的共享tapOpenLinkAfterKeyboardAppears helper等待Keyboard存在（原fixture同3秒），查询Open enabled/isHittable，读取当前按钮及窗口frame，保留几何附件，以当前frame中心转换为窗口坐标发送唯一一次tap；PublicLivePlaybackCommandUITests的Queue open helper及cycles打开路径均复用。无sleep、二次tap或提前dismiss，全部真实Playing/Paused、Queue、mode、横屏及前台生命周期断言保留。Swift语法解析及git diff --check通过；本线没有执行实机测试。
+
+主线程随后报告当前frame同步修正后的实机结果：Queue真实actualPlaying与独立RealVisiblePlayer两项2/2通过；cycles/mode方法仅首Play pending阶段的AX bounds predicate失败，后续三轮均确认Playing/Paused，模式、横屏及前台要求均通过。因此不能把该方法或整组实机结果声明全部通过，剩余失败仍需主线程处理。
+
+保护区域生产补丁缺少独立必要性证据：修前失败未排除同类旧坐标问题，修后fixture成功也不能单独证明marker因果。主线程已撤销未提交的PublicKeyboardDismissal保护区域35行及Root marker1行，Root/helper恢复HEAD；上述sim2/2与首次实机fixture通过仅代表当时含marker版本，不是撤销后生产源码验收。下一次实机验证将测试原生产源码配合已修正的live同步，尚未取得其结果。本线仅追加此文档，tests/production保持冻结，不再写入；实机操作、后续验证与集成均由主线程负责。
+
+## 多选Search最终实机验收与冻结（2026-09-30 18:35 PDT）
+
+实机菜单失败附件确认测试定位与菜单滚动问题，不需要生产修改。`.artifacts/remaining-quality/device-layout-final-attachments/` 的普通录屏AA2D3188-BA11-47A6-A572-774B426C2AC0.mp4在15.3s显示同一次展开连续勾选后五项全部选中、菜单持续打开；失败AX菜单按钮保留文字label却没有SwiftUI自定义identifier，菜单打开时背景Filters也未暴露。测试因此改用菜单实际文字按钮可点击状态验证连续选择，菜单内Channels移除/最后Source和Type禁用断言保持；关闭后原3秒等待文字菜单按钮消失，并检查Filters恢复exists/isHittable，再读取其value。
+
+后续最大字号录屏 `.artifacts/remaining-quality/device-final-acceptance-attachments/F4C59272-E4A8-4D74-A254-9DC6B65B0FA7.mp4` 的15s画面确认菜单滚动至Type，固定顶部On this device已离屏，Playlists和Channels仍可见；仅将连续选择循环的post-tap检查目标改成刚刚点击的choice.isHittable。仍同次展开且无重开、无sleep，保留全部真实多source/type组合、四项结果、submitted身份、菜单内禁用和Channels移除断言。PublicQueuePlacementUITests.openPlayer同时复用此前当前frame唯一一次Open helper，生产和helper未再修改。
+
+主线程最终实机验收报告11个distinct方法全部通过（多批针对性结果合计，不冒称单bundle全套）：普通多选31.114s、最大字号多选38.134s；撤销保护region后的原生产首次Open15.392s、Home/Search outside dismissal21.653s；Queue布局ordinary39.285s/max41.207s；三个真实player/Queue/严格几何/modes/lifecycle方法全部通过；Search11.386s；完整playlist最终125.232s。这更新上节撤销后待验证与cycles剩余失败状态，原生产首次Open和外点路径均已取得实机通过证据。真实播放及其它workstream详细附件由主线程质量记录负责，本线只引用其最终验收报告，不声明自己操作了实机。
+
+QA已恢复normal启动，无fixture环境。本线production/tests/docs全部冻结，不再修改源码、测试或设备，不再发起验证；主线程可以基于当前工作区commit/push。本节仅追加最终证据，保留旧失败与旧版本验证记录及时间边界。

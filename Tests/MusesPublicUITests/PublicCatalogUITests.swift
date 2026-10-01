@@ -266,7 +266,11 @@ extension XCTestCase {
     @MainActor func closeSearchFilters(in app: XCUIApplication) {
         // Tap the blank content inset, outside the anchored system menu.
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5)).tap()
-        XCTAssertTrue(app.buttons["public.searchSource.saved"].waitForNonExistence(timeout: 3))
+        // System menu actions can expose their labels without SwiftUI identifiers.
+        XCTAssertTrue(app.buttons["On this device"].waitForNonExistence(timeout: 3))
+        let filters = app.buttons["public.searchFilters"]
+        XCTAssertTrue(filters.exists, "Closing the menu restores the presenting toolbar to accessibility")
+        XCTAssertTrue(filters.isHittable)
     }
     @MainActor func selectSearchFilter(_ choice: String, group: String, in app: XCUIApplication) {
         let current = app.buttons["public.searchFilters"].value as? String ?? ""
@@ -301,7 +305,7 @@ extension PublicCatalogUITests {
         XCTAssertFalse(app.buttons["Videos"].isEnabled, "The last selected type cannot be cleared")
         for choice in ["On this device", "Playlists", "Channels"] {
             app.buttons[choice].tap()
-            XCTAssertTrue(app.buttons["public.searchSource.saved"].exists, "Keep menu open for consecutive selections")
+            XCTAssertTrue(app.buttons[choice].isHittable, "Keep menu open for consecutive selections")
         }
         closeSearchFilters(in: app)
         let selected = filters.value as? String ?? ""
@@ -325,12 +329,14 @@ extension PublicCatalogUITests {
             XCTAssertTrue(app.staticTexts[title].firstMatch.exists)
         }
         filters.tap(); app.buttons["YouTube"].tap()
-        XCTAssertFalse((filters.value as? String ?? "").contains("Channels"))
+        XCTAssertTrue(app.buttons["On this device"].isHittable, "The source menu remains open while Channels is removed")
         XCTAssertFalse(app.buttons["Channels"].exists)
         XCTAssertFalse(app.buttons["On this device"].isEnabled)
         app.buttons["Videos"].tap()
         XCTAssertFalse(app.buttons["Playlists"].isEnabled)
         closeSearchFilters(in: app)
+        // The system menu can hide its presenting toolbar from accessibility.
+        XCTAssertFalse((filters.value as? String ?? "").contains("Channels"))
         XCTAssertEqual(heading.label, originalHeading, "Draft changes retain every submitted source and kind")
     }
 }

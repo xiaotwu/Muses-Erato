@@ -14,7 +14,7 @@ import XCTest
         app.buttons["public.add"].tap(); app.buttons["public.add.openLink"].tap()
         let field = app.textFields["public.link"]
         XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap(); field.typeText(videoID)
-        app.buttons["public.open"].tap()
+        tapOpenLinkAfterKeyboardAppears(in: app)
         XCTAssertTrue(app.buttons["Close player"].waitForExistence(timeout: 10))
     }
     private func reveal(_ element: XCUIElement, app: XCUIApplication) {

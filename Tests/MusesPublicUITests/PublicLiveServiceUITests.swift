@@ -35,7 +35,7 @@ import XCTest
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText("https://www.youtube.com/watch?v=M7lc1UVf-VE")
-        app.buttons["public.open"].tap()
+        tapOpenLinkAfterKeyboardAppears(in: app)
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 30))
         let state = app.staticTexts["public.playbackState"]
         let playing = NSPredicate(format: "label == 'Playing'")
@@ -51,5 +51,28 @@ import XCTest
         app.buttons["Pause"].tap()
         let paused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Paused'"), object: state)
         XCTAssertEqual(XCTWaiter.wait(for: [paused], timeout: 10), .completed)
+    }
+}
+
+extension XCTestCase {
+    @MainActor func tapOpenLinkAfterKeyboardAppears(in app: XCUIApplication) {
+        // Typing can finish before the keyboard has moved the sheet from its medium detent.
+        // Resolve the button again after keyboard presentation, then send exactly one tap.
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        let button = app.buttons["public.open"]
+        XCTAssertTrue(button.isEnabled)
+        XCTAssertTrue(button.isHittable)
+        let frame = button.frame
+        XCTAssertFalse(frame.isEmpty)
+        XCTAssertTrue(frame.midX.isFinite && frame.midY.isFinite)
+        let window = app.windows.firstMatch
+        let windowFrame = window.frame
+        let observation = XCTAttachment(string: "Open frame: \(frame); window frame: \(windowFrame); single tap: (\(frame.midX), \(frame.midY))")
+        observation.name = "Open link layout before first tap"
+        observation.lifetime = .keepAlways
+        add(observation)
+        window.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: frame.midX - windowFrame.minX, dy: frame.midY - windowFrame.minY))
+            .tap()
     }
 }

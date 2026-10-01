@@ -43,7 +43,7 @@ import XCTest
         XCTAssertTrue(app.textFields["public.link"].waitForExistence(timeout: 10))
         app.textFields["public.link"].tap()
         app.textFields["public.link"].typeText(id)
-        app.buttons["public.open"].tap()
+        tapOpenLinkAfterKeyboardAppears(in: app)
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 15))
     }
     private func playlists(_ app: XCUIApplication) {
@@ -132,18 +132,61 @@ import XCTest
         app.buttons["YouTube video M7lc1UVf-VE"].tap()
         XCTAssertFalse(app.buttons["YouTube video dQw4w9WgXcQ"].isEnabled)
         app.buttons["Done"].tap()
+        guard app.navigationBars["Add saved videos"].waitForNonExistence(timeout: 5) else {
+            XCTFail("The add-videos sheet must close before editing the playlist")
+            return
+        }
         XCTAssertTrue(app.staticTexts["Videos · 2"].exists)
+        let initialPlaylistFirst = app.cells.containing(.staticText, identifier: "YouTube video dQw4w9WgXcQ").firstMatch
+        let initialPlaylistSecond = app.cells.containing(.staticText, identifier: "YouTube video M7lc1UVf-VE").firstMatch
+        XCTAssertLessThan(initialPlaylistFirst.frame.minY, initialPlaylistSecond.frame.minY, "Verify the starting order before reversing it")
         app.buttons["Edit"].tap()
         let handles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Reorder'"))
         XCTAssertEqual(handles.count, 2)
-        if handles.count == 2 { handles.element(boundBy: 1).press(forDuration: 0.5, thenDragTo: handles.element(boundBy: 0)) }
+        if handles.count == 2 {
+            let first = handles.element(boundBy: 0), second = handles.element(boundBy: 1)
+            XCTAssertTrue(first.isHittable && second.isHittable)
+            let crossing = min(24, (second.frame.midY - first.frame.midY) / 3)
+            XCTAssertGreaterThan(crossing, 0)
+            let destination = first.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .withOffset(CGVector(dx: 0, dy: -crossing))
+            second.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 0.5, thenDragTo: destination)
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            guard initialPlaylistFirst.exists, initialPlaylistSecond.exists else { return false }
+            let originalFirst = initialPlaylistFirst.frame, movedFirst = initialPlaylistSecond.frame
+            return !originalFirst.isEmpty && !movedFirst.isEmpty && originalFirst.minY.isFinite && movedFirst.minY.isFinite
+                && movedFirst.minY < originalFirst.minY
+        }, object: nil)], timeout: 5), .completed, "The playlist must actually reverse its two rows before Done and enqueue")
         app.buttons["Done"].tap()
         app.buttons["playlist.actions"].tap()
         app.buttons["Rename playlist"].tap()
         let field = app.alerts.textFields.firstMatch
         field.tap()
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 7) + "Night")
-        app.alerts.buttons["Save"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        let typedName = field.value as? String
+        let inputObservation = XCTAttachment(string: "Rename field after typing: \(String(describing: typedName))")
+        inputObservation.name = "Rename playlist input"; inputObservation.lifetime = .keepAlways; add(inputObservation)
+        XCTAssertEqual(typedName, "Night", "Verify the actual replacement before saving")
+        guard typedName == "Night" else {
+            let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            shot.name = "Unexpected rename input"; shot.lifetime = .keepAlways; add(shot)
+            return
+        }
+        let save = app.alerts.buttons["Save"]
+        XCTAssertTrue(save.isEnabled); XCTAssertTrue(save.isHittable)
+        let saveFrame = save.frame
+        let window = app.windows.firstMatch, windowFrame = window.frame
+        XCTAssertFalse(saveFrame.isEmpty)
+        XCTAssertTrue(saveFrame.midX.isFinite && saveFrame.midY.isFinite && windowFrame.contains(saveFrame))
+        let saveObservation = XCTAttachment(string: "Save frame: \(saveFrame); window frame: \(windowFrame); single tap: (\(saveFrame.midX), \(saveFrame.midY))")
+        saveObservation.name = "Rename Save layout before first tap"; saveObservation.lifetime = .keepAlways; add(saveObservation)
+        window.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: saveFrame.midX - windowFrame.minX, dy: saveFrame.midY - windowFrame.minY))
+            .tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForNonExistence(timeout: 5), "Saving must dismiss the rename alert")
         XCTAssertTrue(app.navigationBars["Night"].exists)
         app.buttons["Add playlist to queue"].tap()
         app.terminate()

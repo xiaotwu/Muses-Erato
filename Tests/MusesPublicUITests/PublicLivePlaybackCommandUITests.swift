@@ -14,7 +14,7 @@ import XCTest
             XCTAssertTrue(field.waitForExistence(timeout: 5)); field.tap()
             field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: (field.value as? String)?.count ?? 0))
             field.typeText(id)
-            app.buttons["public.open"].tap()
+            tapOpenLinkAfterKeyboardAppears(in: app)
             XCTAssertTrue(app.buttons["Close player"].waitForExistence(timeout: 15))
         }
         open("M7lc1UVf-VE")
@@ -67,29 +67,99 @@ import XCTest
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText("https://www.youtube.com/watch?v=M7lc1UVf-VE")
-        app.buttons["public.open"].tap()
+        tapOpenLinkAfterKeyboardAppears(in: app)
         XCTAssertTrue(app.descendants(matching: .any)["public.iframe"].waitForExistence(timeout: 30))
         let state = app.staticTexts["public.playbackState"]
         let toggle = app.buttons["public.playbackToggle"]
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Ready' OR label == 'Paused'"), object: state)], timeout: 45), .completed)
-        let toggleFrame = toggle.frame
-        let queue = app.buttons["player.queue"]
-        let queueFrame = queue.frame
+        var baseline: (main: CGRect, queue: CGRect)?
+        var lastSnapshot: (any XCUIElementSnapshot)?
+        var observations: [String] = []
+        var measurementIndex = 0
+        func validFrame(_ frame: CGRect) -> Bool {
+            !frame.isEmpty && [frame.minX, frame.minY, frame.maxX, frame.maxY, frame.width, frame.height].allSatisfy { $0.isFinite }
+        }
+        func sampleControls() -> (main: CGRect, queue: CGRect)? {
+            do {
+                let snapshot = try app.snapshot()
+                lastSnapshot = snapshot
+                var pending: [any XCUIElementSnapshot] = [snapshot]
+                var nodes: [any XCUIElementSnapshot] = []
+                while let node = pending.popLast() {
+                    nodes.append(node)
+                    pending.append(contentsOf: node.children)
+                }
+                observations.append("Window: \(snapshot.frame)")
+                var controls: [String: CGRect] = [:]
+                for identifier in ["public.playbackToggle", "player.queue"] {
+                    let matches = nodes.filter { $0.identifier == identifier }
+                    observations.append("\(identifier): \(matches.count) matches")
+                    for node in matches {
+                        observations.append("type=\(node.elementType.rawValue), enabled=\(node.isEnabled), frame=\(node.frame)")
+                    }
+                    let candidates = matches.filter {
+                        $0.elementType == .button && validFrame($0.frame) && validFrame(snapshot.frame)
+                            && snapshot.frame.contains($0.frame)
+                    }
+                    if let frame = candidates.first?.frame,
+                       candidates.allSatisfy({ $0.frame == frame }) {
+                        controls[identifier] = frame
+                    } else {
+                        observations.append("No unique finite, nonempty button position inside the window for \(identifier)")
+                    }
+                }
+                guard let main = controls["public.playbackToggle"], let queue = controls["player.queue"] else { return nil }
+                return (main, queue)
+            } catch {
+                observations.append("Snapshot failed: \(error)")
+                return nil
+            }
+        }
+        func recordGeometry(_ reason: String, failed: Bool) {
+            measurementIndex += 1
+            let attachment = XCTAttachment(string: "\(reason)\nBaseline: \(String(describing: baseline))\n" + observations.joined(separator: "\n"))
+            attachment.name = "Player control measurement \(measurementIndex)"
+            attachment.lifetime = .keepAlways; add(attachment)
+            if failed {
+                if let snapshot = lastSnapshot {
+                    let tree = XCTAttachment(string: String(describing: snapshot.dictionaryRepresentation))
+                    tree.name = "Failed control measurement AX tree"; tree.lifetime = .keepAlways; add(tree)
+                }
+                let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                shot.name = "Failed control measurement screen"; shot.lifetime = .keepAlways; add(shot)
+            }
+        }
+        guard let initial = sampleControls() else {
+            recordGeometry("Invalid baseline", failed: true)
+            XCTFail("AX must expose finite baseline control frames in the same snapshot")
+            return
+        }
+        baseline = initial
+        let toggleFrame = initial.main, queueFrame = initial.queue
+        recordGeometry("Baseline", failed: false)
         func assertStableControls() {
-            var measuredToggle = CGRect.zero
-            var measuredQueue = CGRect.zero
+            observations.removeAll(keepingCapacity: true)
+            var measured: (main: CGRect, queue: CGRect)?
             let frames = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-                let mainFrame = toggle.frame, queueRect = queue.frame
-                guard mainFrame.minY.isFinite, queueRect.minY.isFinite, !mainFrame.isEmpty, !queueRect.isEmpty else { return false }
-                measuredToggle = mainFrame; measuredQueue = queueRect
+                guard let controls = sampleControls() else { return false }
+                measured = controls
                 return true
             }, object: nil)
-            XCTAssertEqual(XCTWaiter.wait(for: [frames], timeout: 2), .completed, "AX must expose finite control frames")
+            let result = XCTWaiter.wait(for: [frames], timeout: 2)
+            recordGeometry("Same-snapshot sampling result: \(result.rawValue); actual: \(String(describing: measured))", failed: result != .completed || measured == nil)
+            guard result == .completed, let measured else {
+                XCTFail("AX must expose finite control frames in the same snapshot within 2 seconds")
+                return
+            }
+            let measuredToggle = measured.main, measuredQueue = measured.queue
             XCTAssertEqual(measuredToggle.minY, toggleFrame.minY, accuracy: 1, "State feedback must not move the main control")
             XCTAssertEqual(measuredToggle.midX, toggleFrame.midX, accuracy: 1)
+            XCTAssertEqual(measuredToggle.width, 64, accuracy: 0.001)
             XCTAssertEqual(measuredToggle.height, 64, accuracy: 0.001)
             XCTAssertEqual(measuredQueue.minY, queueFrame.minY, accuracy: 1, "Queue must remain in its control slot")
             XCTAssertEqual(measuredQueue.minX, queueFrame.minX, accuracy: 1)
+            XCTAssertGreaterThanOrEqual(measuredQueue.width, 44 - 0.000001)
+            XCTAssertGreaterThanOrEqual(measuredQueue.height, 44 - 0.000001)
         }
         var timing: [String] = []
         for index in 1...3 {
